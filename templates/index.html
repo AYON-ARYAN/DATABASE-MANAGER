@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>AI Database Manager</title>
+
+  <style>
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      background-color: #f2f4f7;
+      margin: 0;
+      padding: 0;
+      color: #2c2c2c;
+    }
+
+    .container {
+      max-width: 1000px;
+      margin: 30px auto;
+      padding: 0 20px;
+    }
+
+    .header {
+      background-color: #ffffff;
+      padding: 20px;
+      border-radius: 6px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      margin-bottom: 20px;
+      text-align: center;
+    }
+
+    .header h1 {
+      margin: 0;
+      font-size: 24px;
+    }
+
+    .card {
+      background-color: #ffffff;
+      padding: 20px;
+      border-radius: 6px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      margin-bottom: 20px;
+    }
+
+    label {
+      font-weight: bold;
+      display: block;
+      margin-bottom: 8px;
+    }
+
+    textarea {
+      width: 100%;
+      height: 90px;
+      padding: 10px;
+      font-size: 14px;
+      box-sizing: border-box;
+      border-radius: 4px;
+      border: 1px solid #ccc;
+    }
+
+    textarea:focus {
+      outline: none;
+      border-color: #007aff;
+    }
+
+    .btn {
+      padding: 10px 16px;
+      font-size: 14px;
+      border-radius: 4px;
+      border: none;
+      cursor: pointer;
+    }
+
+    .btn-primary {
+      background-color: #007aff; /* Safari blue */
+      color: #ffffff;
+    }
+
+    .btn-primary:hover {
+      background-color: #005bb5;
+    }
+
+    .btn-danger {
+      background-color: #d32f2f;
+      color: #ffffff;
+    }
+
+    .btn-danger:hover {
+      background-color: #b71c1c;
+    }
+
+    .message {
+      padding: 12px;
+      border-radius: 4px;
+      margin-bottom: 15px;
+      font-size: 14px;
+    }
+
+    .message.success {
+      background-color: #e6f4ea;
+      color: #1e4620;
+      border-left: 4px solid #1e4620;
+    }
+
+    .message.error {
+      background-color: #fdecea;
+      color: #842029;
+      border-left: 4px solid #842029;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+      font-size: 13px;
+    }
+
+    th, td {
+      border: 1px solid #d0d0d0;
+      padding: 8px;
+      text-align: left;
+    }
+
+    th {
+      background-color: #f5f5f5;
+      font-weight: bold;
+    }
+
+    tr:nth-child(even) {
+      background-color: #fafafa;
+    }
+
+    .row-count {
+      margin-bottom: 8px;
+      font-size: 13px;
+      color: #555;
+    }
+
+    pre {
+      background-color: #f4f6f8;
+      padding: 12px;
+      border-radius: 4px;
+      font-size: 13px;
+      overflow-x: auto;
+    }
+
+    .footer {
+      display: block;
+      text-align: right;
+    }
+
+    .footer a {
+      text-decoration: none;
+    }
+  </style>
+</head>
+
+<body>
+
+<div class="container">
+
+  <!-- HEADER -->
+  <div class="header">
+    <h1>🤖 AI Database Manager</h1>
+    <p style="font-size:13px;color:#666;">
+      Natural language interface for your local database
+    </p>
+  </div>
+
+  <!-- COMMAND INPUT -->
+  <div class="card">
+    <form method="post">
+      <label>Enter command</label>
+      <textarea name="command" placeholder="e.g. Show first 5 customers"></textarea>
+      <br><br>
+      <button class="btn btn-primary" type="submit">Generate SQL</button>
+    </form>
+  </div>
+
+  <!-- MESSAGE -->
+  {% if message %}
+    <div class="card message success">
+      {{ message }}
+    </div>
+  {% endif %}
+
+  <!-- ROW COUNT -->
+  {% if row_count is not none %}
+    <div class="card row-count">
+      Rows returned: {{ row_count }}
+    </div>
+  {% endif %}
+
+  <!-- RESULT TABLE -->
+  {% if columns and rows %}
+    <div class="card">
+      <table>
+        <tr>
+          {% for col in columns %}
+            <th>{{ col }}</th>
+          {% endfor %}
+        </tr>
+
+        {% for row in rows %}
+          <tr>
+            {% for cell in row %}
+              <td>{{ cell }}</td>
+            {% endfor %}
+          </tr>
+        {% endfor %}
+      </table>
+    </div>
+  {% endif %}
+
+  <!-- SYSTEM OUTPUT (LIST TABLES ETC.) -->
+  {% if result %}
+    <div class="card">
+      <h3 style="margin-top:0;">System Output</h3>
+      <pre>{{ result }}</pre>
+    </div>
+  {% endif %}
+
+  <!-- FOOTER -->
+  <div class="card footer">
+    <a href="/undo">
+      <button class="btn btn-danger">Undo Last Change</button>
+    </a>
+  </div>
+
+</div>
+
+</body>
+</html>
