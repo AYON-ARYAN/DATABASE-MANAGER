@@ -1,4 +1,4 @@
-# 🤖 AI Database Manager (Local LLM Powered)
+o# 🤖 AI Database Manager (Local LLM Powered)
 
 AI Database Manager is a local, AI-powered tool that allows users to interact with a SQLite database using **natural language commands**.
 
