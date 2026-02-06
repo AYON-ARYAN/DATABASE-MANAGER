@@ -1,0 +1,14 @@
+USERS = {
+    "viewer1": {
+        "password": generate_password_hash("viewer123"),
+        "role": "VIEWER"
+    },
+    "editor1": {
+        "password": generate_password_hash("editor123"),
+        "role": "EDITOR"
+    },
+    "admin1": {
+        "password": generate_password_hash("admin123"),
+        "role": "ADMIN"
+    }
+}

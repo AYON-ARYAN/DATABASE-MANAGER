@@ -43,3 +43,28 @@ For SELECT queries:
     )
 
     return res.json()["response"].strip()
+def generate_sql_with_explanation(user_prompt: str):
+    """
+    Returns:
+    - sql (str)
+    - explanation (str)
+    """
+
+    # 1️⃣ Generate SQL using your EXISTING logic
+    sql = generate_sql(user_prompt)
+
+    # 2️⃣ Ask LLM to explain the SQL
+    explanation_prompt = f"""
+Explain the following SQL query in simple, clear steps.
+Do NOT mention SQL keywords.
+Do NOT add code blocks.
+Use bullet points.
+
+SQL:
+{sql}
+"""
+
+    # 🔁 Reuse the SAME LLM call style you already use
+    explanation = generate_sql(explanation_prompt)
+
+    return sql, explanation

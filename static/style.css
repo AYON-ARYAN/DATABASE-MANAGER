@@ -1,0 +1,130 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap');
+
+* {
+    box-sizing: border-box;
+    font-family: 'Inter', sans-serif;
+}
+
+body {
+    margin: 0;
+    background: radial-gradient(circle at top, #0f2027, #000);
+    color: #e5e7eb;
+}
+
+.app-container {
+    max-width: 1100px;
+    margin: auto;
+    padding: 40px 20px;
+}
+
+header {
+    text-align: center;
+    margin-bottom: 30px;
+}
+
+header h1 {
+    font-size: 2.6rem;
+    background: linear-gradient(90deg, #00f5d4, #38bdf8);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+header p {
+    color: #9ca3af;
+}
+
+.query-box textarea {
+    width: 100%;
+    min-height: 140px;
+    background: #020617;
+    border: 1px solid #1e293b;
+    border-radius: 12px;
+    color: #e5e7eb;
+    padding: 16px;
+    font-size: 1rem;
+    resize: none;
+}
+
+.query-box button {
+    margin-top: 15px;
+    width: 100%;
+    padding: 14px;
+    font-size: 1.1rem;
+    border-radius: 12px;
+    background: linear-gradient(90deg, #22d3ee, #3b82f6);
+    color: #020617;
+    border: none;
+    cursor: pointer;
+}
+
+.card, .warning-card, .error-card {
+    background: rgba(2, 6, 23, 0.8);
+    border: 1px solid #1e293b;
+    border-radius: 14px;
+    padding: 20px;
+    margin-top: 25px;
+}
+
+.warning-card {
+    border-color: #facc15;
+    color: #fde68a;
+}
+
+.error-card {
+    border-color: #ef4444;
+    color: #fecaca;
+}
+
+pre {
+    background: #020617;
+    padding: 15px;
+    border-radius: 10px;
+    overflow-x: auto;
+}
+
+.table-wrapper {
+    overflow-x: auto;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+th, td {
+    padding: 10px;
+    border-bottom: 1px solid #1e293b;
+    text-align: left;
+}
+
+th {
+    color: #38bdf8;
+}
+
+.action-bar {
+    display: flex;
+    gap: 15px;
+    justify-content: center;
+    margin-top: 30px;
+}
+
+button.danger {
+    background: #ef4444;
+    color: white;
+}
+
+button.secondary, .link-btn {
+    background: #020617;
+    border: 1px solid #1e293b;
+    color: #e5e7eb;
+    padding: 12px 18px;
+    border-radius: 10px;
+    cursor: pointer;
+    text-decoration: none;
+}
+
+footer {
+    text-align: center;
+    padding: 20px;
+    color: #64748b;
+}

@@ -1,232 +1,225 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>AI Database Manager</title>
+    <meta charset="UTF-8">
+    <title>AI SQL Agent</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-  <style>
-    body {
-      font-family: Arial, Helvetica, sans-serif;
-      background-color: #f2f4f7;
-      margin: 0;
-      padding: 0;
-      color: #2c2c2c;
-    }
+    <style>
+        .layout {
+            display: grid;
+            grid-template-columns: 280px 1fr;
+            gap: 20px;
+            max-width: 1400px;
+            margin: auto;
+        }
 
-    .container {
-      max-width: 1000px;
-      margin: 30px auto;
-      padding: 0 20px;
-    }
+        /* ===== BADGES ===== */
+        .badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 999px;
+            font-size: 0.7rem;
+            font-weight: 700;
+            margin-left: 8px;
+        }
 
-    .header {
-      background-color: #ffffff;
-      padding: 20px;
-      border-radius: 6px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-      margin-bottom: 20px;
-      text-align: center;
-    }
+        .badge.READ { background:#052e16; color:#22c55e; }
+        .badge.WRITE { background:#3b2200; color:#f59e0b; }
+        .badge.SCHEMA { background:#3b0a0a; color:#ef4444; }
+        .badge.SYSTEM { background:#1e293b; color:#38bdf8; }
 
-    .header h1 {
-      margin: 0;
-      font-size: 24px;
-    }
+        /* ===== SIDEBAR ===== */
+        .sidebar {
+            background: #0f172a;
+            border-radius: 12px;
+            padding: 16px;
+            height: calc(100vh - 80px);
+            overflow-y: auto;
+        }
 
-    .card {
-      background-color: #ffffff;
-      padding: 20px;
-      border-radius: 6px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-      margin-bottom: 20px;
-    }
+        .history-item {
+            padding: 10px 0;
+            border-bottom: 1px solid #1e293b;
+        }
 
-    label {
-      font-weight: bold;
-      display: block;
-      margin-bottom: 8px;
-    }
+        .history-meta {
+            font-size: 0.75rem;
+            color: #9ca3af;
+        }
 
-    textarea {
-      width: 100%;
-      height: 90px;
-      padding: 10px;
-      font-size: 14px;
-      box-sizing: border-box;
-      border-radius: 4px;
-      border: 1px solid #ccc;
-    }
+        .history-query {
+            font-weight: 600;
+            margin: 4px 0;
+        }
 
-    textarea:focus {
-      outline: none;
-      border-color: #007aff;
-    }
+        .history-sql {
+            font-family: monospace;
+            font-size: 0.75rem;
+            color: #38bdf8;
+        }
 
-    .btn {
-      padding: 10px 16px;
-      font-size: 14px;
-      border-radius: 4px;
-      border: none;
-      cursor: pointer;
-    }
+        .actions {
+            display:flex;
+            gap:10px;
+            margin-bottom:10px;
+        }
 
-    .btn-primary {
-      background-color: #007aff; /* Safari blue */
-      color: #ffffff;
-    }
-
-    .btn-primary:hover {
-      background-color: #005bb5;
-    }
-
-    .btn-danger {
-      background-color: #d32f2f;
-      color: #ffffff;
-    }
-
-    .btn-danger:hover {
-      background-color: #b71c1c;
-    }
-
-    .message {
-      padding: 12px;
-      border-radius: 4px;
-      margin-bottom: 15px;
-      font-size: 14px;
-    }
-
-    .message.success {
-      background-color: #e6f4ea;
-      color: #1e4620;
-      border-left: 4px solid #1e4620;
-    }
-
-    .message.error {
-      background-color: #fdecea;
-      color: #842029;
-      border-left: 4px solid #842029;
-    }
-
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-top: 10px;
-      font-size: 13px;
-    }
-
-    th, td {
-      border: 1px solid #d0d0d0;
-      padding: 8px;
-      text-align: left;
-    }
-
-    th {
-      background-color: #f5f5f5;
-      font-weight: bold;
-    }
-
-    tr:nth-child(even) {
-      background-color: #fafafa;
-    }
-
-    .row-count {
-      margin-bottom: 8px;
-      font-size: 13px;
-      color: #555;
-    }
-
-    pre {
-      background-color: #f4f6f8;
-      padding: 12px;
-      border-radius: 4px;
-      font-size: 13px;
-      overflow-x: auto;
-    }
-
-    .footer {
-      display: block;
-      text-align: right;
-    }
-
-    .footer a {
-      text-decoration: none;
-    }
-  </style>
+        @media (max-width: 900px) {
+            .layout { grid-template-columns: 1fr; }
+            .sidebar { height:auto; }
+        }
+    </style>
 </head>
-
 <body>
 
-<div class="container">
+<header>
+    <h1>🧠 AI Database Agent</h1>
+    <p>Natural Language → Safe SQL Execution</p>
+</header>
 
-  <!-- HEADER -->
-  <div class="header">
-    <h1>🤖 AI Database Manager</h1>
-    <p style="font-size:13px;color:#666;">
-      Natural language interface for your local database
-    </p>
-  </div>
+<div class="layout">
 
-  <!-- COMMAND INPUT -->
-  <div class="card">
-    <form method="post">
-      <label>Enter command</label>
-      <textarea name="command" placeholder="e.g. Show first 5 customers"></textarea>
-      <br><br>
-      <button class="btn btn-primary" type="submit">Generate SQL</button>
-    </form>
-  </div>
+    <!-- ================= SIDEBAR ================= -->
+    <aside class="sidebar">
+        <h3>🕘 Query History</h3>
 
-  <!-- MESSAGE -->
-  {% if message %}
-    <div class="card message success">
-      {{ message }}
-    </div>
-  {% endif %}
-
-  <!-- ROW COUNT -->
-  {% if row_count is not none %}
-    <div class="card row-count">
-      Rows returned: {{ row_count }}
-    </div>
-  {% endif %}
-
-  <!-- RESULT TABLE -->
-  {% if columns and rows %}
-    <div class="card">
-      <table>
-        <tr>
-          {% for col in columns %}
-            <th>{{ col }}</th>
-          {% endfor %}
-        </tr>
-
-        {% for row in rows %}
-          <tr>
-            {% for cell in row %}
-              <td>{{ cell }}</td>
+        {% if history %}
+            {% for h in history %}
+            <div class="history-item">
+                <div class="history-meta">
+                    {{ h.time }}
+                    <span class="badge {{ h.task }}">{{ h.task }}</span>
+                    · {{ h.status }}
+                </div>
+                <div class="history-query">{{ h.query }}</div>
+                <div class="history-sql">
+                    {{ h.sql[:80] }}{% if h.sql|length > 80 %}...{% endif %}
+                </div>
+            </div>
             {% endfor %}
-          </tr>
-        {% endfor %}
-      </table>
-    </div>
-  {% endif %}
+        {% else %}
+            <p style="color:#9ca3af;">No queries yet</p>
+        {% endif %}
+    </aside>
 
-  <!-- SYSTEM OUTPUT (LIST TABLES ETC.) -->
-  {% if result %}
-    <div class="card">
-      <h3 style="margin-top:0;">System Output</h3>
-      <pre>{{ result }}</pre>
-    </div>
-  {% endif %}
+    <!-- ================= MAIN ================= -->
+    <main class="app-container">
 
-  <!-- FOOTER -->
-  <div class="card footer">
-    <a href="/undo">
-      <button class="btn btn-danger">Undo Last Change</button>
-    </a>
-  </div>
+        <!-- QUERY INPUT -->
+        <section class="query-box">
+            <form method="POST" action="/">
+                <textarea
+                    id="command-input"
+                    name="command"
+                    placeholder="e.g. Show me all customers who live in Stuttgart"
+                    required
+                ></textarea>
+                <button type="submit" class="submit">
+                    Generate & Execute SQL
+                </button>
+            </form>
+        </section>
 
+        <!-- ERROR -->
+        {% if error %}
+        <section class="error-card">❌ {{ error }}</section>
+        {% endif %}
+
+        <!-- GENERATED SQL -->
+        {% if sql %}
+        <section class="card">
+            <h2>
+                🧾 Generated SQL
+                {% if task %}
+                <span class="badge {{ task }}">{{ task }}</span>
+                {% endif %}
+            </h2>
+            <pre>{{ sql }}</pre>
+        </section>
+        {% endif %}
+
+        <!-- EXPLANATION -->
+        {% if explanation %}
+        <section class="card">
+            <h2>🧠 Why this SQL was generated</h2>
+            <pre style="white-space: pre-wrap;">{{ explanation }}</pre>
+        </section>
+        {% endif %}
+
+        <!-- RESULTS -->
+        {% if results %}
+        <section class="card">
+
+            <!-- ACTION BAR -->
+            <div class="actions">
+                <strong>📊 Query Results</strong>
+
+                {% if task == "READ" %}
+                <a href="/export" class="secondary link-btn">⬇ Export CSV</a>
+                {% endif %}
+
+                <form method="POST" action="/undo">
+                    <button class="secondary">↩ Undo Last Change</button>
+                </form>
+            </div>
+
+            <div class="table-wrapper">
+                <table>
+                    <thead>
+                        <tr>
+                            {% for col in columns %}
+                            <th>{{ col }}</th>
+                            {% endfor %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in results %}
+                        <tr>
+                            {% for cell in row %}
+                            <td>{{ cell }}</td>
+                            {% endfor %}
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- PAGINATION -->
+            <div style="margin-top:20px; display:flex; justify-content:space-between;">
+                <div>
+                    Showing {{ results|length }} rows
+                    {% if total_rows %} out of {{ total_rows }}{% endif %}
+                </div>
+
+                <div style="display:flex; gap:10px;">
+                    {% if page > 1 %}
+                    <a href="?page={{ page - 1 }}" class="secondary link-btn">⬅ Previous</a>
+                    {% endif %}
+                    {% if total_rows and page * page_size < total_rows %}
+                    <a href="?page={{ page + 1 }}" class="secondary link-btn">Next ➡</a>
+                    {% endif %}
+                </div>
+            </div>
+        </section>
+        {% endif %}
+    </main>
 </div>
+
+<footer>
+    <span>⚙️ LLM + Validator + Snapshot Protection</span>
+</footer>
+
+<script>
+  const textarea = document.getElementById("command-input");
+  textarea.addEventListener("keydown", function (event) {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      textarea.closest("form").submit();
+    }
+  });
+</script>
 
 </body>
 </html>

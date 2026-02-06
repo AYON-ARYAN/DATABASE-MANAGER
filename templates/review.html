@@ -1,108 +1,50 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Review SQL</title>
-
-  <style>
-    body {
-      font-family: Arial, Helvetica, sans-serif;
-      background-color: #f2f4f7;
-      margin: 0;
-      padding: 0;
-      color: #2c2c2c;
-    }
-
-    .container {
-      max-width: 900px;
-      margin: 40px auto;
-      padding: 0 20px;
-    }
-
-    .card {
-      background-color: #ffffff;
-      padding: 25px;
-      border-radius: 6px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-    }
-
-    h2 {
-      margin-top: 0;
-      margin-bottom: 10px;
-      font-size: 22px;
-    }
-
-    p {
-      font-size: 13px;
-      color: #666;
-      margin-top: 0;
-      margin-bottom: 15px;
-    }
-
-    pre {
-      background-color: #f4f6f8;
-      padding: 15px;
-      border-radius: 4px;
-      font-size: 14px;
-      overflow-x: auto;
-      border: 1px solid #ddd;
-    }
-
-    .actions {
-      margin-top: 20px;
-      text-align: right;
-    }
-
-    button {
-      padding: 10px 18px;
-      font-size: 14px;
-      border-radius: 4px;
-      border: none;
-      cursor: pointer;
-      margin-left: 10px;
-    }
-
-    .btn-execute {
-      background-color: #007aff; /* Safari blue */
-      color: white;
-    }
-
-    .btn-execute:hover {
-      background-color: #005bb5;
-    }
-
-    .btn-cancel {
-      background-color: #9e9e9e;
-      color: white;
-    }
-
-    .btn-cancel:hover {
-      background-color: #7b7b7b;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <title>Review Changes</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
 </head>
-
 <body>
 
-<div class="container">
-  <div class="card">
+<div class="app-container">
+    <header>
+        <h1>🛡️ Review Database Changes</h1>
+        <p>Verify before execution</p>
+    </header>
 
-    <h2>Review Generated SQL</h2>
-    <p>Please verify the SQL below before execution.</p>
+    <section class="card">
+        <h2>🧾 SQL Statement</h2>
+        <pre>{{ sql }}</pre>
+    </section>
+    {% if explanation %}
+    <section class="card">
+    <h2>🧠 SQL Explanation</h2>
+    <pre style="white-space: pre-wrap;">{{ explanation }}</pre>
+    </section>
+    {% endif %}
 
-    <pre>{{ sql }}</pre>
+    <section class="card">
+        <h2>📌 Impact Preview</h2>
+        <p>{{ preview }}</p>
+    </section>
 
-    <div class="actions">
-      <form method="post" action="/execute" style="display:inline;">
-        <button class="btn-execute" type="submit">Execute</button>
-      </form>
+    <section class="action-bar">
+        <form method="POST" action="/execute">
+            <button type="submit" class="danger">
+                ✅ Execute Changes
+            </button>
+        </form>
 
-      <a href="/">
-        <button class="btn-cancel" type="button">Cancel</button>
-      </a>
-    </div>
+        <form method="POST" action="/undo">
+            <button type="submit" class="secondary">
+                ↩ Undo Snapshot
+            </button>
+        </form>
 
-  </div>
+        <a href="/" class="secondary link-btn">⬅ Back</a>
+    </section>
 </div>
 
 </body>
