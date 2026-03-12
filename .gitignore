@@ -1,0 +1,42 @@
+# Secrets and Environment Variables
+.env
+.env.*
+
+# Python Virtual Environments
+venv/
+.venv/
+env/
+
+# Python compiled code
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Databases
+*.db
+*.sqlite
+*.sqlite3
+db/connections.json
+
+# Flask
+instance/
+.webassets-cache
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+
+# Screenshots and extraneous files
+Screenshot *.png
+pass_test.txt

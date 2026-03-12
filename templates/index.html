@@ -4,80 +4,63 @@
     <meta charset="UTF-8">
     <title>AI SQL Agent</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <style>
-        .layout {
-            display: grid;
-            grid-template-columns: 280px 1fr;
-            gap: 20px;
-            max-width: 1400px;
-            margin: auto;
-        }
 
-        /* ===== BADGES ===== */
-        .badge {
-            display: inline-block;
-            padding: 4px 10px;
-            border-radius: 999px;
-            font-size: 0.7rem;
-            font-weight: 700;
-            margin-left: 8px;
-        }
-
-        .badge.READ { background:#052e16; color:#22c55e; }
-        .badge.WRITE { background:#3b2200; color:#f59e0b; }
-        .badge.SCHEMA { background:#3b0a0a; color:#ef4444; }
-        .badge.SYSTEM { background:#1e293b; color:#38bdf8; }
-
-        /* ===== SIDEBAR ===== */
-        .sidebar {
-            background: #0f172a;
-            border-radius: 12px;
-            padding: 16px;
-            height: calc(100vh - 80px);
-            overflow-y: auto;
-        }
-
-        .history-item {
-            padding: 10px 0;
-            border-bottom: 1px solid #1e293b;
-        }
-
-        .history-meta {
-            font-size: 0.75rem;
-            color: #9ca3af;
-        }
-
-        .history-query {
-            font-weight: 600;
-            margin: 4px 0;
-        }
-
-        .history-sql {
-            font-family: monospace;
-            font-size: 0.75rem;
-            color: #38bdf8;
-        }
-
-        .actions {
-            display:flex;
-            gap:10px;
-            margin-bottom:10px;
-        }
-
-        @media (max-width: 900px) {
-            .layout { grid-template-columns: 1fr; }
-            .sidebar { height:auto; }
-        }
-    </style>
 </head>
 <body>
 
-<header>
-    <h1>🧠 AI Database Agent</h1>
+<!-- ================= GLOBAL NAVIGATION ================= -->
+<nav class="global-nav">
+    <div class="nav-brand">🧠 AI SQL Agent</div>
+    <div class="nav-links">
+        <a href="/" class="nav-link active">🔍 Query Agent</a>
+        <a href="/analysis" class="nav-link">📊 AI Analysis</a>
+        <a href="/databases" class="nav-link">⚙️ Manage DBs</a>
+    </div>
+    <div class="user-info">
+        <span class="user-name">{{ session.username }}</span>
+        <span class="role-badge {{ session.role }}">{{ session.role }}</span>
+        <a href="/logout" class="logout-link">Logout</a>
+    </div>
+</nav>
+
+<header style="margin-top: 30px;">
+    <h1>🧠 Database Query Agent</h1>
     <p>Natural Language → Safe SQL Execution</p>
 </header>
+
+<!-- ================= TOP BAR: DB Switcher ================= -->
+<div class="top-bar">
+    <div class="top-bar-left">
+        <span class="db-select-label">Database</span>
+        <form id="db-switch-form" method="POST" action="/databases/select" style="margin:0;">
+            <select name="conn_name" class="db-select" onchange="this.form.submit()">
+                {% for conn in connections %}
+                <option value="{{ conn.name }}"
+                    {% if conn.name == db_info.name %}selected{% endif %}>
+                    {{ conn.name }} ({{ conn.db_type|upper }})
+                </option>
+                {% endfor %}
+            </select>
+        </form>
+        <span class="db-type-badge">{{ db_info.display_type }}</span>
+        <a href="/databases" class="manage-link">⚙ Manage</a>
+    </div>
+    
+</div>
+
+<!-- ================= SNAPSHOT NOTICE ================= -->
+{% if not db_info.supports_snapshot %}
+<div class="notice-box">
+    <span class="notice-icon">⚠️</span>
+    <span class="notice-text">
+        <strong>Snapshots & Undo are not available</strong> for {{ db_info.display_type }} databases.
+        Write operations cannot be reverted. Please review all changes carefully before executing.
+    </span>
+</div>
+{% endif %}
 
 <div class="layout">
 
@@ -92,6 +75,7 @@
                     {{ h.time }}
                     <span class="badge {{ h.task }}">{{ h.task }}</span>
                     · {{ h.status }}
+                    {% if h.db %}<span style="color:#64748b;"> · {{ h.db }}</span>{% endif %}
                 </div>
                 <div class="history-query">{{ h.query }}</div>
                 <div class="history-sql">
@@ -107,50 +91,18 @@
     <!-- ================= MAIN ================= -->
     <main class="app-container">
 
-        <!-- QUERY INPUT -->
-        <section class="query-box">
-            <form method="POST" action="/">
-                <textarea
-                    id="command-input"
-                    name="command"
-                    placeholder="e.g. Show me all customers who live in Stuttgart"
-                    required
-                ></textarea>
-                <button type="submit" class="submit">
-                    Generate & Execute SQL
-                </button>
-            </form>
-        </section>
+        <!-- SUCCESS / ERROR MESSAGES -->
+        {% if message %}
+        <section class="success-card">{{ message }}</section>
+        {% endif %}
 
-        <!-- ERROR -->
         {% if error %}
-        <section class="error-card">❌ {{ error }}</section>
-        {% endif %}
-
-        <!-- GENERATED SQL -->
-        {% if sql %}
-        <section class="card">
-            <h2>
-                🧾 Generated SQL
-                {% if task %}
-                <span class="badge {{ task }}">{{ task }}</span>
-                {% endif %}
-            </h2>
-            <pre>{{ sql }}</pre>
-        </section>
-        {% endif %}
-
-        <!-- EXPLANATION -->
-        {% if explanation %}
-        <section class="card">
-            <h2>🧠 Why this SQL was generated</h2>
-            <pre style="white-space: pre-wrap;">{{ explanation }}</pre>
-        </section>
+        <section class="error-card">{{ error }}</section>
         {% endif %}
 
         <!-- RESULTS -->
         {% if results %}
-        <section class="card">
+        <section class="card" style="margin-top: 0;">
 
             <!-- ACTION BAR -->
             <div class="actions">
@@ -158,11 +110,18 @@
 
                 {% if task == "READ" %}
                 <a href="/export" class="secondary link-btn">⬇ Export CSV</a>
+                {% if analysis_enabled %}
+                <a href="/analysis" class="secondary link-btn">
+                    📊 Analyze Data Built-in
+                </a>
+                {% endif %}
                 {% endif %}
 
+                {% if db_info.supports_snapshot %}
                 <form method="POST" action="/undo">
                     <button class="secondary">↩ Undo Last Change</button>
                 </form>
+                {% endif %}
             </div>
 
             <div class="table-wrapper">
@@ -203,7 +162,57 @@
                 </div>
             </div>
         </section>
+        {% elif not sql and not explanation and not error and not message %}
+        <!-- Welcome State -->
+        <div style="height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--text-muted); opacity: 0.6; padding-top: 40px;">
+            <div style="font-size: 3rem; margin-bottom: 20px;">🤖</div>
+            <h2>How can I help with your data today?</h2>
+            <p>Type a natural language command below to query or modify the active database.</p>
+        </div>
         {% endif %}
+
+        <!-- GENERATED SQL -->
+        {% if sql %}
+        <section class="card" style="margin-top:20px;">
+            <h2>
+                🧾 Generated SQL
+                {% if task %}
+                <span class="badge {{ task }}">{{ task }}</span>
+                {% endif %}
+            </h2>
+            <pre>{{ sql }}</pre>
+        </section>
+        {% endif %}
+
+        <!-- EXPLANATION -->
+        {% if explanation %}
+        <section class="card" style="margin-top:20px;">
+            <h2>🧠 Why this SQL was generated</h2>
+            <pre style="white-space: pre-wrap;">{{ explanation }}</pre>
+        </section>
+        {% endif %}
+
+        <!-- QUERY INPUT (FIXED AT BOTTOM) -->
+        <section class="query-box" style="margin-top: 40px; position: sticky; bottom: 20px;">
+            <form method="POST" action="/" style="background: var(--card-bg); border: 1px solid var(--card-border); border-radius: var(--radius-lg); padding: 12px; box-shadow: 0 16px 40px rgba(0,0,0,0.6); backdrop-filter: blur(24px);">
+                <textarea
+                    id="command-input"
+                    name="command"
+                    placeholder="Message AI SQL Agent... (e.g. Show me the top 5 customers by revenue)"
+                    required
+                    style="border: none; background: transparent; box-shadow: none; min-height: 80px; font-size: 1.05rem;"
+                ></textarea>
+                <div style="display: flex; justify-content: flex-end; align-items: center; gap: 10px; margin-top: 8px;">
+                    <a href="/insights" class="secondary link-btn" style="padding: 8px 16px; font-size: 0.85rem; border-radius: 20px;">
+                        ✨ Generate Database Insights
+                    </a>
+                    <button type="submit" class="btn-primary" style="margin-top: 0; width: auto; padding: 10px 20px; border-radius: 20px;">
+                        Send ↗
+                    </button>
+                </div>
+            </form>
+        </section>
+
     </main>
 </div>
 
@@ -213,12 +222,14 @@
 
 <script>
   const textarea = document.getElementById("command-input");
-  textarea.addEventListener("keydown", function (event) {
-    if (event.key === "Enter" && !event.shiftKey) {
-      event.preventDefault();
-      textarea.closest("form").submit();
-    }
-  });
+  if (textarea) {
+      textarea.addEventListener("keydown", function (event) {
+        if (event.key === "Enter" && !event.shiftKey) {
+          event.preventDefault();
+          textarea.closest("form").submit();
+        }
+      });
+  }
 </script>
 
 </body>

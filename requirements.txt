@@ -1,3 +1,5 @@
 flask
 requests
+groq
+python-dotenv
 sqlite-utils

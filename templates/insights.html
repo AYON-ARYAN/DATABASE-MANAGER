@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Database Insights - AI SQL Agent</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <!-- Marked.js for rendering markdown summaries safely -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+
+<!-- ================= GLOBAL NAVIGATION ================= -->
+<nav class="global-nav">
+    <div class="nav-brand">🧠 AI SQL Agent</div>
+    <div class="nav-links">
+        <a href="/" class="nav-link">🔍 Query Agent</a>
+        <a href="/analysis" class="nav-link">📊 AI Analysis</a>
+        <a href="/databases" class="nav-link">⚙️ Manage DBs</a>
+    </div>
+    <div class="user-info">
+        <span class="user-name">{{ session.username }}</span>
+        <span class="role-badge {{ session.role }}">{{ session.role }}</span>
+        <a href="/logout" class="logout-link">Logout</a>
+    </div>
+</nav>
+
+<div class="db-page" style="max-width: 1200px;">
+    <header>
+        <h1>✨ AI Database Insights</h1>
+        <p>Comprehensive Business Intelligence and Schema Analysis for <strong>{{ db_info.name }}</strong></p>
+    </header>
+
+    {% if not analysis_enabled %}
+    <section class="error-card" style="margin-top: 20px;">
+        ⚠️ Groq API is not configured. Please add your API key to the .env file to enable AI Insights.
+    </section>
+    {% else %}
+    
+    <div style="text-align: center; margin-bottom: 40px;">
+        <button id="btn-generate" onclick="generateInsights()" class="btn-primary" style="padding: 16px 32px; font-size: 1.1rem; border-radius: var(--radius-pill); max-width: 400px; margin: 0 auto; display: inline-flex;">
+            🚀 Generate Comprehensive Report
+        </button>
+        <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 12px;">This will analyze the entire {{ db_info.name }} schema and identify key business operations.</p>
+    </div>
+
+    <!-- Loading State -->
+    <div id="insights-loading" style="display:none; color: var(--accent-blue); font-weight: 600; text-align: center; padding: 60px; background: var(--card-bg); border-radius: var(--radius-lg); border: 1px solid var(--card-border); backdrop-filter: blur(24px);">
+        <div style="font-size: 3rem; margin-bottom: 20px; animation: pulse 2s infinite;">🧠</div>
+        Scanning Schema & Generating Business Intelligence...<br>
+        <span style="font-size:0.85rem; color: var(--text-muted); font-weight:normal; margin-top:10px; display:inline-block;">This might take 15-30 seconds depending on database size...</span>
+    </div>
+    
+    <!-- Error State -->
+    <div id="insights-error" class="error-card" style="display:none;"></div>
+    
+    <!-- Results Container -->
+    <div id="insights-results" style="display:none;">
+        <div class="card markdown-body" style="padding: 40px; border-color: rgba(139, 92, 246, 0.3); background: rgba(139, 92, 246, 0.05);">
+            <div id="insights-content" style="color: var(--text-primary);"></div>
+        </div>
+    </div>
+    
+    {% endif %}
+</div>
+
+<style>
+    @keyframes pulse {
+        0% { transform: scale(1); opacity: 1; }
+        50% { transform: scale(1.1); opacity: 0.7; }
+        100% { transform: scale(1); opacity: 1; }
+    }
+</style>
+
+<script>
+  function generateInsights() {
+      const btn = document.getElementById('btn-generate');
+      const loader = document.getElementById('insights-loading');
+      const results = document.getElementById('insights-results');
+      const errorDiv = document.getElementById('insights-error');
+      
+      btn.style.display = 'none';
+      loader.style.display = 'block';
+      results.style.display = 'none';
+      errorDiv.style.display = 'none';
+
+      fetch('/api/insights', { method: 'POST' })
+          .then(r => r.json())
+          .then(data => {
+              loader.style.display = 'none';
+              
+              if (data.error) {
+                  errorDiv.textContent = '❌ ' + data.error;
+                  errorDiv.style.display = 'block';
+                  btn.style.display = 'inline-flex';
+                  return;
+              }
+
+              // Render Markdown output
+              document.getElementById('insights-content').innerHTML = marked.parse(data.markdown);
+              results.style.display = 'block';
+              
+              // Change button text and show it again for regenerations
+              btn.innerHTML = '🔄 Regenerate Report';
+              btn.className = 'secondary';
+              btn.style.display = 'inline-flex';
+              btn.style.marginTop = '40px';
+          })
+          .catch(err => {
+              loader.style.display = 'none';
+              errorDiv.textContent = '❌ Network or server error.';
+              errorDiv.style.display = 'block';
+              btn.style.display = 'inline-flex';
+          });
+  }
+</script>
+
+</body>
+</html>

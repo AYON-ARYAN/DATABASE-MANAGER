@@ -11,8 +11,19 @@
 <div class="app-container">
     <header>
         <h1>🛡️ Review Database Changes</h1>
-        <p>Verify before execution</p>
+        <p>Verify before execution · <strong>{{ db_info.display_type }}</strong> — {{ db_info.name }}</p>
     </header>
+
+    <!-- SNAPSHOT NOTICE -->
+    {% if not db_info.supports_snapshot %}
+    <div class="notice-box" style="max-width:1100px;">
+        <span class="notice-icon">⚠️</span>
+        <span class="notice-text">
+            <strong>No Undo available</strong> for {{ db_info.display_type }}.
+            This operation cannot be reverted. Please double-check before executing.
+        </span>
+    </div>
+    {% endif %}
 
     <section class="card">
         <h2>🧾 SQL Statement</h2>
@@ -37,11 +48,13 @@
             </button>
         </form>
 
+        {% if db_info.supports_snapshot %}
         <form method="POST" action="/undo">
             <button type="submit" class="secondary">
                 ↩ Undo Snapshot
             </button>
         </form>
+        {% endif %}
 
         <a href="/" class="secondary link-btn">⬅ Back</a>
     </section>

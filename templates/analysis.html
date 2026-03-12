@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>AI Data Analysis</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Marked.js for rendering markdown summaries safely -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+
+<!-- ================= GLOBAL NAVIGATION ================= -->
+<nav class="global-nav">
+    <div class="nav-brand">🧠 AI SQL Agent</div>
+    <div class="nav-links">
+        <a href="/" class="nav-link">🔍 Query Agent</a>
+        <a href="/analysis" class="nav-link active">📊 AI Analysis</a>
+        <a href="/databases" class="nav-link">⚙️ Manage DBs</a>
+    </div>
+    <div class="user-info">
+        <span class="user-name">{{ session.username }}</span>
+        <a href="/logout" class="logout-link">Logout</a>
+    </div>
+</nav>
+
+<div class="db-page">
+    <header>
+        <h1>📊 Data Analysis & Visualization</h1>
+        <p>Analyze the results of your last query or upload a standalone CSV file for AI-generated insights and charting.</p>
+    </header>
+
+    {% if not analysis_enabled %}
+    <section class="error-card" style="margin-top: 20px;">
+        ⚠️ Groq API is not configured. Please add your API key to the .env file to enable AI Analysis.
+    </section>
+    {% else %}
+    
+    <div style="display:flex; gap:30px; flex-wrap:wrap; margin-top:20px;">
+        
+        <!-- Left Side: Controls -->
+        <div style="flex:1; min-width:350px;">
+            <div class="card" style="margin-top:0;">
+                <h3 style="margin-top:0; color:#e5e7eb;">Analysis Options</h3>
+                
+                <div style="margin-bottom:20px;">
+                    <label class="db-select-label">Custom Hint / Instructions (Optional)</label>
+                    <textarea id="analyze-hint" class="db-select" 
+                              placeholder="e.g. Create a bar chart comparing regional sales and list top 3 action items to improve worst region..."
+                              style="width:100%; height:90px; margin-top:8px; resize:vertical; padding:10px;"></textarea>
+                </div>
+                
+                <button onclick="runAnalysis()" id="btn-analyze" class="btn-primary" style="width:100%; padding:14px; font-size:1.05rem; border-radius:10px;">
+                    ✨ Generate from Last Query
+                </button>
+                <div style="font-size:0.8rem; color:#64748b; margin-top:8px; text-align:center;">
+                    Analyzes the data currently active in your 🔍 Query Agent tab.
+                </div>
+
+                <div style="margin-top:30px; padding-top:20px; border-top:1px solid #1e293b;">
+                    <label class="db-select-label" style="display:block; margin-bottom:10px;">Or Analyze an External CSV File</label>
+                    <input type="file" id="csv-upload" accept=".csv"
+                           style="display:block; width:100%; padding:10px; border:1px dashed #334155; border-radius:8px; color:#9ca3af; background:rgba(0,0,0,0.2);">
+                    <button onclick="analyzeCSV()" id="btn-analyze-csv" class="btn-test" style="width:100%; margin-top:15px; padding:12px; border-radius:10px;">
+                        📤 Upload & Analyze CSV
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Side: Results -->
+        <div style="flex:2; min-width:500px;">
+            <div id="welcome-message" style="text-align:center; padding:50px; color:#64748b; font-style:italic;">
+                Select an option on the left to begin generating insights...
+            </div>
+            
+            <div id="analysis-loading" style="display:none; color:#38bdf8; font-weight:600; text-align:center; padding:40px; background:rgba(2, 6, 23, 0.5); border-radius:12px; border:1px solid #1e293b;">
+                <div style="font-size:2rem; margin-bottom:15px;">⏳</div>
+                Generating AI Insights and Visualization...<br>
+                <span style="font-size:0.85rem; color:#64748b; font-weight:normal; margin-top:10px; display:inline-block;">This might take 10-20 seconds...</span>
+            </div>
+            
+            <div id="analysis-error" class="error-card" style="display:none; margin-top:0;"></div>
+            
+            <div id="analysis-results" style="display:none;">
+                <!-- Formatted LLM Output Box -->
+                <div class="card markdown-body" style="margin-top:0; border-color:#22d3ee; background:rgba(34, 211, 238, 0.05); padding:25px;">
+                    <strong style="color:#22d3ee; display:block; margin-bottom:15px; font-size:1.1rem; border-bottom:1px solid rgba(34,211,238,0.2); padding-bottom:10px;">🧠 AI Strategic Insights</strong>
+                    <div id="analysis-summary" style="margin:0; font-size:0.95rem; line-height:1.6; color:#e2e8f0;"></div>
+                </div>
+                
+                <div style="margin-top:25px; background:rgba(2, 6, 23, 0.5); border-radius:12px; padding:20px; border:1px solid #1e293b; box-shadow:0 10px 30px rgba(0,0,0,0.5);">
+                    <div style="height: 450px;">
+                        <canvas id="analysis-chart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+    </div>
+    {% endif %}
+</div>
+
+<script>
+  let currentChart = null;
+
+  function setAnalysisLoading(isLoading) {
+      document.getElementById('welcome-message').style.display = 'none';
+      document.getElementById('analysis-loading').style.display = isLoading ? 'block' : 'none';
+      document.getElementById('analysis-results').style.display = 'none';
+      document.getElementById('analysis-error').style.display = 'none';
+      document.getElementById('btn-analyze').disabled = isLoading;
+      document.getElementById('btn-analyze-csv').disabled = isLoading;
+      
+      if (isLoading) {
+          document.getElementById('btn-analyze').style.opacity = 0.6;
+          document.getElementById('btn-analyze-csv').style.opacity = 0.6;
+      } else {
+          document.getElementById('btn-analyze').style.opacity = 1;
+          document.getElementById('btn-analyze-csv').style.opacity = 1;
+      }
+  }
+
+  function handleAnalysisResponse(data) {
+      setAnalysisLoading(false);
+      
+      if (data.error) {
+          const errDiv = document.getElementById('analysis-error');
+          errDiv.textContent = '❌ ' + data.error;
+          errDiv.style.display = 'block';
+          return;
+      }
+
+      // Render Markdown output safely for bolding, bullet points, etc.
+      document.getElementById('analysis-summary').innerHTML = marked.parse(data.summary);
+      document.getElementById('analysis-results').style.display = 'block';
+
+      if (currentChart) currentChart.destroy();
+      
+      const ctx = document.getElementById('analysis-chart').getContext('2d');
+      // Premium dark mode palette
+      const palette = ['#22d3ee', '#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#22c55e', '#ef4444', '#14b8a6', '#f97316'];
+      
+      const datasets = data.chart.datasets.map(ds => ({
+          ...ds,
+          backgroundColor: data.chart.type === 'pie' || data.chart.type === 'doughnut' 
+                             ? ds.data.map((_, i) => palette[i % palette.length])
+                             : palette[0],
+          borderColor: data.chart.type === 'line' ? palette[0] : 'rgba(255,255,255,0.05)',
+          borderWidth: data.chart.type === 'line' ? 3 : 1,
+          fill: data.chart.type === 'line' ? false : true,
+          tension: 0.3, // smooth line curves
+          borderRadius: data.chart.type === 'bar' ? 6 : 0 // rounded bar corners
+      }));
+
+      currentChart = new Chart(ctx, {
+          type: data.chart.type,
+          data: {
+              labels: data.chart.labels,
+              datasets: datasets
+          },
+          options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: {
+                  title: { display: true, text: data.chart.title, color: '#f8fafc', font: {size: 18, family: 'Inter, sans-serif'} },
+                  legend: { position: 'bottom', labels: { color: '#cbd5e1', padding: 20, usePointStyle: true } }
+              },
+              scales: data.chart.type === 'pie' || data.chart.type === 'doughnut'
+                  ? {} 
+                  : { 
+                      y: { 
+                          grid: {color: 'rgba(51, 65, 85, 0.3)', drawBorder: false}, 
+                          ticks: { color: '#94a3b8' }
+                      }, 
+                      x: { 
+                          grid: {display: false}, 
+                          ticks: { color: '#94a3b8' } 
+                      } 
+                  }
+          }
+      });
+  }
+
+  function runAnalysis() {
+      setAnalysisLoading(true);
+      const hint = document.getElementById('analyze-hint').value;
+      const formData = new FormData();
+      formData.append('hint', hint);
+
+      fetch('/analyze', { method: 'POST', body: formData })
+          .then(r => r.json())
+          .then(handleAnalysisResponse)
+          .catch(err => {
+              setAnalysisLoading(false);
+              document.getElementById('analysis-error').textContent = '❌ Network or server error.';
+              document.getElementById('analysis-error').style.display = 'block';
+          });
+  }
+
+  function analyzeCSV() {
+      const fileInput = document.getElementById('csv-upload');
+      if (!fileInput.files.length) {
+          alert('Please select a CSV file first.');
+          return;
+      }
+
+      setAnalysisLoading(true);
+      const formData = new FormData();
+      formData.append('csv_file', fileInput.files[0]);
+      formData.append('hint', document.getElementById('analyze-hint').value);
+
+      fetch('/analyze-csv', { method: 'POST', body: formData })
+          .then(r => r.json())
+          .then(handleAnalysisResponse)
+          .catch(err => {
+              setAnalysisLoading(false);
+              document.getElementById('analysis-error').textContent = '❌ Network or server error.';
+              document.getElementById('analysis-error').style.display = 'block';
+          });
+  }
+</script>
+
+</body>
+</html>
