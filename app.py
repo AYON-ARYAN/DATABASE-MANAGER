@@ -1,6 +1,6 @@
 from flask import (
     Flask, render_template, request,
-    session, redirect, url_for, Response
+    session, redirect, url_for, Response, jsonify
 )
 from datetime import datetime
 from io import StringIO
@@ -8,11 +8,30 @@ import csv
 
 from werkzeug.security import generate_password_hash, check_password_hash
 
-from core.validator import is_safe, classify_sql
-from core.snapshot import take_snapshot, undo
-from core.db import execute_sql, list_tables, preview_write
-from core.llm import generate_sql_with_explanation
+from core.validator import is_safe, classify_query
+from core.snapshot import (
+    take_snapshot, undo, has_snapshots, list_snapshots, 
+    delete_snapshot, restore_snapshot
+)
+from core.llm import generate_query_with_explanation
+from core.connection_manager import (
+    list_connections, add_connection, delete_connection as rem_connection,
+    get_adapter_for_connection, test_connection, test_new_connection,
+    ensure_default_sqlite,
+)
+from core.adapters import DB_TYPES, DB_DISPLAY_NAMES, DB_CONNECTION_FIELDS
+from core.metrics import get_summary
+from core.dashboards import (
+    list_dashboards, get_dashboard, create_dashboard, 
+    delete_dashboard, add_widget, remove_widget
+)
+from core import llm_manager
 
+
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # ---------------------------------------------------
 # Flask App Setup
@@ -21,7 +40,14 @@ app = Flask(__name__)
 app.secret_key = "dev-secret-key"
 app.config["SESSION_PERMANENT"] = False
 
+# Groq Data Analysis config
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
+analysis_enabled = bool(GROQ_API_KEY)
+
 PAGE_SIZE = 50
+
+# Ensure default SQLite connection exists on startup
+ensure_default_sqlite()
 
 
 # ---------------------------------------------------
@@ -84,11 +110,11 @@ def paginate_sql(sql, page):
     return f"{sql} LIMIT {PAGE_SIZE} OFFSET {offset}"
 
 
-def safe_count(sql):
+def safe_count(adapter, sql):
     if is_system_query(sql) or is_already_limited(sql):
         return None
     try:
-        _, rows = execute_sql(f"SELECT COUNT(*) FROM ({sql.rstrip(';')}) AS subq")
+        _, rows = adapter.execute(f"SELECT COUNT(*) FROM ({sql.rstrip(';')}) AS subq")
         return rows[0][0] if rows else 0
     except Exception:
         return None
@@ -96,19 +122,54 @@ def safe_count(sql):
 
 def add_to_history(query, sql, task, status):
     history = session.get("history", [])
+    active_db = session.get("active_db", "Default SQLite")
     history.insert(0, {
         "query": query,
         "sql": sql,
         "task": task,
         "status": status,
         "user": session.get("username"),
+        "db": active_db,
         "time": datetime.now().strftime("%H:%M")
     })
     session["history"] = history[:10]
 
 
+def get_active_adapter():
+    """Returns the adapter for the currently active database connection."""
+    name = session.get("active_db", "Default SQLite")
+    try:
+        return get_adapter_for_connection(name)
+    except Exception:
+        # Fallback to default
+        session["active_db"] = "Default SQLite"
+        return get_adapter_for_connection("Default SQLite")
+
+
+def get_active_db_info():
+    """Returns info about the active database for template rendering."""
+    name = session.get("active_db", "Default SQLite")
+    connections = list_connections()
+    for conn in connections:
+        if conn["name"] == name:
+            return {
+                "name": name,
+                "db_type": conn["db_type"],
+                "display_type": DB_DISPLAY_NAMES.get(conn["db_type"], conn["db_type"]),
+                "is_nosql": conn["db_type"] in ("mongodb", "redis"),
+                "supports_snapshot": conn["db_type"] == "sqlite",
+            }
+    return {
+        "name": name,
+        "db_type": "sqlite",
+        "display_type": "SQLite",
+        "is_nosql": False,
+        "supports_snapshot": True,
+    }
+
+
 # ---------------------------------------------------
-# AUTH GUARD (FIXED & STABLE)
+# AUTH GUARD
 # ---------------------------------------------------
 @app.before_request
 def require_login():
@@ -137,6 +198,7 @@ def login():
         session["logged_in"] = True
         session["username"] = username
         session["role"] = user["role"]
+        session["active_db"] = "Default SQLite"
 
         return redirect(url_for("index"))
 
@@ -155,65 +217,135 @@ def logout():
 @app.route("/", methods=["GET", "POST"])
 def index():
     role = session.get("role", ROLE_VIEWER)
+    db_info = get_active_db_info()
+    connections = list_connections()
+    llm_provider = session.get("llm_provider", "mistral")
 
     # ---------- POST ----------
     if request.method == "POST":
         user_cmd = request.form.get("command", "").strip()
         if not user_cmd:
-            return render_template("index.html", error="❌ Empty command.", history=session.get("history", []))
+            return render_template(
+                "index.html",
+                error="❌ Empty command.",
+                history=session.get("history", []),
+                db_info=db_info,
+                connections=connections,
+                llm_provider=llm_provider,
+                analysis_enabled=analysis_enabled,
+            )
 
-        # SYSTEM
-        if user_cmd.lower() in ("list tables", "show tables"):
+        adapter = get_active_adapter()
+        dialect = adapter.dialect
+
+        # SYSTEM: list tables / show tables
+        if user_cmd.lower() in ("list tables", "show tables", "list collections", "show collections"):
             if not is_allowed(role, "SYSTEM"):
-                return render_template("index.html", error="❌ Permission denied.", history=session.get("history", []))
+                return render_template(
+                    "index.html",
+                    error="❌ Permission denied.",
+                    history=session.get("history", []),
+                    db_info=db_info,
+                    connections=connections,
+                    llm_provider=llm_provider,
+                )
 
-            tables = list_tables()
+            tables = adapter.list_tables()
+            label = "Collections" if adapter.is_nosql else "Tables"
             add_to_history(user_cmd, "SHOW TABLES", "SYSTEM", "EXECUTED")
 
             return render_template(
                 "index.html",
                 task="SYSTEM",
-                columns=["Tables"],
+                columns=[label],
                 results=[[t] for t in tables],
                 page=1,
                 page_size=len(tables),
                 total_rows=len(tables),
-                history=session.get("history", [])
+                history=session.get("history", []),
+                db_info=db_info,
+                connections=connections,
+                llm_provider=llm_provider,
+                analysis_enabled=analysis_enabled,
             )
 
-        # LLM
-        sql, explanation = generate_sql_with_explanation(user_cmd)
-        task = classify_sql(sql)
+        # LLM: Generate query
+        schema = adapter.get_schema()
+        conversation_context = session.get("conversation_context", [])
+        
+        query, explanation = generate_query_with_explanation(
+            user_cmd, dialect, schema, llm_provider, history=conversation_context
+        )
+        
+        # Update context (last 10)
+        conversation_context.append({"user": user_cmd, "assistant": query})
+        if len(conversation_context) > 10:
+            conversation_context.pop(0)
+        session["conversation_context"] = conversation_context
+        
+        task = classify_query(query, dialect)
 
         if not is_allowed(role, task):
-            add_to_history(user_cmd, sql, task, "BLOCKED (ROLE)")
+            add_to_history(user_cmd, query, task, "BLOCKED (ROLE)")
             return render_template(
                 "index.html",
                 error=f"❌ {role} not allowed to run {task}",
-                history=session.get("history", [])
+                history=session.get("history", []),
+                db_info=db_info,
+                connections=connections,
+                llm_provider=llm_provider,
+                analysis_enabled=analysis_enabled,
             )
 
         # READ
         if task == "READ":
-            if not is_safe(sql):
-                add_to_history(user_cmd, sql, "READ", "BLOCKED")
-                return render_template("index.html", error="❌ Unsafe SQL blocked.", history=session.get("history", []))
+            if not is_safe(query, dialect):
+                add_to_history(user_cmd, query, "READ", "BLOCKED")
+                return render_template(
+                    "index.html",
+                    error="❌ Unsafe query blocked.",
+                    history=session.get("history", []),
+                    db_info=db_info,
+                    connections=connections,
+                    llm_provider=llm_provider,
+                    analysis_enabled=analysis_enabled,
+                )
 
-            session["last_read_sql"] = sql
+            session["last_read_sql"] = query
             session["last_explanation"] = explanation
 
             page = 1
-            if is_system_query(sql) or is_already_limited(sql):
-                paginated_sql = sql
-                columns, rows = execute_sql(sql)
-                total_rows = len(rows)
-            else:
-                paginated_sql = paginate_sql(sql, page)
-                columns, rows = execute_sql(paginated_sql)
-                total_rows = safe_count(sql)
+
+            try:
+                if adapter.is_nosql:
+                    # NoSQL: execute directly, no pagination
+                    columns, rows = adapter.execute(query)
+                    total_rows = len(rows)
+                    paginated_sql = query
+                elif is_system_query(query) or is_already_limited(query):
+                    paginated_sql = query
+                    columns, rows = adapter.execute(query)
+                    total_rows = len(rows)
+                else:
+                    paginated_sql = paginate_sql(query, page)
+                    columns, rows = adapter.execute(paginated_sql)
+                    total_rows = safe_count(adapter, query)
+            except Exception as e:
+                return render_template(
+                    "index.html",
+                    sql=query,
+                    explanation=explanation,
+                    task="READ",
+                    error=f"❌ Execution failed: {str(e)}",
+                    history=session.get("history", []),
+                    db_info=db_info,
+                    connections=connections,
+                    llm_provider=llm_provider,
+                    analysis_enabled=analysis_enabled,
+                )
 
             session["last_read_columns"] = columns
-            add_to_history(user_cmd, sql, "READ", "EXECUTED")
+            add_to_history(user_cmd, query, "READ", "EXECUTED")
 
             return render_template(
                 "index.html",
@@ -221,37 +353,62 @@ def index():
                 explanation=explanation,
                 task="READ",
                 columns=columns,
-                results=rows_to_list(rows),
+                results=rows_to_list(rows) if rows and not isinstance(rows[0], list) else rows if rows else [],
                 page=page,
                 page_size=PAGE_SIZE,
                 total_rows=total_rows,
-                history=session.get("history", [])
+                history=session.get("history", []),
+                db_info=db_info,
+                connections=connections,
+                llm_provider=llm_provider,
+                analysis_enabled=analysis_enabled,
             )
 
-        # WRITE / SCHEMA
-        add_to_history(user_cmd, sql, task, "PENDING REVIEW")
-        session["last_sql"] = sql
+        # WRITE / SCHEMA → Review page
+        add_to_history(user_cmd, query, task, "PENDING REVIEW")
+        session["last_sql"] = query
         session["last_task"] = task
         session["last_explanation"] = explanation
 
         return render_template(
             "review.html",
-            sql=sql,
+            sql=query,
             explanation=explanation,
             task=task,
-            history=session.get("history", [])
+            history=session.get("history", []),
+            db_info=db_info,
+            connections=connections,
         )
 
     # ---------- GET (Pagination) ----------
     page = request.args.get("page")
     if page and session.get("last_read_sql"):
+        adapter = get_active_adapter()
         sql = session["last_read_sql"]
         explanation = session.get("last_explanation")
         page = max(1, int(page))
 
-        paginated_sql = paginate_sql(sql, page)
-        columns, rows = execute_sql(paginated_sql)
-        total_rows = safe_count(sql)
+        try:
+            if adapter.is_nosql:
+                columns, rows = adapter.execute(sql)
+                total_rows = len(rows)
+                paginated_sql = sql
+            else:
+                paginated_sql = paginate_sql(sql, page)
+                columns, rows = adapter.execute(paginated_sql)
+                total_rows = safe_count(adapter, sql)
+        except Exception as e:
+            return render_template(
+                "index.html",
+                sql=sql,
+                explanation=explanation,
+                task="READ",
+                error=f"❌ Execution failed: {str(e)}",
+                history=session.get("history", []),
+                db_info=db_info,
+                connections=connections,
+                analysis_enabled=analysis_enabled,
+            )
 
         return render_template(
             "index.html",
@@ -259,18 +416,24 @@ def index():
             explanation=explanation,
             task="READ",
             columns=columns,
-            results=rows_to_list(rows),
+            results=rows_to_list(rows) if rows and not isinstance(rows[0], list) else rows if rows else [],
             page=page,
             page_size=PAGE_SIZE,
             total_rows=total_rows,
-            history=session.get("history", [])
+            history=session.get("history", []),
+            db_info=db_info,
+            connections=connections,
+            analysis_enabled=analysis_enabled,
         )
 
     return render_template(
         "index.html",
         message=session.pop("message", None),
         error=session.pop("error", None),
-        history=session.get("history", [])
+        history=session.get("history", []),
+        db_info=db_info,
+        connections=connections,
+        analysis_enabled=analysis_enabled,
     )
 
 
@@ -285,13 +448,14 @@ def export_csv():
     if not sql or not columns:
         return redirect(url_for("index"))
 
-    _, rows = execute_sql(sql)
+    adapter = get_active_adapter()
+    _, rows = adapter.execute(sql)
 
     output = StringIO()
     writer = csv.writer(output)
     writer.writerow(columns)
     for r in rows:
-        writer.writerow(r)
+        writer.writerow(r if isinstance(r, list) else list(r))
 
     return Response(
         output.getvalue(),
@@ -306,31 +470,217 @@ def export_csv():
 @app.route("/execute", methods=["POST"])
 def execute():
     role = session.get("role")
-    sql = session.get("last_sql")
+    query = session.get("last_sql")
     task = session.get("last_task")
 
-    if not sql or not is_allowed(role, task) or not is_safe(sql):
-        session["error"] = "❌ Permission denied or unsafe SQL."
+    adapter = get_active_adapter()
+    dialect = adapter.dialect
+
+    if not query or not is_allowed(role, task) or not is_safe(query, dialect):
+        session["error"] = "❌ Permission denied or unsafe query."
         return redirect(url_for("index"))
 
     if task in ("WRITE", "SCHEMA"):
-        take_snapshot()
+        take_snapshot(adapter, session.get("active_db", "Default SQLite"))
 
-    if sql.lower().startswith("delete"):
-        preview_write(sql)
+    try:
+        if query.lower().startswith("delete"):
+            adapter.preview_delete(query)
 
-    execute_sql(sql)
+        adapter.execute(query)
+        session["message"] = "✅ Query executed successfully."
+    except Exception as e:
+        session["error"] = f"❌ Execution failed: {str(e)}"
 
     session.pop("last_sql", None)
     session.pop("last_task", None)
     session.pop("last_explanation", None)
 
-    session["message"] = "✅ Query executed successfully."
+    return redirect(url_for("index"))
+
+# ---------------------------------------------------
+# LLM Provider Management
+# ---------------------------------------------------
+@app.route("/set_llm_provider", methods=["POST"])
+def set_llm_provider():
+    provider = request.form.get("provider")
+    if provider in ["mistral", "groq"]:
+        session["llm_provider"] = provider
+        session["message"] = f"LLM Provider set to {'Groq (Cloud API)' if provider == 'groq' else 'Mistral (Local)'}."
+    else:
+        session["error"] = "Invalid LLM provider."
     return redirect(url_for("index"))
 
 
 # ---------------------------------------------------
-# Undo (ADMIN ONLY)
+# LLM Administration & Analytics
+# ---------------------------------------------------
+@app.route("/admin")
+def admin():
+    if session.get("role") != "ADMIN" and session.get("role") != ROLE_ADMIN:
+        session["error"] = "❌ Access denied. Admin only."
+        return redirect(url_for("index"))
+    
+    summary = get_summary()
+    llm_config = llm_manager.load_config()
+    ollama_models = llm_manager.list_local_models()
+    return render_template("admin.html", 
+                           summary=summary, 
+                           llm_config=llm_config,
+                           ollama_models=ollama_models)
+
+
+@app.route("/admin/llm/config", methods=["POST"])
+def update_llm_config():
+    if session.get("role") != "ADMIN" and session.get("role") != ROLE_ADMIN:
+        return jsonify({"error": "Unauthorized"}), 403
+    
+    data = request.json
+    config = llm_manager.load_config()
+    
+    # Update active provider
+    if "active_provider" in data:
+        config["active_provider"] = data["active_provider"]
+    
+    # Update specific provider fields
+    if "providers" in data:
+        for p_name, p_data in data["providers"].items():
+            if p_name in config["providers"]:
+                config["providers"][p_name].update(p_data)
+            else:
+                config["providers"][p_name] = p_data
+    
+    llm_manager.save_config(config)
+    return jsonify({"success": True, "config": config})
+
+
+@app.route("/admin/ollama/pull", methods=["POST"])
+def pull_model():
+    if session.get("role") != "ADMIN" and session.get("role") != ROLE_ADMIN:
+        return jsonify({"error": "Unauthorized"}), 403
+    
+    model_name = request.json.get("model")
+    if not model_name:
+        return jsonify({"error": "Model name required"}), 400
+    
+    success = llm_manager.pull_ollama_model(model_name)
+    return jsonify({"success": success})
+
+
+@app.route("/admin/test_llm", methods=["POST"])
+def admin_test_llm():
+    if session.get("role") != ROLE_ADMIN:
+        return jsonify({"error": "Unauthorized"}), 403
+        
+    prompt = request.form.get("prompt", "")
+    provider = request.form.get("provider", "mistral")
+    
+    from core.llm import generate_query
+    # We use a dummy schema for testing
+    result = generate_query(prompt, "sqlite", "TEST_TABLE(col_a, col_b)", provider)
+    
+    return jsonify({
+        "provider": provider,
+        "input": prompt,
+        "output": result
+    })
+
+
+@app.route("/dashboards")
+def dashboards_page():
+    all_dashboards = list_dashboards()
+    return render_template("dashboards.html", dashboards=all_dashboards)
+
+
+@app.route("/api/dashboards", methods=["POST"])
+def api_create_dashboard():
+    name = request.json.get("name", "New Dashboard")
+    dash = create_dashboard(name)
+    return jsonify(dash)
+
+
+@app.route("/api/dashboards/<dash_id>", methods=["DELETE"])
+def api_delete_dashboard(dash_id):
+    delete_dashboard(dash_id)
+    return jsonify({"success": True})
+
+
+@app.route("/api/dashboards/<dash_id>/widgets", methods=["POST"])
+def api_add_widget(dash_id):
+    data = request.json
+    widget = add_widget(
+        dash_id, 
+        data.get("title"), 
+        data.get("query"), 
+        data.get("chart_type", "table"),
+        data.get("db_name", "Default SQLite")
+    )
+    return jsonify(widget)
+
+
+@app.route("/api/dashboards/<dash_id>/widgets/<widget_id>", methods=["DELETE"])
+def api_remove_widget(dash_id, widget_id):
+    remove_widget(dash_id, widget_id)
+    return jsonify({"success": True})
+
+
+@app.route("/api/dashboards/auto-generate", methods=["POST"])
+def api_auto_generate_dashboard():
+    prompt = request.json.get("prompt", "")
+    if not prompt:
+        return jsonify({"error": "Prompt is required"}), 400
+    
+    # 1. Get schema
+    adapter = get_adapter_for_connection("Default SQLite")
+    schema = adapter.get_schema()
+    
+    # 2. Ask LLM to suggest widgets in JSON format
+    from core.llm import generate_query
+    system_prompt = f"""
+    You are a Data Analyst. Based on the user's request and the database schema, suggest a set of 3 to 5 useful dashboard widgets.
+    Return ONLY a JSON array of objects with 'title', 'query', and 'chart_type' (one of: bar, line, pie, table).
+    SCHEMA:
+    {schema}
+    """
+    suggestion_json = generate_query(f"SUGGEST WIDGETS FOR: {prompt}", "sqlite", system_prompt, provider="groq")
+    
+    try:
+        # Clean potential markdown from LLM
+        suggestion_json = suggestion_json.strip()
+        if suggestion_json.startswith("```json"):
+            suggestion_json = suggestion_json[7:-3]
+        elif suggestion_json.startswith("```"):
+            suggestion_json = suggestion_json[3:-3]
+            
+        widgets = json.loads(suggestion_json)
+    except Exception as e:
+        print(f"Auto-generate parse error: {e}")
+        return jsonify({"error": "Failed to parse AI suggestions"}), 500
+        
+    # 3. Create Dashboard and add widgets
+    dash = create_dashboard(f"AI: {prompt[:30]}...")
+    for w in widgets:
+        add_widget(
+            dash["id"], 
+            w.get("title", "Insight"), 
+            w.get("query"), 
+            w.get("chart_type", "table"),
+            "Default SQLite"
+        )
+        
+    return jsonify(dash)
+
+
+@app.route("/dashboards/<dash_id>")
+def view_dashboard(dash_id):
+    dash = get_dashboard(dash_id)
+    if not dash:
+        return redirect(url_for("dashboards_page"))
+    return render_template("dashboard_view.html", dashboard=dash)
+
+
+# ---------------------------------------------------
+# Undo (ADMIN ONLY) -> Legacy route from index Action Bar
 # ---------------------------------------------------
 @app.route("/undo", methods=["POST"])
 def undo_last():
@@ -338,9 +688,278 @@ def undo_last():
         session["error"] = "❌ Only ADMIN can undo."
         return redirect(url_for("index"))
 
-    undo(1)
-    session["message"] = "⏪ Undo successful."
+    adapter = get_active_adapter()
+    if not adapter.supports_snapshot:
+        session["error"] = "❌ Undo is only available for supported databases."
+        return redirect(url_for("index"))
+
+    try:
+        undo(1, adapter, session.get("active_db", "Default SQLite"))
+        session["message"] = "⏪ Undo successful."
+    except Exception as e:
+        session["error"] = f"❌ {str(e)}"
+
     return redirect(url_for("index"))
+
+
+# ---------------------------------------------------
+# Snapshots Management
+# ---------------------------------------------------
+@app.route("/snapshots")
+def snapshots_page():
+    if not session.get("username"): return redirect(url_for("login"))
+    
+    active_db = session.get("active_db", "Default SQLite")
+    db_info = get_active_db_info()
+    connections = list_connections()
+    
+    all_snapshots = list_snapshots()
+    
+    return render_template(
+        "snapshots.html",
+        snapshots=all_snapshots,
+        active_db=active_db,
+        db_info=db_info,
+        connections=connections,
+        message=session.pop("message", None),
+        error=session.pop("error", None),
+        analysis_enabled=analysis_enabled
+    )
+
+@app.route("/snapshots/create", methods=["POST"])
+def create_snapshot():
+    if session.get("role") != ROLE_ADMIN:
+        session["error"] = "❌ Only ADMIN can create snapshots."
+        return redirect(url_for("snapshots_page"))
+
+    active_db = session.get("active_db", "Default SQLite")
+    adapter = get_active_adapter()
+    
+    if take_snapshot(adapter, active_db):
+        session["message"] = f"📸 Snapshot created for {active_db}."
+    else:
+        session["error"] = f"❌ Failed to create snapshot for {active_db}. Not supported or CLI tool missing."
+        
+    return redirect(url_for("snapshots_page"))
+
+@app.route("/snapshots/restore", methods=["POST"])
+def apply_snapshot():
+    if session.get("role") != ROLE_ADMIN:
+        session["error"] = "❌ Only ADMIN can restore snapshots."
+        return redirect(url_for("snapshots_page"))
+
+    snap_id = request.form.get("snap_id")
+    connection_name = request.form.get("connection_name")
+    
+    # Needs the adapter for the specific connection the snapshot belongs to
+    try:
+        adapter = get_adapter_for_connection(connection_name)
+        if restore_snapshot(snap_id, adapter):
+            session["message"] = f"⏪ Snapshot restored successfully."
+        else:
+            session["error"] = f"❌ Failed to restore snapshot. CLI tool might be missing."
+    except Exception as e:
+        session["error"] = f"❌ Error restoring snapshot: {str(e)}"
+
+    return redirect(url_for("snapshots_page"))
+
+@app.route("/snapshots/delete", methods=["POST"])
+def remove_snapshot():
+    if session.get("role") != ROLE_ADMIN:
+        session["error"] = "❌ Only ADMIN can delete snapshots."
+        return redirect(url_for("snapshots_page"))
+
+    snap_id = request.form.get("snap_id")
+    if delete_snapshot(snap_id):
+        session["message"] = "🗑️ Snapshot deleted."
+    else:
+        session["error"] = "❌ Failed to delete snapshot."
+        
+    return redirect(url_for("snapshots_page"))
+
+
+# ---------------------------------------------------
+# Database Management
+# ---------------------------------------------------
+@app.route("/databases")
+def databases_page():
+    connections = list_connections()
+    active_db = session.get("active_db", "Default SQLite")
+    db_info = get_active_db_info()
+
+    return render_template(
+        "databases.html",
+        connections=connections,
+        active_db=active_db,
+        db_types=DB_TYPES,
+        db_display_names=DB_DISPLAY_NAMES,
+        db_fields=DB_CONNECTION_FIELDS,
+        db_info=db_info,
+        message=session.pop("message", None),
+        error=session.pop("error", None),
+        analysis_enabled=analysis_enabled,
+    )
+
+
+@app.route("/databases/add", methods=["POST"])
+def add_db():
+    name = request.form.get("conn_name", "").strip()
+    db_type = request.form.get("db_type", "sqlite")
+
+    # Collect config fields based on DB type
+    fields = DB_CONNECTION_FIELDS.get(db_type, [])
+    config = {}
+    for field in fields:
+        val = request.form.get(field["name"], "")
+        config[field["name"]] = val
+
+    result = add_connection(name, db_type, config)
+
+    if result["success"]:
+        session["message"] = result["message"]
+    else:
+        session["error"] = result["message"]
+
+    return redirect(url_for("databases_page"))
+
+
+@app.route("/databases/delete", methods=["POST"])
+def delete_db():
+    name = request.form.get("conn_name", "")
+
+    if name == "Default SQLite":
+        session["error"] = "❌ Cannot delete the default SQLite connection."
+        return redirect(url_for("databases_page"))
+
+    # If deleting the active connection, switch to default
+    if session.get("active_db") == name:
+        session["active_db"] = "Default SQLite"
+
+    result = rem_connection(name)
+    if result["success"]:
+        session["message"] = result["message"]
+    else:
+        session["error"] = result["message"]
+
+    return redirect(url_for("databases_page"))
+
+
+@app.route("/databases/test", methods=["POST"])
+def test_db():
+    name = request.form.get("conn_name", "")
+    result = test_connection(name)
+    return jsonify(result)
+
+
+@app.route("/databases/test-new", methods=["POST"])
+def test_new_db():
+    db_type = request.form.get("db_type", "sqlite")
+    fields = DB_CONNECTION_FIELDS.get(db_type, [])
+    config = {}
+    for field in fields:
+        config[field["name"]] = request.form.get(field["name"], "")
+
+    result = test_new_connection(db_type, config)
+    return jsonify(result)
+
+
+@app.route("/databases/select", methods=["POST"])
+def select_db():
+    name = request.form.get("conn_name", "")
+    connections = list_connections()
+    names = [c["name"] for c in connections]
+
+    if name in names:
+        session["active_db"] = name
+        session["message"] = f"🔄 Switched to database: {name}"
+        # Clear cached query state when switching DBs
+        session.pop("last_read_sql", None)
+        session.pop("last_read_columns", None)
+        session.pop("last_sql", None)
+        session.pop("last_task", None)
+        session.pop("last_explanation", None)
+    else:
+        session["error"] = f"❌ Connection '{name}' not found."
+
+    return redirect(url_for("index"))
+
+
+# ---------------------------------------------------
+# Data Analysis & Chart Generation (Groq)
+# ---------------------------------------------------
+
+@app.route("/analysis")
+def show_analysis_page():
+    if not session.get("username"):
+        return redirect(url_for("login"))
+    return render_template("analysis.html", analysis_enabled=analysis_enabled)
+
+
+@app.route("/insights")
+def show_insights_page():
+    if not session.get("username"):
+        return redirect(url_for("login"))
+    
+    db_info = get_active_db_info()
+    return render_template("insights.html", analysis_enabled=analysis_enabled, db_info=db_info)
+
+
+@app.route("/api/insights", methods=["POST"])
+def generate_insights():
+    if not analysis_enabled:
+        return jsonify({"error": "Analysis not enabled."})
+        
+    try:
+        adapter = get_active_adapter()
+        schema = adapter.get_schema()
+        db_name = session.get("active_db", "Unknown DB")
+        from core.analyzer import analyze_schema
+        result = analyze_schema(schema, db_name)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)})
+
+
+@app.route("/analyze", methods=["POST"])
+def analyze():
+    sql = session.get("last_read_sql")
+    columns = session.get("last_read_columns")
+    user_hint = request.form.get("hint", "")
+
+    if not sql or not columns:
+        return jsonify({"error": "No query results to analyze. Please run a query first."})
+
+    try:
+        adapter = get_active_adapter()
+        # Ensure we only analyze a reasonable chunk (analyzer cuts off at 100 rows anyway)
+        paginated_sql = paginate_sql(sql, 1) if not (adapter.is_nosql or is_system_query(sql) or is_already_limited(sql)) else sql
+        _, rows = adapter.execute(paginated_sql)
+
+        from core.analyzer import analyze_data
+        result = analyze_data(columns, rows, user_hint)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)})
+
+
+@app.route("/analyze-csv", methods=["POST"])
+def analyze_csv():
+    file = request.files.get("csv_file")
+    user_hint = request.form.get("hint", "")
+
+    if not file or file.filename == "":
+        return jsonify({"error": "No file uploaded."})
+
+    try:
+        from core.csv_parser import parse_csv
+        content = file.read().decode("utf-8", errors="replace")
+        columns, rows = parse_csv(content)
+        
+        from core.analyzer import analyze_data
+        result = analyze_data(columns, rows, user_hint)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)})
 
 
 # ---------------------------------------------------

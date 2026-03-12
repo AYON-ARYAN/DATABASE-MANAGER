@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Dashboards</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+
+<!-- ================= GLOBAL NAVIGATION ================= -->
+<nav class="global-nav">
+    <div class="nav-brand">✨ Meridian Data</div>
+    <div class="nav-links">
+        <a href="/" class="nav-link">🔍 Query Agent</a>
+        <a href="/analysis" class="nav-link">📊 AI Analysis</a>
+        <a href="/databases" class="nav-link">⚙️ Manage DBs</a>
+        <a href="/snapshots" class="nav-link">📸 Snapshots</a>
+        <a href="/dashboards" class="nav-link active">📈 Dashboards</a>
+        {% if session.role == 'ADMIN' %}
+        <a href="/admin" class="nav-link">🛠 Admin</a>
+        {% endif %}
+    </div>
+    <div class="user-info">
+        <span class="user-name">{{ session.username }}</span>
+        <span class="role-badge {{ session.role }}">{{ session.role }}</span>
+        <a href="/logout" class="logout-link">Logout</a>
+    </div>
+</nav>
+
+<div class="app-container" style="max-width: 1200px; margin: 40px auto; padding: 0 20px;">
+    <header style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 40px;">
+        <div>
+            <h1>📈 AI Dashboards</h1>
+            <p>Create and manage persistent collections of charts and insights.</p>
+        </div>
+        <div style="display: flex; gap: 10px;">
+            <button onclick="autoGenerate()" class="secondary" id="btn-auto">✨ AI Auto-Generate</button>
+            <button onclick="showCreateModal()" class="btn-primary">+ Create New Dashboard</button>
+        </div>
+    </header>
+
+    <div id="dash-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px;">
+        {% for dash in dashboards %}
+        <div class="card" style="position: relative; display: flex; flex-direction: column; justify-content: space-between; height: 180px;">
+            <div>
+                <h3 style="margin-bottom: 10px;">{{ dash.name }}</h3>
+                <p style="color: var(--text-muted); font-size: 0.9rem;">
+                    {{ dash.widgets|length }} Widgets · Created {{ dash.created_at[:10] }}
+                </p>
+            </div>
+            <div style="display: flex; gap: 10px;">
+                <a href="/dashboards/{{ dash.id }}" class="btn-primary" style="flex: 1; text-align: center;">Open Builder</a>
+                <button onclick="deleteDash('{{ dash.id }}')" class="secondary" style="color: #ef4444;">Delete</button>
+            </div>
+        </div>
+        {% endfor %}
+
+        {% if not dashboards %}
+        <div class="card" style="grid-column: 1 / -1; text-align: center; padding: 60px; border: 2px dashed var(--card-border);">
+            <p style="color: var(--text-muted); margin-bottom: 20px;">No dashboards created yet.</p>
+            <button onclick="showCreateModal()" class="btn-primary">Get Started</button>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Create Modal -->
+<div id="create-modal" style="display:none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 1000; display: none; align-items: center; justify-content: center;">
+    <div class="card" style="width: 400px;">
+        <h2>New Dashboard</h2>
+        <label class="db-select-label">Dashboard Name</label>
+        <input type="text" id="new-dash-name" class="db-select" style="width: 100%; margin-bottom: 20px;" placeholder="e.g. Sales Q1 Report">
+        <div style="display: flex; gap: 10px;">
+            <button onclick="createDash()" class="btn-primary" style="flex: 1;">Create</button>
+            <button onclick="hideCreateModal()" class="secondary" style="flex: 1;">Cancel</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    function showCreateModal() {
+        document.getElementById('create-modal').style.display = 'flex';
+    }
+    function hideCreateModal() {
+        document.getElementById('create-modal').style.display = 'none';
+    }
+
+    async function createDash() {
+        const name = document.getElementById('new-dash-name').value;
+        if (!name) return alert("Enter a name");
+        
+        const res = await fetch('/api/dashboards', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({name})
+        });
+        if (res.ok) location.reload();
+    }
+
+    async function deleteDash(id) {
+        if (!confirm("Are you sure? All widgets will be deleted.")) return;
+        const res = await fetch(`/api/dashboards/${id}`, { method: 'DELETE' });
+        if (res.ok) location.reload();
+    }
+
+    async function autoGenerate() {
+        const p = prompt("What kind of dashboard do you need? (e.g. 'Sales and Inventory Overview')");
+        if (!p) return;
+        
+        const btn = document.getElementById('btn-auto');
+        btn.textContent = "⌛ Generating...";
+        btn.disabled = true;
+
+        try {
+            const res = await fetch('/api/dashboards/auto-generate', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({prompt: p})
+            });
+            if (res.ok) location.reload();
+            else alert("Generation failed. Check logs.");
+        } finally {
+            btn.textContent = "✨ AI Auto-Generate";
+            btn.disabled = false;
+        }
+    }
+</script>
+
+</body>
+</html>

@@ -1,307 +1,182 @@
-o# 🤖 AI Database Manager (Local LLM Powered)
+# Meridian Data
 
-AI Database Manager is a local, AI-powered tool that allows users to interact with a SQLite database using **natural language commands**.
+### **AI-Powered Insights. Real-Time Decisions.**
 
-Instead of writing SQL manually, users describe what they want to do (read, insert, update, delete data), review the generated SQL, and execute it safely through a web interface.
+Meridian Data is a premium, full-stack AI analytics platform that converts natural language into validated SQL, executes queries against complex enterprise databases, and delivers actionable insights through interactive dashboards. Built for speed and security, it bridges the gap between raw data and decision-makers.
 
-The system runs **fully offline** using a locally hosted LLM (Ollama + Mistral) and focuses on **safety, correctness, and usability**.
-
----
-
-## ✨ Key Features
-
-- Natural language → SQL using a **local LLM (Ollama)**
-- Human-in-the-loop SQL review before execution
-- Full CRUD support (SELECT, INSERT, UPDATE, DELETE)
-- Schema-aware SQL generation
-- System-handled schema tasks (e.g. list tables)
-- DELETE impact preview (row count before execution)
-- Snapshot-based **Undo** for write operations
-- Safe execution with validation and intent checks
-- Clean, modern, Safari-compatible web UI
-- Works fully **offline** (no cloud APIs)
+Connect your own **PostgreSQL, MySQL, MSSQL, Oracle, or SQLite** databases with high-performance connection pooling, and let the AI handle everything from schema discovery to predictive trend analysis—no SQL knowledge required.
 
 ---
 
-## 🧠 How the Project Works
+## Key Features
 
-### High-Level Flow
+### Core Intelligence
 
-1. **User enters a natural language command**  
-   Example:  
-```
+- **Natural Language to SQL**: A sophisticated 10-step NL2SQL pipeline utilizing TF-IDF schema ranking and semantic context injection.
+- **Dialect-Aware Reasoning**: Native support for various SQL dialects and NoSQL structures (MongoDB, Redis).
+- **Conversation Context**: State-aware follow-up queries supported with a sliding window context from previous interactions.
+- **Smart Chart Recommendations**: Automated visualization selection (Bar, Line, Pie, Area, Scatter) optimized for data distribution.
 
-Show first 5 customers
+### Mutations & Safety
 
-```
+- **Human-in-the-Loop Review**: All write operations (INSERT, UPDATE, DELETE) undergo a strict human-review flow with SQL syntax highlighting.
+- **Impact Preview**: Predictive row-count Analysis for DELETE statements before execution.
+- **Snapshot-Based Rollback**: One-click database restoration using lightweight snapshots for write operations.
+- **SQL Guardrails**: Middleware-level keyword filtering, multi-statement blocking, and read-only transaction enforcement.
 
-2. **System classifies the task**
-- Schema tasks (e.g. list tables) are handled directly
-- Data operations are sent to the LLM
+### LLM Administration & Analytics
 
-3. **Local LLM generates SQL**
-- The database schema is provided as context
-- The LLM outputs a single SQL statement
-
-4. **User reviews the generated SQL**
-- SQL is shown on a dedicated review page
-- Nothing executes automatically
-
-5. **Execution with safety checks**
-- SQL is validated
-- Write operations trigger a database snapshot
-- DELETE operations show affected row count
-
-6. **Results are displayed**
-- SELECT results are shown in a table
-- Execution status is clearly displayed
-
-7. **Undo support**
-- The last write operation can be reverted using snapshots
+- **Dual-Provider Router**: Dynamic routing between **Groq (Cloud AI - Llama 3.3)** and **Ollama (Local AI - Mistral)** with automatic failover.
+- **Granular Usage Tracking**: Real-time telemetry for latency, token consumption, and provider distribution.
+- **Admin Test Console**: Direct LLM probing with raw JSON output for debugging and tuning.
+- **Local Model Manager**: In-app interface to pull and manage local Ollama models.
 
 ---
 
-## 🧱 System Architecture (Simplified)
+## Technical Architecture
 
+### **Layered System Overview**
+
+```mermaid
+graph TD
+    User((User)) -->|HTTPS| Flask[Flask Web App]
+    Flask -->|Auth/RBAC| Middleware
+    Middleware -->|Query Generation| LLM[LLM Router: Groq / Ollama]
+    LLM -->|Schema Context| AdapterPool[DB Adapter Pool]
+    AdapterPool -->|Validated SQL| EnterpriseDB[(PostgreSQL/MySQL/MSSQL/SQLite)]
+    AdapterPool -->|Snapshot| Backup[Snapshot System]
+    AdapterPool -->|Insights| Analyzer[Groq Insight Engine]
+    Analyzer --> Dashboard[Chart.js / Dashboards]
 ```
 
-User (Browser)
-|
-v
-Flask Web App
-|
-+--> System Handlers (schema, safety)
-|
-+--> Local LLM (Ollama)
-|
-v
-SQLite Database
+### **Tech Stack**
 
-```
+| Layer                | Technologies                                                                   |
+| :------------------- | :----------------------------------------------------------------------------- |
+| **Frontend**         | Vanilla HTML5/CSS3 (Premium Dark Mode), Chart.js, Glassmorphism, CSS Variables |
+| **Backend**          | Python 3.11+, Flask                                                            |
+| **AI (Cloud)**       | Groq SDK (Llama 3.3 70B Versatile)                                             |
+| **AI (Local)**       | Ollama (Mistral / Llama 3)                                                     |
+| **Database Support** | SQLite, PostgreSQL, MySQL, MSSQL, Oracle                                       |
+| **Persistence**      | File-based JSON state (Metrics, Dashboards, Connections)                       |
 
 ---
 
-## 🛠 Tech Stack
+## File Structure
 
-- **Backend:** Python, Flask
-- **Database:** SQLite
-- **LLM Runtime:** Ollama (Mistral model)
-- **Frontend:** HTML + CSS (no frameworks)
-- **OS Support:** Windows, macOS
-
----
-
-## 📁 Project Structure
-
-```
-
+```text
 .
-├── app.py
-├── core/
-│   ├── db.py
-│   ├── llm.py
-│   ├── validator.py
-│   └── snapshot.py
-├── templates/
-│   ├── index.html
-│   └── review.html
-├── db/
-│   └── main.db
-└── README.md
-
+├── app.py                  # Core Flask Application & API Router
+├── core/                   # Backend Logic & Modular Services
+│   ├── adapters/           # Multi-Dialect Connector Framework
+│   │   ├── base.py         # Abstract Database Adapter Interface
+│   │   ├── sqlite_adapter.py
+│   │   ├── postgres_adapter.py
+│   │   ├── mysql_adapter.py
+│   │   ├── mssql_adapter.py
+│   │   ├── oracle_adapter.py
+│   │   ├── mongo_adapter.py
+│   │   ├── cassandra_adapter.py
+│   │   └── redis_adapter.py
+│   ├── analyzer.py         # AI Result & Schema Analysis Engine
+│   ├── connection_manager.py # Pooled Lifecycle & Workspace Control
+│   ├── csv_parser.py       # Raw Data Ingestion Utility
+│   ├── dashboards.py       # Persistence Logic for Visualizations
+│   ├── llm.py              # NL2SQL Pipeline & Context Management
+│   ├── llm_manager.py      # Provider Analytics & API Control
+│   ├── metrics.py          # Telemetry & Usage Aggregation
+│   ├── snapshot.py         # DB Backup & Reversion Flow
+│   └── validator.py        # SQL Safety Guardrails & Intent Parsing
+├── db/                     # High-Performance Data Persistence
+│   ├── main.db             # Default Local Working Database
+│   ├── connections.json    # Encrypted Backend Connection Registry
+│   ├── dashboards.json     # Permanent Dashboard State
+│   ├── usage_metrics.json  # Aggregated Analytics Time-Series
+│   └── snapshots/          # Point-in-Time Database Recovery Files
+├── static/                 # Design Systems & Visual Logic
+│   └── style.css           # Premium Dark/Glassmorphic Styling
+├── templates/              # Jinja2 Layout Framework
+│   ├── index.html          # Primary Query Analysis Interface
+│   ├── login.html          # Secure RBAC Access Gateway
+│   ├── admin.html          # Provider Telemetry & Usage Dashboard
+│   ├── dashboards.html     # Persistence Analytics Listing
+│   ├── dashboard_view.html # Interactive Data Presentation Grid
+│   ├── databases.html      # Multi-DB Lifecycle Manager
+│   └── review.html         # Human-in-the-Loop Review Pipeline
+├── requirements.txt        # Enterprise Dependency Specification
+└── .env                    # Secure Environment Configuration
 ```
 
 ---
 
-## ⚙️ Setup Instructions
+## API Endpoints
 
-### 1️⃣ Prerequisites (Windows & macOS)
+### **Authentication**
 
-Make sure you have:
+- `POST /login`: Secure session-based authentication with bcrypt hashing.
+- `GET /logout`: Terminate session and clear state.
 
-- Python **3.10+**
-- Git
-- Ollama installed
+### **Query Engine**
 
----
+- `POST /`: Submit natural language query -> LLM pipeline -> review flow.
+- `POST /execute`: Final commit for reviewed and validated SQL queries.
+- `POST /analyze`: Generate AI insights and trend analysis on query results.
+- `GET /export`: Export active query results to professional CSV format.
 
-### 2️⃣ Install Ollama
+### **Database Management**
 
-#### macOS
-Download and install from:
-```
+- `GET /databases`: View all connected database assets.
+- `POST /databases/add`: Add a new database connection with encrypted credentials.
+- `POST /databases/test`: Perform heartbeat check on an existing connection.
+- `POST /databases/select`: Hot-swap the active global workspace.
+- `POST /databases/delete`: Decommission a database connection.
 
-[https://ollama.com](https://ollama.com)
+### **LLM Administration**
 
-```
+- `GET /admin`: Complete usage dashboard with real-time Chart.js telemetry.
+- `POST /admin/llm/config`: Update global provider settings and API Keys.
+- `POST /admin/ollama/pull`: Trigger async background pull of local models.
+- `POST /admin/test_llm`: RAW prompt debugging terminal.
 
-#### Windows
-Download the Windows installer from:
-```
+### **Snapshot & Safety**
 
-[https://ollama.com](https://ollama.com)
+- `GET /snapshots`: View all database backup points.
+- `POST /snapshots/create`: Take an instant on-demand DB snapshot.
+- `POST /snapshots/restore`: Restore database state to a specific point in time.
+- `POST /undo`: Fast one-click revert of the most recent write operation.
 
-````
+### **Visual Dashboards**
 
-After installation, verify:
-```bash
-ollama --version
-````
-
----
-
-### 3️⃣ Pull the LLM Model
-
-Run:
-
-```bash
-ollama pull mistral
-```
-
-Start the Ollama server:
-
-```bash
-ollama serve
-```
-
-> Keep this running in the background.
+- `GET /dashboards`: Multi-dashboard listing and management.
+- `POST /api/dashboards`: Create a persistent dashboard workspace.
+- `POST /api/dashboards/auto-generate`: AI-planner that builds full dashboards based on business goals.
+- `POST /api/dashboards/{id}/widgets`: Manually pin analytics widgets to a workspace.
 
 ---
 
-### 4️⃣ Clone the Repository
+## Security & Reliability
 
-```bash
-git clone <your-repo-url>
-cd ai-database-manager
-```
+Meridian Data is designed with enterprise-grade guardrails:
 
----
-
-### 5️⃣ Create a Python Virtual Environment
-
-#### macOS / Linux
-
-```bash
-python3 -m venv venv
-source venv/bin/activate
-```
-
-#### Windows (PowerShell)
-
-```powershell
-python -m venv venv
-venv\Scripts\activate
-```
+- **AES-256-GCM Encryption**: All database passwords stored at rest are encrypted with an environment-derived key.
+- **RBAC Enforcement**: Granular permissions (Admin, Editor, Viewer) control every action from schema-changes to read-only views.
+- **Query Guardrails**: Prevents SQL injection, multi-statement attacks, and unauthorized schema modifications.
+- **Failover Logic**: Automatic routing to local Ollama if Groq API hits rate limits or latency spikes.
 
 ---
 
-### 6️⃣ Install Dependencies
+## Setup Instructions
 
-```bash
-pip install -r requirements.txt
-```
-
-> If you don’t have a `requirements.txt`, install manually:
-
-```bash
-pip install flask requests
-```
-
----
-
-### 7️⃣ Prepare the Database
-
-Place your SQLite database file at:
-
-```
-db/main.db
-```
-
-You can use any SQLite database.
-For testing, the **Chinook** sample database works well.
+1. **Prepare Environment**: Install Python 3.11+ and [Ollama](https://ollama.com).
+2. **Install Dependencies**: `pip install -r requirements.txt`.
+3. **Configure Environment**: Set `GROQ_API_KEY` in `.env`.
+4. **Bootstrapping**:
+   ```bash
+   ollama pull mistral  # Prepare local fall-back
+   python app.py        # Spin up Meridian Data
+   ```
+5. **Access Gateway**: Navigate to `http://127.0.0.1:5000` to begin.
 
 ---
 
-### 8️⃣ Run the Application
-
-```bash
-python app.py
-```
-
-You should see:
-
-```
-Running on http://127.0.0.1:5000/
-```
-
-Open that URL in your browser (Safari, Chrome, Edge supported).
-
----
-
-## 🧪 Example Commands
-
-```
-List all tables
-Show first 5 customers
-Show invoices from Germany
-Add a new customer named John Doe
-Update phone number of customer with ID 5
-Delete invoice with InvoiceId = 12
-```
-
----
-
-## 🛡 Safety Design
-
-* SQL is **never executed automatically**
-* Only one SQL statement is allowed
-* Dangerous operations are blocked
-* Write operations create snapshots
-* Undo restores previous database state
-* Schema visibility reduces hallucinations
-
----
-
-## 🚧 Limitations
-
-* Designed for SQLite (can be extended)
-* LLM output may require human judgment
-* Not intended for production databases
-* No authentication (single-user prototype)
-
----
-
-## 📌 Future Improvements
-
-* Execution history & audit logs
-* DELETE confirmation dialogs
-* SQL diff preview for UPDATE
-* Pagination & sorting
-* Role-based access control
-
----
-
-## 📜 License
-
-This project is intended for **learning, experimentation, and prototyping**.
-
----
-
-## 🙌 Acknowledgements
-
-* Ollama for local LLM runtime
-* Mistral model
-* SQLite for lightweight database support
-
-```
-
----
-
-If you want next, I can:
-- optimize this README for **recruiters**
-- add **screenshots & diagrams**
-- create a **requirements.txt**
-- help you write a **resume bullet point** for this project
-
-Just tell me on ayonaryan5@gmail.com
-```
+**Meridian Data**: _Precision in Intelligence, Authority in Data._

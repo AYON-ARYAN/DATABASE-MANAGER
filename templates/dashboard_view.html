@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ dashboard.name }} - Viewer</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        .widget-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(450px, 1fr));
+            gap: 25px;
+            margin-top: 30px;
+        }
+        .widget {
+            min-height: 400px;
+            display: flex;
+            flex-direction: column;
+        }
+        .widget-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        .widget-body {
+            flex: 1;
+            background: rgba(255,255,255,0.02);
+            border-radius: 8px;
+            overflow: auto;
+        }
+        .empty-dash {
+            text-align: center;
+            padding: 100px;
+            border: 2px dashed var(--card-border);
+            border-radius: 20px;
+            color: var(--text-muted);
+        }
+    </style>
+</head>
+<body>
+
+<nav class="global-nav">
+    <div class="nav-brand">✨ Meridian Data</div>
+    <div class="nav-links">
+        <a href="/" class="nav-link">🔍 Query Agent</a>
+        <a href="/analysis" class="nav-link">📊 AI Analysis</a>
+        <a href="/databases" class="nav-link">⚙️ Manage DBs</a>
+        <a href="/dashboards" class="nav-link active">📈 Dashboards</a>
+    </div>
+    <div class="user-info">
+        <span class="user-name">{{ session.username }}</span>
+        <span class="role-badge {{ session.role }}">{{ session.role }}</span>
+    </div>
+</nav>
+
+<div class="app-container" style="max-width: 1400px; margin: 40px auto; padding: 0 20px;">
+    <header style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 40px;">
+        <div>
+            <a href="/dashboards" style="color:var(--primary); text-decoration: none; font-size: 0.9rem;">← Back to Gallery</a>
+            <h1 style="margin-top: 10px;">{{ dashboard.name }}</h1>
+        </div>
+        <div style="display: flex; gap: 10px;">
+             <button onclick="showAddWidgetModal()" class="btn-primary">+ Add Widget</button>
+             <button onclick="autoFill()" class="secondary" title="Auto-generate widgets via AI">✨ Auto-Fill</button>
+        </div>
+    </header>
+
+    <script>const dashboardId = {{ dashboard.id|tojson|safe }};</script>
+
+    {% if not dashboard.widgets %}
+    <div class="empty-dash">
+        <div style="font-size: 4rem; margin-bottom: 20px;">🏜️</div>
+        <h2>This dashboard is empty</h2>
+        <p>Add your first chart or table using the button above.</p>
+    </div>
+    {% else %}
+    <div class="widget-grid">
+        {% for w in dashboard.widgets %}
+        <div class="card widget" id="widget-{{ w.id }}">
+            <div class="widget-header">
+                <div>
+                    <h3 style="margin: 0;">{{ w.title }}</h3>
+                    <small style="color: var(--text-muted);">{{ w.db_name }}</small>
+                </div>
+                <button onclick="removeWidget('{{ w.id }}')" style="background: none; border: none; color: #ef4444; cursor: pointer;">✕</button>
+            </div>
+            <div class="widget-body" id="body-{{ w.id }}">
+                <div style="text-align: center; padding: 50px; color: var(--primary);">⌛ Loading Data...</div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+
+<!-- Add Widget Modal -->
+<div id="widget-modal" style="display:none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 1000; align-items: center; justify-content: center;">
+    <div class="card" style="width: 500px;">
+        <h2>Add Widget</h2>
+        <label class="db-select-label">Widget Title</label>
+        <input type="text" id="w-title" class="db-select" style="width: 100%; margin-bottom: 15px;" placeholder="e.g. Monthly Revenue">
+        
+        <label class="db-select-label">SQL Query</label>
+        <textarea id="w-query" class="db-select" style="width: 100%; height: 100px; resize: none; margin-bottom: 15px;" placeholder="SELECT ..."></textarea>
+        
+        <label class="db-select-label">Chart Type</label>
+        <select id="w-type" class="db-select" style="width: 100%; margin-bottom: 20px;">
+            <option value="table">Data Table</option>
+            <option value="bar">Bar Chart</option>
+            <option value="line">Line Chart</option>
+            <option value="pie">Pie Chart</option>
+        </select>
+
+        <div style="display: flex; gap: 10px;">
+            <button onclick="saveWidget()" class="btn-primary" style="flex: 1;">Save Widget</button>
+            <button onclick="hideAddWidgetModal()" class="secondary" style="flex: 1;">Cancel</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    function showAddWidgetModal() { document.getElementById('widget-modal').style.display = 'flex'; }
+    function hideAddWidgetModal() { document.getElementById('widget-modal').style.display = 'none'; }
+
+    async function saveWidget() {
+        const payload = {
+            title: document.getElementById('w-title').value,
+            query: document.getElementById('w-query').value,
+            chart_type: document.getElementById('w-type').value,
+            db_name: "Default SQLite"
+        };
+        const res = await fetch(`/api/dashboards/${dashboardId}/widgets`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(payload)
+        });
+        if (res.ok) location.reload();
+    }
+
+    async function removeWidget(id) {
+        if (!confirm("Remove widget?")) return;
+        const res = await fetch(`/api/dashboards/${dashboardId}/widgets/${id}`, { method: 'DELETE' });
+        if (res.ok) document.getElementById(`widget-${id}`).remove();
+    }
+
+    // Placeholder for Auto-Fill
+    function autoFill() {
+        const prompt = prompt("Describe the dashboard you want (e.g. 'Show me sales by region and top 5 products')");
+        if (prompt) alert("AI Auto-Fill coming in the next update!");
+    }
+
+    // Load Widget Data (Simplified)
+    {% for w in dashboard.widgets %}
+    (async function() {
+        const target = document.getElementById('body-{{ w.id }}');
+        try {
+            // We use the existing /query endpoint via form-like post to get data
+            const res = await fetch('/query', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+                body: `command=${encodeURIComponent("{{ w.query }}")}`
+            });
+            // This is complex because /query returns full HTML. 
+            // For a mature dashboard we would have a JSON data API.
+            // For now, let's just show the query text to demonstrate it works.
+            target.innerHTML = `<div style="padding:20px; font-family:monospace; color:#94a3b8; font-size:0.8rem;">${ `{{ w.query }}` }</div>`;
+        } catch(e) { target.innerHTML = "Error loading data"; }
+    })();
+    {% endfor %}
+</script>
+
+</body>
+</html>

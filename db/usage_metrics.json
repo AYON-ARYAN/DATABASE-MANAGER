@@ -1,0 +1,11 @@
+[
+  {
+    "timestamp": "2026-03-12T22:52:01.557720",
+    "provider": "mistral",
+    "model": "local",
+    "latency": 14.331,
+    "prompt_tokens": 992,
+    "completion_tokens": 12,
+    "total_tokens": 1004
+  }
+]

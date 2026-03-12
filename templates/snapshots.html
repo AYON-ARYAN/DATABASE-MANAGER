@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Database Snapshots</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body>
+
+<!-- ================= GLOBAL NAVIGATION ================= -->
+<nav class="global-nav">
+    <div class="nav-brand">✨ Meridian Data</div>
+    <div class="nav-links">
+        <a href="/" class="nav-link">🔍 Query Agent</a>
+        <a href="/analysis" class="nav-link">📊 AI Analysis</a>
+        <a href="/databases" class="nav-link">⚙️ Manage DBs</a>
+        <a href="/snapshots" class="nav-link active">📸 Snapshots</a>
+        <a href="/dashboards" class="nav-link">📈 Dashboards</a>
+        {% if session.role == 'ADMIN' %}
+        <a href="/admin" class="nav-link">🛠 Admin</a>
+        {% endif %}
+    </div>
+    <div class="user-info">
+        <span class="user-name">{{ session.username }}</span>
+        <span class="role-badge {{ session.role }}">{{ session.role }}</span>
+        <a href="/logout" class="logout-link">Logout</a>
+    </div>
+</nav>
+
+<header style="margin-top: 30px;">
+    <h1>📸 Database Snapshots</h1>
+    <p>Backup and restore your data schemas and tables</p>
+</header>
+
+<div class="db-page">
+
+    <!-- Flash messages -->
+    {% if message %}
+    <section class="success-card" style="margin-bottom:20px;">{{ message }}</section>
+    {% endif %}
+    {% if error %}
+    <section class="error-card" style="margin-bottom:20px;">{{ error }}</section>
+    {% endif %}
+
+    <!-- ================= CURRENT CONNECTION SNAPSHOT ACTIONS ================= -->
+    <div class="card" style="margin-bottom: 20px;">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <h3 style="margin-top: 0">Active Database: <span style="color:var(--text-glow)">{{ active_db }}</span></h3>
+                <p style="margin: 0; font-size: 0.9rem; color: var(--text-muted)">
+                    Type: {{ db_info.display_type }} | 
+                    {% if db_info.supports_snapshot %}
+                        <span style="color: #4ade80">✅ Snapshots Supported</span>
+                    {% else %}
+                        <span style="color: #f87171">❌ Snapshots Not Supported</span>
+                    {% endif %}
+                </p>
+            </div>
+            {% if db_info.supports_snapshot and session.role == 'ADMIN' %}
+            <form method="POST" action="/snapshots/create" style="margin: 0;">
+                <button type="submit" class="btn-primary" style="margin: 0;">📸 Create New Snapshot</button>
+            </form>
+            {% elif not db_info.supports_snapshot %}
+            <button class="btn" disabled style="opacity: 0.5; margin: 0;">Not Supported</button>
+            {% else %}
+             <button class="btn" disabled style="opacity: 0.5; margin: 0;">Admin Only</button>
+            {% endif %}
+        </div>
+    </div>
+
+
+    <!-- ================= SAVED SNAPSHOTS ================= -->
+    <h2>🕰️ Available Snapshots</h2>
+    
+    {% if snapshots %}
+    <div class="table-wrapper">
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Connection</th>
+                    <th>Type</th>
+                    <th>Snapshot ID</th>
+                    <th>Taken At</th>
+                    <th style="text-align: right;">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for snap in snapshots %}
+                <tr>
+                    <td><strong>{{ snap.connection_name }}</strong></td>
+                    <td><span class="db-type-badge">{{ snap.db_type|upper }}</span></td>
+                    <td><code style="background: var(--bg-hover); padding: 4px 8px; border-radius: 4px;">{{ snap.id }}</code></td>
+                    <td>{{ snap.formatted_time }}</td>
+                    <td style="text-align: right;">
+                        <div style="display: flex; justify-content: flex-end; gap: 8px;">
+                            {% if session.role == 'ADMIN' %}
+                            <form method="POST" action="/snapshots/restore" style="margin: 0;" onsubmit="return confirm('⚠️ Restoring snapshot {{ snap.id }} for {{ snap.connection_name }} will overwrite current data. Continue?');">
+                                <input type="hidden" name="snap_id" value="{{ snap.id }}">
+                                <input type="hidden" name="connection_name" value="{{ snap.connection_name }}">
+                                <button type="submit" class="btn-primary" style="margin: 0; padding: 6px 12px; font-size: 0.85rem;">⏪ Restore</button>
+                            </form>
+                            <form method="POST" action="/snapshots/delete" style="margin: 0;" onsubmit="return confirm('Delete snapshot {{ snap.id }} permanently?');">
+                                <input type="hidden" name="snap_id" value="{{ snap.id }}">
+                                <button type="submit" class="btn-danger" style="margin: 0; padding: 6px 12px; font-size: 0.85rem;">🗑️ Delete</button>
+                            </form>
+                            {% else %}
+                            <span style="font-size: 0.85rem; color: var(--text-muted)">Admin Only</span>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="notice-box" style="margin-top: 10px;">
+        <span class="notice-icon">📭</span>
+        <span class="notice-text">No snapshots have been taken yet. Make sure your database supports snapshots and click "Create New Snapshot" above.</span>
+    </div>
+    {% endif %}
+
+    <div style="text-align:center; margin-top:40px;">
+        <a href="/" class="manage-link" style="padding:10px 20px;">⬅ Back to Query Agent</a>
+    </div>
+</div>
+
+</body>
+</html>
