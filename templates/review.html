@@ -46,15 +46,25 @@
     {% endif %}
 
     <section class="card">
-        <h2>🧾 SQL Statement</h2>
-        <pre>{{ sql }}</pre>
+        <h2>🧾 SQL Statement (Editable)</h2>
+        <textarea id="editableSql" name="sql" style="width: 100%; height: 150px; font-family: monospace; padding: 10px; border: 1px solid #ddd; border-radius: 4px; background: #f9f9f9; color: #2c3e50; resize: vertical;">{{ sql }}</textarea>
     </section>
+
     {% if explanation %}
-    <section class="card">
-    <h2>🧠 SQL Explanation</h2>
-    <pre style="white-space: pre-wrap;">{{ explanation }}</pre>
+    <section class="card" id="explanationCard">
+        <h2>🧠 AI Logic Explanation</h2>
+        <div id="explanationText" style="white-space: pre-wrap; line-height: 1.5;">{{ explanation }}</div>
     </section>
     {% endif %}
+
+    <section class="card refinement-loop">
+        <h2>✨ Refine with AI</h2>
+        <p>Tell the AI what to change or fix:</p>
+        <div style="display: flex; gap: 10px;">
+            <input type="text" id="refinePrompt" placeholder="e.g. 'Sort by price descending' or 'Exclude inactive users'" style="flex-grow: 1; padding: 10px; border-radius: 4px; border: 1px solid #ddd;">
+            <button type="button" id="refineBtn" class="secondary">Refine AI Query</button>
+        </div>
+    </section>
 
     <section class="card">
         <h2>📌 Impact Preview</h2>
@@ -62,11 +72,17 @@
     </section>
 
     <section class="action-bar">
-        <form method="POST" action="/execute">
+        <form id="executeForm" method="POST" action="/execute">
+            <!-- We'll sync the textarea to a hidden input or just make the textarea part of this form -->
+            <input type="hidden" name="sql" id="hiddenSql">
             <button type="submit" class="danger">
                 ✅ Execute Changes
             </button>
         </form>
+
+        <button type="button" id="dryRunBtn" class="secondary">
+            🧪 Dry Run
+        </button>
 
         {% if db_info.supports_snapshot %}
         <form method="POST" action="/undo">
@@ -78,6 +94,101 @@
 
         <a href="/" class="secondary link-btn">⬅ Back</a>
     </section>
+
+    <div id="dryRunResult" class="card result-box" style="display: none; margin-top: 20px;">
+        <h3>🧪 Dry Run Result</h3>
+        <p id="dryRunMsg"></p>
+        <div id="dryRunStats" style="font-size: 1.1em; font-weight: bold; color: var(--accent-color);"></div>
+    </div>
+</div>
+
+<script>
+const editableSql = document.getElementById('editableSql');
+const hiddenSql = document.getElementById('hiddenSql');
+const executeForm = document.getElementById('executeForm');
+
+// Keep hidden input in sync for final submission
+executeForm.addEventListener('submit', () => {
+    hiddenSql.value = editableSql.value;
+});
+
+// DRY RUN
+document.getElementById('dryRunBtn').addEventListener('click', async function() {
+    const btn = this;
+    const resultBox = document.getElementById('dryRunResult');
+    const msg = document.getElementById('dryRunMsg');
+    const stats = document.getElementById('dryRunStats');
+    
+    btn.disabled = true;
+    btn.innerText = '⌛ Processing...';
+    
+    try {
+        const response = await fetch('/dry-run', { 
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sql: editableSql.value })
+        });
+        const data = await response.json();
+        
+        resultBox.style.display = 'block';
+        if (data.success) {
+            msg.innerText = data.status;
+            stats.innerText = `Affected Rows: ${data.affected_rows}`;
+            resultBox.style.borderColor = 'var(--accent-color)';
+        } else {
+            msg.innerText = data.status;
+            stats.innerText = '';
+            resultBox.style.borderColor = '#ff4444';
+        }
+    } catch (err) {
+        resultBox.style.display = 'block';
+        msg.innerText = '❌ Error connecting to server.';
+        resultBox.style.borderColor = '#ff4444';
+    } finally {
+        btn.disabled = false;
+        btn.innerText = '🧪 Dry Run';
+    }
+});
+
+// AI REFINE
+document.getElementById('refineBtn').addEventListener('click', async function() {
+    const btn = this;
+    const promptInput = document.getElementById('refinePrompt');
+    const feedback = promptInput.value.trim();
+    if (!feedback) return;
+    
+    btn.disabled = true;
+    btn.innerText = '✨ Refining...';
+    
+    try {
+        const response = await fetch('/refine', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                feedback: feedback,
+                current_sql: editableSql.value 
+            })
+        });
+        const data = await response.json();
+        
+        if (data.success) {
+            editableSql.value = data.sql;
+            if (data.explanation) {
+                const expText = document.getElementById('explanationText');
+                if (expText) expText.innerText = data.explanation;
+            }
+            promptInput.value = '';
+        } else {
+            alert('❌ Refinement failed: ' + data.error);
+        }
+    } catch (err) {
+        alert('❌ Error connecting to refinement engine.');
+    } finally {
+        btn.disabled = false;
+        btn.innerText = 'Refine AI Query';
+    }
+});
+</script>
 </div>
 
 </body>

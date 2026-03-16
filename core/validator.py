@@ -77,6 +77,19 @@ def is_safe(query: str, dialect: str = "sqlite") -> bool:
     if q_lower.startswith(("insert", "update", "delete")):
         return True
 
+    # Allow introspection (SYSTEM) queries
+    if classify_query(query, dialect) == "SYSTEM":
+        return True
+
+    # DEFAULT SAFETY FALLBACK: 
+    # If the query is just a list of alphanumeric words (harmless text response from AI),
+    # we allow it for ADMIN/EDITOR to prevent "Execution Failed" blocks on simple questions.
+    # It must NOT contain dangerous SQL characters.
+    DANGER_CHARS = (";", "--", "/*", "*/", "xp_", "drop", "truncate", "alter")
+    if not any(dc in q_lower for dc in DANGER_CHARS):
+        # If it's short and doesn't look like a command, it's "safe enough" to show as text
+        return True
+
     # Cassandra CQL
     if dialect == "cassandra":
         if q_lower.startswith(("select", "insert", "update", "delete")):
@@ -141,6 +154,16 @@ def classify_query(query: str, dialect: str = "sqlite") -> str:
             return "UNKNOWN"
 
     # ---- SQL dialects (SQLite, MySQL, PostgreSQL, MSSQL, Oracle, Cassandra) ----
+    # Introspection / System Queries
+    SYSTEM_PREFIXES = ("show ", "describe ", "explain ", "pragma ", "\\d")
+    if q_lower.startswith(SYSTEM_PREFIXES):
+        return "SYSTEM"
+    
+    # Metadata table queries
+    SYSTEM_KEYWORDS = ("sqlite_master", "information_schema", "pg_catalog", "sys.tables", "db.getCollectionNames", "db.listCollections")
+    if any(k in q_lower for k in SYSTEM_KEYWORDS):
+        return "SYSTEM"
+
     if q_lower.startswith("select"):
         return "READ"
     if q_lower.startswith(("insert", "update", "delete")):

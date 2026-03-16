@@ -1,0 +1,35 @@
+{
+  "dashboards": [
+    {
+      "id": "cfbc8092-177e-4ab0-9d28-10b5b6286b8f",
+      "name": "AI: customer distribution by count...",
+      "widgets": [
+        {
+          "id": "05f466d7-51c8-4f6d-947f-1482f6b917bd",
+          "title": "Customer Distribution by Country",
+          "query": "SELECT Country, COUNT(CustomerId) AS CustomerCount FROM Customer GROUP BY Country",
+          "chart_type": "bar",
+          "db_name": "Default SQLite",
+          "created_at": "2026-03-16T19:44:56.488985"
+        },
+        {
+          "id": "5e28609f-4c99-4fbe-b81d-8c188945b3ee",
+          "title": "Top 10 Countries by Customer Count",
+          "query": "SELECT Country, COUNT(CustomerId) AS CustomerCount FROM Customer GROUP BY Country ORDER BY CustomerCount DESC LIMIT 10",
+          "chart_type": "pie",
+          "db_name": "Default SQLite",
+          "created_at": "2026-03-16T19:44:56.489390"
+        },
+        {
+          "id": "e41d6015-4d7c-4a16-8b8e-03145621ba7c",
+          "title": "Customer Distribution by Country (Table)",
+          "query": "SELECT Country, COUNT(CustomerId) AS CustomerCount FROM Customer GROUP BY Country",
+          "chart_type": "table",
+          "db_name": "Default SQLite",
+          "created_at": "2026-03-16T19:44:56.490593"
+        }
+      ],
+      "created_at": "2026-03-16T19:44:56.488369"
+    }
+  ]
+}

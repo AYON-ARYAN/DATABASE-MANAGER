@@ -102,6 +102,31 @@ class SQLiteAdapter(DatabaseAdapter):
             return columns, rows
         finally:
             cur.close()
+    def dry_run(self, query: str) -> dict:
+        conn = self.get_connection()
+        # SQLite doesn't support easy dry-run with cursor alone without commit,
+        # but we can wrap in a transaction and rollback.
+        try:
+            conn.execute("BEGIN")
+            cur = conn.cursor()
+            cur.execute(query)
+            affected = conn.total_changes
+            conn.rollback()
+            return {
+                "affected_rows": affected,
+                "status": "Success (Rolled back)",
+                "success": True
+            }
+        except Exception as e:
+            try: conn.rollback()
+            except: pass
+            return {
+                "affected_rows": 0,
+                "status": f"Error: {str(e)}",
+                "success": False
+            }
+        finally:
+            cur.close()
 
     # --------------------------------------------------
     # Safety

@@ -62,6 +62,7 @@
             <h1 style="margin-top: 10px;">{{ dashboard.name }}</h1>
         </div>
         <div style="display: flex; gap: 10px;">
+             <a href="/export/ppt" class="secondary link-btn">📊 Export PPT</a>
              <button onclick="showAddWidgetModal()" class="btn-primary">+ Add Widget</button>
              <button onclick="autoFill()" class="secondary" title="Auto-generate widgets via AI">✨ Auto-Fill</button>
         </div>
@@ -145,30 +146,105 @@
         if (res.ok) document.getElementById(`widget-${id}`).remove();
     }
 
-    // Placeholder for Auto-Fill
-    function autoFill() {
-        const prompt = prompt("Describe the dashboard you want (e.g. 'Show me sales by region and top 5 products')");
-        if (prompt) alert("AI Auto-Fill coming in the next update!");
+    async function autoFill() {
+        const promptText = prompt("Describe the dashboard you want (e.g. 'Show me sales by region and top 5 products')");
+        if (!promptText) return;
+        
+        try {
+            const res = await fetch('/api/dashboards/auto-generate', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ prompt: promptText })
+            });
+            const data = await res.json();
+            if (data.error) alert("❌ AI suggestion failed: " + data.error);
+            else location.reload();
+        } catch(e) { alert("❌ Error connecting to AI engine."); }
     }
 
-    // Load Widget Data (Simplified)
+    // Load Widget Data and Render
     {% for w in dashboard.widgets %}
     (async function() {
         const target = document.getElementById('body-{{ w.id }}');
+        const widgetId = "{{ w.id }}";
+        const chartType = "{{ w.chart_type }}";
+        const query = {{ w.query|tojson|safe }};
+        const dbName = "{{ w.db_name }}";
+
         try {
-            // We use the existing /query endpoint via form-like post to get data
-            const res = await fetch('/query', {
+            const res = await fetch('/api/query', {
                 method: 'POST',
-                headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-                body: `command=${encodeURIComponent("{{ w.query }}")}`
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ query: query, db_name: dbName })
             });
-            // This is complex because /query returns full HTML. 
-            // For a mature dashboard we would have a JSON data API.
-            // For now, let's just show the query text to demonstrate it works.
-            target.innerHTML = `<div style="padding:20px; font-family:monospace; color:#94a3b8; font-size:0.8rem;">${ `{{ w.query }}` }</div>`;
-        } catch(e) { target.innerHTML = "Error loading data"; }
+            const data = await res.json();
+            
+            if (!data.success) {
+                target.innerHTML = `<div style="padding:20px; color:#ef4444;">❌ Error: ${data.error}</div>`;
+                return;
+            }
+
+            if (data.rows.length === 0) {
+                target.innerHTML = `<div style="padding:50px; text-align:center; color:#64748b;">No data found for this query.</div>`;
+                return;
+            }
+
+            if (chartType === 'table') {
+                renderTable(target, data.columns, data.rows);
+            } else {
+                renderChart(target, widgetId, chartType, data.columns, data.rows, "{{ w.title }}");
+            }
+        } catch(e) { target.innerHTML = `<div style="padding:20px; color:#ef4444;">❌ Request failed</div>`; }
     })();
     {% endfor %}
+
+    function renderTable(container, columns, rows) {
+        let html = '<table style="width:100%; border-collapse: collapse; font-size:0.85rem;"><thead><tr>';
+        columns.forEach(c => html += `<th style="text-align:left; padding:10px; border-bottom:1px solid #1e293b; color:#94a3b8;">${c}</th>`);
+        html += '</tr></thead><tbody>';
+        rows.forEach(row => {
+            html += '<tr>';
+            row.forEach(cell => html += `<td style="padding:10px; border-bottom:1px solid #0f172a;">${cell}</td>`);
+            html += '</tr>';
+        });
+        html += '</tbody></table>';
+        container.innerHTML = html;
+    }
+
+    function renderChart(container, id, type, columns, rows, title) {
+        // Prepare data for many chart types: first col is labels, second is data
+        const labels = rows.map(r => r[0]);
+        const values = rows.map(r => r[1]);
+        
+        container.innerHTML = `<canvas id="canvas-${id}" style="padding:10px;"></canvas>`;
+        const ctx = document.getElementById(`canvas-${id}`).getContext('2d');
+        
+        const palette = ['#38bdf8', '#818cf8', '#fb7185', '#f472b6', '#fbbf24', '#34d399', '#a78bfa'];
+        
+        new Chart(ctx, {
+            type: type === 'area' ? 'line' : type,
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: title,
+                    data: values,
+                    backgroundColor: type === 'pie' ? palette : 'rgba(56, 189, 248, 0.2)',
+                    borderColor: '#38bdf8',
+                    borderWidth: 2,
+                    fill: type === 'area'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: type === 'pie' } },
+                scales: type === 'pie' ? {} : {
+                    y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#64748b' } },
+                    x: { grid: { display: false }, ticks: { color: '#64748b' } }
+                }
+            }
+        });
+    }
 </script>
 
 </body>

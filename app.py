@@ -1,10 +1,12 @@
-from flask import (
-    Flask, render_template, request,
-    session, redirect, url_for, Response, jsonify
-)
 from datetime import datetime
 from io import StringIO
 import csv
+import time
+from flask import (
+    Flask, render_template, request,
+    session, redirect, url_for, Response, jsonify, send_file
+)
+import json
 
 from werkzeug.security import generate_password_hash, check_password_hash
 
@@ -252,6 +254,12 @@ def index():
 
             tables = adapter.list_tables()
             label = "Collections" if adapter.is_nosql else "Tables"
+            
+            # Metadata for PPT/Export (No heavy data)
+            session["last_read_sql"] = "SELECT name FROM sqlite_master WHERE type='table'" if dialect == "sqlite" else "SHOW TABLES"
+            session["last_query"] = user_cmd
+            session["last_explanation"] = "Listing all tables/collections in the database."
+            
             add_to_history(user_cmd, "SHOW TABLES", "SYSTEM", "EXECUTED")
 
             return render_template(
@@ -277,15 +285,21 @@ def index():
             user_cmd, dialect, schema, llm_provider, history=conversation_context
         )
         
-        # Update context (last 10)
+        # Update context (last 5 - pruned for performance)
         conversation_context.append({"user": user_cmd, "assistant": query})
-        if len(conversation_context) > 10:
+        if len(conversation_context) > 5:
             conversation_context.pop(0)
         session["conversation_context"] = conversation_context
         
         task = classify_query(query, dialect)
+        safe_check = is_safe(query, dialect)
+        
+        # Guard: Allow UNKNOWN for Admin/Editor if it's safe (fallback for complex introspection)
+        effective_task = task
+        if task == "UNKNOWN" and role in (ROLE_ADMIN, ROLE_EDITOR) and safe_check:
+            effective_task = "READ" # Treat as READ for permission check
 
-        if not is_allowed(role, task):
+        if not is_allowed(role, effective_task):
             add_to_history(user_cmd, query, task, "BLOCKED (ROLE)")
             return render_template(
                 "index.html",
@@ -297,8 +311,8 @@ def index():
                 analysis_enabled=analysis_enabled,
             )
 
-        # READ
-        if task == "READ":
+        # READ, SYSTEM, or safe UNKNOWN (as effective READ) → Execute directly
+        if task in ("READ", "SYSTEM") or (task == "UNKNOWN" and effective_task == "READ"):
             if not is_safe(query, dialect):
                 add_to_history(user_cmd, query, "READ", "BLOCKED")
                 return render_template(
@@ -331,27 +345,44 @@ def index():
                     columns, rows = adapter.execute(paginated_sql)
                     total_rows = safe_count(adapter, query)
             except Exception as e:
-                return render_template(
-                    "index.html",
-                    sql=query,
-                    explanation=explanation,
-                    task="READ",
-                    error=f"❌ Execution failed: {str(e)}",
-                    history=session.get("history", []),
-                    db_info=db_info,
-                    connections=connections,
-                    llm_provider=llm_provider,
-                    analysis_enabled=analysis_enabled,
-                )
-
-            session["last_read_columns"] = columns
-            add_to_history(user_cmd, query, "READ", "EXECUTED")
-
+                # If it's a "Safe Unknown" (plain text), and it fails as SQL,
+                # just return the text itself as a single row result.
+                if task == "UNKNOWN" and effective_task == "READ":
+                    columns = ["Intelligence Response"]
+                    rows = [[query]]
+                    total_rows = 1
+                    paginated_sql = "N/A (Non-SQL Response)"
+                    
+                    # Store even non-SQL intelligence responses for PPT
+                    session["last_results"] = rows
+                    session["last_columns"] = columns
+                    session["last_sql"] = paginated_sql
+                    session["last_query"] = user_cmd
+                    session["last_explanation"] = explanation
+                else:
+                    return render_template(
+                        "index.html",
+                        sql=query,
+                        explanation=explanation,
+                        task="READ",
+                        error=f"❌ Execution failed: {str(e)}",
+                        history=session.get("history", []),
+                        db_info=db_info,
+                        connections=connections,
+                        llm_provider=llm_provider,
+                        analysis_enabled=analysis_enabled,
+                    )
+            
+            # CRITICAL: Do NOT store rows/columns in session to avoid "Cookie too large"
+            # PPT/Export will re-fetch data as needed.
+            
+            add_to_history(user_cmd, query, task, "EXECUTED")
+            
             return render_template(
                 "index.html",
                 sql=paginated_sql,
                 explanation=explanation,
-                task="READ",
+                task=task,
                 columns=columns,
                 results=rows_to_list(rows) if rows and not isinstance(rows[0], list) else rows if rows else [],
                 page=page,
@@ -402,7 +433,7 @@ def index():
                 "index.html",
                 sql=sql,
                 explanation=explanation,
-                task="READ",
+                task=task,
                 error=f"❌ Execution failed: {str(e)}",
                 history=session.get("history", []),
                 db_info=db_info,
@@ -414,7 +445,7 @@ def index():
             "index.html",
             sql=paginated_sql,
             explanation=explanation,
-            task="READ",
+            task=task,
             columns=columns,
             results=rows_to_list(rows) if rows and not isinstance(rows[0], list) else rows if rows else [],
             page=page,
@@ -467,10 +498,78 @@ def export_csv():
 # ---------------------------------------------------
 # Execute WRITE / SCHEMA
 # ---------------------------------------------------
+@app.route("/dry-run", methods=["POST"])
+def dry_run_route():
+    data = request.json or {}
+    query = data.get("sql") or session.get("last_sql")
+    
+    if not query:
+        return jsonify({"success": False, "status": "No query provided"})
+    
+    adapter = get_active_adapter()
+    try:
+        result = adapter.dry_run(query)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"success": False, "status": f"Dry run error: {str(e)}"})
+
+
+@app.route("/refine", methods=["POST"])
+def refine_query():
+    data = request.json or {}
+    feedback = data.get("feedback")
+    current_sql = data.get("current_sql")
+    
+    if not feedback:
+        return jsonify({"success": False, "error": "Feedback required"})
+    
+    adapter = get_active_adapter()
+    dialect = adapter.dialect
+    schema = adapter.get_schema()
+    llm_provider = session.get("llm_provider", "mistral")
+    
+    # We construct a new prompt that includes the current SQL and the refinement feedback
+    refine_prompt = f"REFINE THIS QUERY:\n{current_sql}\n\nUSER FEEDBACK: {feedback}"
+    
+    try:
+        from core.llm import generate_query_with_explanation
+        # We pass the refinement as if it were a new command, but with context
+        new_sql, explanation = generate_query_with_explanation(
+            refine_prompt, dialect, schema, llm_provider, 
+            history=session.get("conversation_context", []),
+            system_prompt="""- Use ONLY tables and columns shown above
+- Output ONLY valid SQL for the current database engine
+- NEVER output plain text, lists, or conversational responses.
+- Even if you know the answer from the schema, GENERATE THE SQL to fetch it.
+- For SELECT queries: always include LIMIT 50 unless user specifies otherwise
+- No markdown, no explanation, no code fences
+"""
+        )
+        
+        # Update session with new query for potential execution
+        session["last_sql"] = new_sql
+        session["last_explanation"] = explanation
+
+        conversation_context = session.get("conversation_context", [])
+        conversation_context.append({"user": feedback, "assistant": new_sql})
+        if len(conversation_context) > 5:
+            conversation_context.pop(0)
+        session["conversation_context"] = conversation_context
+        
+        return jsonify({
+            "success": True,
+            "sql": new_sql,
+            "explanation": explanation
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)})
+
+
 @app.route("/execute", methods=["POST"])
 def execute():
     role = session.get("role")
-    query = session.get("last_sql")
+    # Get SQL from form (if edited by human) or fallback to session
+    query = request.form.get("sql") or session.get("last_sql")
     task = session.get("last_task")
 
     adapter = get_active_adapter()
@@ -624,15 +723,38 @@ def api_remove_widget(dash_id, widget_id):
     return jsonify({"success": True})
 
 
+@app.route("/api/query", methods=["POST"])
+def api_query_data():
+    """Returns raw JSON data for dashboard widgets or charts."""
+    query = request.json.get("query")
+    db_name = request.json.get("db_name", "Default SQLite")
+    
+    if not query:
+        return jsonify({"error": "Query required"}), 400
+        
+    try:
+        adapter = get_adapter_for_connection(db_name)
+        columns, rows = adapter.execute(query)
+        return jsonify({
+            "success": True,
+            "columns": columns,
+            "rows": rows_to_list(rows)
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 @app.route("/api/dashboards/auto-generate", methods=["POST"])
 def api_auto_generate_dashboard():
     prompt = request.json.get("prompt", "")
     if not prompt:
         return jsonify({"error": "Prompt is required"}), 400
     
-    # 1. Get schema
-    adapter = get_adapter_for_connection("Default SQLite")
+    # 1. Get schema from active adapter
+    active_db = session.get("active_db", "Default SQLite")
+    adapter = get_active_adapter()
     schema = adapter.get_schema()
+    llm_provider = session.get("llm_provider", "mistral")
     
     # 2. Ask LLM to suggest widgets in JSON format
     from core.llm import generate_query
@@ -642,31 +764,37 @@ def api_auto_generate_dashboard():
     SCHEMA:
     {schema}
     """
-    suggestion_json = generate_query(f"SUGGEST WIDGETS FOR: {prompt}", "sqlite", system_prompt, provider="groq")
+    suggestion_json = generate_query(
+        f"SUGGEST WIDGETS FOR: {prompt}", 
+        adapter.dialect, 
+        system_prompt=system_prompt, 
+        provider=llm_provider
+    )
     
     try:
         # Clean potential markdown from LLM
         suggestion_json = suggestion_json.strip()
-        if suggestion_json.startswith("```json"):
-            suggestion_json = suggestion_json[7:-3]
-        elif suggestion_json.startswith("```"):
-            suggestion_json = suggestion_json[3:-3]
+        if "```json" in suggestion_json:
+            suggestion_json = suggestion_json.split("```json")[1].split("```")[0].strip()
+        elif "```" in suggestion_json:
+            suggestion_json = suggestion_json.split("```")[1].split("```")[0].strip()
             
         widgets = json.loads(suggestion_json)
     except Exception as e:
-        print(f"Auto-generate parse error: {e}")
-        return jsonify({"error": "Failed to parse AI suggestions"}), 500
+        print(f"Auto-generate parse error: {e}\nRaw output: {suggestion_json}")
+        return jsonify({"error": "Failed to parse AI suggestions. The LLM output was not valid JSON."}), 500
         
     # 3. Create Dashboard and add widgets
     dash = create_dashboard(f"AI: {prompt[:30]}...")
     for w in widgets:
-        add_widget(
-            dash["id"], 
-            w.get("title", "Insight"), 
-            w.get("query"), 
-            w.get("chart_type", "table"),
-            "Default SQLite"
-        )
+        if w.get("query"):
+            add_widget(
+                dash["id"], 
+                w.get("title", "Insight"), 
+                w.get("query"), 
+                w.get("chart_type", "table"),
+                active_db
+            )
         
     return jsonify(dash)
 
@@ -777,6 +905,83 @@ def remove_snapshot():
         
     return redirect(url_for("snapshots_page"))
 
+
+@app.route("/export/ppt")
+def export_ppt():
+    sql = session.get("last_read_sql")
+    explanation = session.get("last_explanation")
+    analysis = session.get("last_analysis")
+    
+    if not sql:
+        return redirect(url_for("index"))
+
+    # Re-fetch data on demand to keep session cookie small
+    try:
+        adapter = get_active_adapter()
+        # Limit to 10 rows for PPT summary table
+        if not (adapter.is_nosql or is_system_query(sql) or is_already_limited(sql)):
+            fetch_sql = paginate_sql(sql, 1) # Page 1 = 50 rows
+        else:
+            fetch_sql = sql
+        
+        columns, rows = adapter.execute(fetch_sql)
+        results = rows_to_list(rows)[:10] # Top 10 for slide
+    except Exception as e:
+        return f"Error fetching data for PPT: {str(e)}", 500
+
+    from core.ppt_generator import PPTGenerator
+    gen = PPTGenerator(title="Meridian Data Insight Report")
+    
+    # 1. Title Slide
+    gen.add_title_slide(subtitle=f"Query: {session.get('last_query', 'Custom Analysis')}")
+    
+    # 2. SQL Slide
+    gen.add_text_slide("Generated SQL", sql or "N/A")
+    
+    # 3. Explanation Slide
+    if explanation:
+        gen.add_text_slide("AI Logic Explanation", explanation)
+        
+    # 4. Data Table Slide
+    gen.add_table_slide("Query Results (Top 10)", columns, results)
+    
+    # 5. Analysis & Chart Slide (if available)
+    if analysis and "summary" in analysis:
+        gen.add_text_slide("AI Data Insights", analysis["summary"])
+        if "chart" in analysis:
+            gen.add_chart_slide("Data Visualization", analysis["chart"])
+            
+    ppt_file = gen.save()
+    
+    return send_file(
+        ppt_file,
+        mimetype="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        as_attachment=True,
+        download_name=f"meridian_report_{int(time.time())}.pptx"
+    )
+
+# ---------------------------------------------------
+# Command Intelligence & Guide
+# ---------------------------------------------------
+@app.route("/command-guide")
+def command_guide():
+    from core.intelligence import CommandIntelligence
+    intel = CommandIntelligence()
+    canonical = intel.get_canonical_commands()
+    return render_template("command_guide.html", canonical=canonical)
+
+@app.route("/api/intelligence/explain", methods=["POST"])
+def explain_command():
+    user_cmd = request.json.get("command")
+    if not user_cmd:
+        return jsonify({"error": "Command required"}), 400
+    
+    adapter = get_active_adapter()
+    from core.intelligence import CommandIntelligence
+    intel = CommandIntelligence(llm_provider=session.get("llm_provider", "mistral"))
+    
+    explanation = intel.explain_intent(user_cmd, adapter.dialect)
+    return jsonify(explanation)
 
 # ---------------------------------------------------
 # Database Management

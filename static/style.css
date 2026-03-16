@@ -677,3 +677,49 @@ tbody tr:last-child td {
         max-height: 400px;
     }
 }
+/* =========================================================================
+   HUMAN IN THE LOOP & REFINEMENT
+   ========================================================================= */
+
+.refinement-loop {
+    border-left: 4px solid var(--accent-purple);
+}
+
+.refinement-loop input {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--card-border);
+}
+
+.refinement-loop button {
+    background: var(--accent-purple);
+    color: #fff;
+    min-width: 140px;
+}
+
+.refinement-loop button:hover {
+    background: #7c4dff;
+    transform: translateY(-1px);
+}
+
+#editableSql {
+    transition: box-shadow 0.2s;
+    background: rgba(0, 0, 0, 0.4) !important;
+    border: 1px solid var(--card-border) !important;
+    color: var(--accent-blue) !important;
+    font-size: 0.95rem;
+    line-height: 1.6;
+}
+
+#editableSql:focus {
+    border-color: var(--accent-blue) !important;
+    box-shadow: 0 0 0 4px var(--input-focus-ring);
+}
+
+.result-box {
+    animation: fadeIn 0.4s ease-out;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}

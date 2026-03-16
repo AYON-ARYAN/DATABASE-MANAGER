@@ -29,8 +29,8 @@ Database engine: SQLite
 IMPORTANT RULES:
 - Use ONLY tables and columns shown above
 - Output ONLY valid SQLite SQL
-- DO NOT generate SELECT * queries to list tables
-- Schema inspection is handled by the system
+- NEVER output plain text, lists, or conversational responses.
+- Even if you know the answer from the schema, GENERATE THE SQL to fetch it.
 - For SELECT queries: always include LIMIT 50 unless user specifies otherwise
 - No markdown, no explanation, no code fences
 """,
@@ -44,7 +44,8 @@ IMPORTANT RULES:
 - Use ONLY tables and columns shown above
 - Output ONLY valid MySQL SQL
 - Use MySQL syntax (e.g., backticks for identifiers, LIMIT clause)
-- DO NOT generate SHOW TABLES or DESCRIBE queries
+- NEVER output plain text, lists, or conversational responses.
+- Even if you know the answer from the schema, GENERATE THE SQL to fetch it.
 - For SELECT queries: always include LIMIT 50 unless user specifies otherwise
 - No markdown, no explanation, no code fences
 """,
@@ -58,7 +59,8 @@ IMPORTANT RULES:
 - Use ONLY tables and columns shown above
 - Output ONLY valid PostgreSQL SQL
 - Use PostgreSQL syntax (e.g., double quotes for identifiers, :: for casts)
-- DO NOT generate \\dt or information_schema queries
+- NEVER output plain text, lists, or conversational responses.
+- Even if you know the answer from the schema, GENERATE THE SQL to fetch it.
 - For SELECT queries: always include LIMIT 50 unless user specifies otherwise
 - No markdown, no explanation, no code fences
 """,
@@ -160,6 +162,23 @@ IMPORTANT RULES:
 }
 
 
+def clean_sql(text: str) -> str:
+    """Strips markdown code fences, backticks, and unnecessary whitespace from LLM output."""
+    text = text.strip()
+    
+    # Remove triple backticks
+    if text.startswith("```"):
+        lines = text.splitlines()
+        if len(lines) > 2 and lines[0].startswith("```"):
+            text = "\n".join(lines[1:-1])
+        else:
+            text = text.replace("```sql", "").replace("```", "")
+            
+    # Aggressively remove single backticks and other formatting debris from ends
+    text = text.strip("` \n\t")
+        
+    return text.strip().strip(";")
+
 def _get_system_prompt(dialect: str, schema: str) -> str:
     """Build the system prompt for a given dialect and schema."""
     template = PROMPT_TEMPLATES.get(dialect, PROMPT_TEMPLATES["sqlite"])
@@ -169,7 +188,7 @@ def _get_system_prompt(dialect: str, schema: str) -> str:
 # ---------------------------------------------------
 # Core generation
 # ---------------------------------------------------
-def generate_query(user_command: str, dialect: str = "sqlite", schema: str = "", provider: str = None, history: list = None) -> str:
+def generate_query(user_command: str, dialect: str = "sqlite", schema: str = "", provider: str = None, history: list = None, system_prompt: str = None, options: dict = None) -> str:
     """
     Given a natural language command, generate a query
     appropriate for the database dialect using specified provider.
@@ -185,7 +204,7 @@ def generate_query(user_command: str, dialect: str = "sqlite", schema: str = "",
         p_config = full_config["providers"].get(provider, p_config)
 
     history = history or []
-    context = _get_system_prompt(dialect, schema)
+    context = system_prompt or _get_system_prompt(dialect, schema)
     
     # Format history for prompt injection (Ollama)
     history_str = ""
@@ -232,7 +251,7 @@ def generate_query(user_command: str, dialect: str = "sqlite", schema: str = "",
                 completion_tokens = usage.get("completion_tokens", 0)
                 
                 log_call("groq", data.get("model", model), latency, prompt_tokens, completion_tokens)
-                return data["choices"][0]["message"]["content"].strip()
+                return clean_sql(data["choices"][0]["message"]["content"])
             except Exception as e:
                 print(f"Groq API Error: {e}")
                 # Don't return yet, fall through to Ollama if this fails
@@ -242,6 +261,16 @@ def generate_query(user_command: str, dialect: str = "sqlite", schema: str = "",
     ollama_url = ollama_config.get("url", OLLAMA_URL)
     ollama_model = ollama_config.get("model", "mistral")
 
+    # Resource Optimization: Default to 4 threads if not specified, and reasonable context
+    # This reduces CPU spike and RAM thrashing
+    default_options = {
+        "num_thread": 4,
+        "num_ctx": 2048,
+        "temperature": 0.1
+    }
+    if options:
+        default_options.update(options)
+
     try:
         res = requests.post(
             ollama_url,
@@ -249,6 +278,7 @@ def generate_query(user_command: str, dialect: str = "sqlite", schema: str = "",
                 "model": ollama_model,
                 "prompt": full_prompt,
                 "stream": False,
+                "options": default_options
             },
             timeout=60,
         )
@@ -259,7 +289,7 @@ def generate_query(user_command: str, dialect: str = "sqlite", schema: str = "",
         completion_tokens = data.get("eval_count", 0)
         
         log_call("mistral", ollama_model, latency, prompt_tokens, completion_tokens)
-        return data["response"].strip()
+        return clean_sql(data["response"])
     except Exception as e:
         print(f"Ollama Error: {e}")
         return "ERROR: Connection failed"
@@ -270,71 +300,65 @@ def generate_query_with_explanation(
     dialect: str = "sqlite",
     schema: str = "",
     provider: str = "mistral",
-    history: list = None
+    history: list = None,
+    system_prompt: str = None
 ) -> tuple:
     """
     Returns:
     - query (str) — SQL / CQL / JSON
     - explanation (str) — human-readable explanation
+    
+    OPTIMIZATION: Merges query and explanation into a single LLM call.
     """
-    # 1. Generate the query
-    query = generate_query(user_command, dialect, schema, provider, history=history)
+    context = system_prompt or _get_system_prompt(dialect, schema)
+    
+    # Refined prompt for single-call output
+    merged_prompt = f"""
+{context}
 
-    # 2. Ask LLM to explain it
-    if dialect in ("mongodb", "redis"):
-        explain_prompt = f"""
-Explain the following {dialect.upper()} query in simple, clear steps.
-Do NOT mention technical syntax.
-Do NOT add code blocks.
-Use bullet points.
+USER COMMAND: {user_command}
 
-Query:
-{query}
+RESPONSE FORMAT:
+Provide the response in the following structured format:
+QUERY: <the_raw_query_only>
+EXPLANATION: <short_bulleted_explanation_without_tech_jargon>
 """
-    else:
-        explain_prompt = f"""
-Explain the following SQL query in simple, clear steps.
-Do NOT mention SQL keywords.
-Do NOT add code blocks.
-Use bullet points.
-
-SQL:
-{query}
-"""
-
-    if provider == "groq" and GROQ_API_KEY:
-        headers = {
-            "Authorization": f"Bearer {GROQ_API_KEY}",
-            "Content-Type": "application/json"
-        }
-        payload = {
-            "model": "llama3-70b-8192",
-            "messages": [
-                {"role": "user", "content": explain_prompt}
-            ],
-            "temperature": 0.3
-        }
-        try:
-            res = requests.post(GROQ_API_URL, headers=headers, json=payload, timeout=60)
-            res.raise_for_status()
-            explanation = res.json()["choices"][0]["message"]["content"].strip()
-            return query, explanation
-        except Exception as e:
-            print(f"Groq API Error during explanation: {e}")
-            pass
-
-    # Default / Fallback: Ollama Local Mistral
-    res = requests.post(
-        OLLAMA_URL,
-        json={
-            "model": "mistral",
-            "prompt": explain_prompt,
-            "stream": False,
-        },
-        timeout=60,
+    
+    # 1. Get raw merged response
+    raw_response = generate_query(
+        user_command="", # We embed the command in system_prompt for precision
+        dialect=dialect,
+        schema=schema,
+        provider=provider,
+        history=history,
+        system_prompt=merged_prompt,
+        options={"num_predict": 512} # Limit length to save resources
     )
 
-    explanation = res.json()["response"].strip()
+    # 2. Parse results
+    query = ""
+    explanation = "No explanation generated."
+    
+    # Try case-insensitive partition
+    raw_lower = raw_response.lower()
+    if "query:" in raw_lower and "explanation:" in raw_lower:
+        try:
+            # Flexible parsing: finds the first occurrence regardless of case
+            q_start = raw_lower.find("query:") + len("query:")
+            e_idx = raw_lower.find("explanation:")
+            
+            query_raw = raw_response[q_start:e_idx].strip()
+            explanation_raw = raw_response[e_idx + len("explanation:"):].strip()
+            
+            query = clean_sql(query_raw)
+            explanation = explanation_raw
+        except Exception:
+            query = clean_sql(raw_response)
+    else:
+        # Fallback if structure failed: assume the whole thing might be the query
+        # But if it's very long, it might just be a failed structured response
+        query = clean_sql(raw_response)
+
     return query, explanation
 
 

@@ -1,21 +1,5 @@
 [
   {
-    "id": "70253912",
-    "connection_name": "Northwind",
-    "db_type": "sqlite",
-    "timestamp": "2026-03-12T21:50:49.438367",
-    "formatted_time": "Mar 12, 2026 - 21:50:49",
-    "file_path": "db/snapshots/Northwind_20260312_215049_70253912.db"
-  },
-  {
-    "id": "22aaf56a",
-    "connection_name": "Northwind",
-    "db_type": "sqlite",
-    "timestamp": "2026-03-12T21:52:31.904827",
-    "formatted_time": "Mar 12, 2026 - 21:52:31",
-    "file_path": "db/snapshots/Northwind_20260312_215231_22aaf56a.db"
-  },
-  {
     "id": "a206b830",
     "connection_name": "Northwind",
     "db_type": "sqlite",
@@ -38,5 +22,21 @@
     "timestamp": "2026-03-12T22:12:55.855815",
     "formatted_time": "Mar 12, 2026 - 22:12:55",
     "file_path": "db/snapshots/Northwind_20260312_221255_f0a153c7.db"
+  },
+  {
+    "id": "16c038f3",
+    "connection_name": "Northwind",
+    "db_type": "sqlite",
+    "timestamp": "2026-03-16T18:57:33.157999",
+    "formatted_time": "Mar 16, 2026 - 18:57:33",
+    "file_path": "db/snapshots/Northwind_20260316_185733_16c038f3.db"
+  },
+  {
+    "id": "acde9ff6",
+    "connection_name": "Northwind",
+    "db_type": "sqlite",
+    "timestamp": "2026-03-16T19:03:28.955323",
+    "formatted_time": "Mar 16, 2026 - 19:03:28",
+    "file_path": "db/snapshots/Northwind_20260316_190328_acde9ff6.db"
   }
 ]

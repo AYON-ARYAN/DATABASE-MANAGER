@@ -136,11 +136,14 @@
             <div class="actions">
                 <strong>📊 Query Results</strong>
 
-                {% if task == "READ" %}
-                <a href="/export" class="secondary link-btn">⬇ Export CSV</a>
+                {% if results %}
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <span style="font-size: 0.85rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">Export</span>
+                    <a href="/export" class="secondary link-btn">⬇ Export CSV</a>
+                </div>
                 {% if analysis_enabled %}
                 <a href="/analysis" class="secondary link-btn">
-                    📊 Analyze Data Built-in
+                    📊 Analyze & Visualize
                 </a>
                 {% endif %}
                 {% endif %}

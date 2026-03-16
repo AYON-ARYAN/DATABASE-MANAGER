@@ -6,6 +6,11 @@ All database adapters implement this interface.
 from abc import ABC, abstractmethod
 
 
+class DatabaseError(Exception):
+    """Base exception for all database-related errors."""
+    pass
+
+
 class DatabaseAdapter(ABC):
     """
     Universal interface for all database backends.
@@ -75,6 +80,13 @@ class DatabaseAdapter(ABC):
         Returns ([], []) for writes.
         """
         ...
+
+    def dry_run(self, query: str) -> dict:
+        """
+        Execute a query without committing changes.
+        Returns a dict with 'affected_rows' and 'status'.
+        """
+        return {"affected_rows": 0, "status": "Not implemented"}
 
     # --------------------------------------------------
     # Safety

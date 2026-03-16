@@ -122,6 +122,29 @@ class PostgresAdapter(DatabaseAdapter):
                 return columns, rows
         finally:
             self.release_connection(conn)
+    def dry_run(self, query: str) -> dict:
+        conn = self.get_connection()
+        try:
+            conn.autocommit = False
+            with conn.cursor() as cur:
+                cur.execute(query)
+                affected = cur.rowcount
+                conn.rollback()
+                return {
+                    "affected_rows": affected,
+                    "status": "Success (Rolled back)",
+                    "success": True
+                }
+        except Exception as e:
+            try: conn.rollback()
+            except: pass
+            return {
+                "affected_rows": 0,
+                "status": f"Error: {str(e)}",
+                "success": False
+            }
+        finally:
+            self.release_connection(conn)
 
     # --------------------------------------------------
     # Safety
