@@ -2,275 +2,288 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>AI SQL Agent</title>
+    <title>Meridian Data</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-
 </head>
 <body>
 
-<!-- ================= GLOBAL NAVIGATION ================= -->
+<!-- NAV -->
 <nav class="global-nav">
-    <div class="nav-brand">✨ Meridian Data</div>
+    <div class="nav-brand">Meridian</div>
     <div class="nav-links">
-        <a href="/" class="nav-link active">🔍 Query Agent</a>
-        <a href="/analysis" class="nav-link">📊 AI Analysis</a>
-        <a href="/databases" class="nav-link">⚙️ Manage DBs</a>
-        <a href="/snapshots" class="nav-link">📸 Snapshots</a>
-        <a href="/dashboards" class="nav-link">📈 Dashboards</a>
+        <a href="/" class="nav-link active">Query</a>
+        <a href="/overview" class="nav-link">Overview</a>
+        <a href="/analysis" class="nav-link">Analysis</a>
+        <a href="/databases" class="nav-link">Databases</a>
+        <a href="/dashboards" class="nav-link">Dashboards</a>
+        <a href="/command-guide" class="nav-link">Guide</a>
         {% if session.role == 'ADMIN' %}
-        <a href="/admin" class="nav-link">🛠 Admin</a>
+        <a href="/admin" class="nav-link">Admin</a>
         {% endif %}
     </div>
     <div class="user-info">
         <span class="user-name">{{ session.username }}</span>
-        <span class="role-badge {{ session.role }}">{{ session.role }}</span>
+        <span class="role-badge">{{ session.role }}</span>
         <a href="/logout" class="logout-link">Logout</a>
     </div>
 </nav>
 
-<header style="margin-top: 30px;">
-    <h1>🧠 Database Query Agent</h1>
-    <p>Natural Language → Safe SQL Execution</p>
-</header>
+<!-- SHELL -->
+<div class="shell">
 
-<!-- ================= TOP BAR: DB Switcher & LLM Switcher ================= -->
-<div class="top-bar">
-    <div class="top-bar-left">
-        <span class="db-select-label">Database</span>
-        <form id="db-switch-form" method="POST" action="/databases/select" style="margin:0;">
-            <select name="conn_name" class="db-select" onchange="this.form.submit()">
-                {% for conn in connections %}
-                <option value="{{ conn.name }}"
-                    {% if conn.name == db_info.name %}selected{% endif %}>
-                    {{ conn.name }} ({{ conn.db_type|upper }})
-                </option>
-                {% endfor %}
-            </select>
-        </form>
-        <span class="db-type-badge">{{ db_info.display_type }}</span>
-        <a href="/databases" class="manage-link">⚙ Manage</a>
-    </div>
-    <div class="top-bar-right" style="display: flex; align-items: center; gap: 10px;">
-        <span class="db-select-label">LLM Provider</span>
-        <form id="llm-switch-form" method="POST" action="/set_llm_provider" style="margin:0;">
-            <select name="provider" class="db-select" id="llm-provider-select" onchange="handleLlmSwitch(this)">
-                <option value="mistral" {% if llm_provider == 'mistral' %}selected{% endif %}>Mistral (Local)</option>
-                <option value="groq" {% if llm_provider == 'groq' %}selected{% endif %}>Groq (Cloud API)</option>
-            </select>
-        </form>
-        <script>
-            function handleLlmSwitch(selectElement) {
-                if (selectElement.value === 'groq') {
-                    const proceed = confirm("⚠️ SECURITY WARNING: Utilizing Groq will transmit your targeted database schema (table names, column names, column types) to an external cloud API. Do you wish to proceed?");
-                    if (proceed) {
-                        selectElement.form.submit();
-                    } else {
-                        // Revert selection
-                        selectElement.value = 'mistral';
-                    }
-                } else {
-                    selectElement.form.submit();
-                }
-            }
-        </script>
-    </div>
-</div>
+    <!-- SIDEBAR TOGGLE (mobile) -->
+    <button class="sidebar-toggle" id="sidebar-toggle" onclick="toggleSidebar()">&#9776;</button>
 
-<!-- ================= SNAPSHOT NOTICE ================= -->
-{% if not db_info.supports_snapshot %}
-<div class="notice-box">
-    <span class="notice-icon">⚠️</span>
-    <span class="notice-text">
-        <strong>Snapshots & Undo are not available</strong> for {{ db_info.display_type }} databases.
-        Write operations cannot be reverted. Please review all changes carefully before executing.
-    </span>
-</div>
-{% endif %}
-
-<div class="layout">
-
-    <!-- ================= SIDEBAR ================= -->
-    <aside class="sidebar">
-        <h3>🕘 Query History</h3>
-
+    <!-- SIDEBAR -->
+    <aside class="sidebar" id="sidebar">
+        <h3>History</h3>
         {% if history %}
             {% for h in history %}
-            <div class="history-item" onclick='confirmAndReRun({{ h.query|tojson|safe }})'>
+            <div class="history-item" onclick='reRun({{ h.query|tojson|safe }})'>
                 <div class="history-meta">
                     {{ h.time }}
                     <span class="badge {{ h.task }}">{{ h.task }}</span>
-                    · {{ h.status }}
-                    {% if h.db %}<span style="color:#64748b;"> · {{ h.db }}</span>{% endif %}
                 </div>
                 <div class="history-query">{{ h.query }}</div>
-                <div class="history-sql">
-                    {{ h.sql[:80] }}{% if h.sql|length > 80 %}...{% endif %}
-                </div>
+                <div class="history-sql">{{ h.sql[:60] }}{% if h.sql|length > 60 %}...{% endif %}</div>
             </div>
             {% endfor %}
         {% else %}
-            <p style="color:#9ca3af;">No queries yet</p>
+            <p style="color:var(--text-dim); font-size:0.8rem; padding: 8px;">No queries yet. Start typing below.</p>
         {% endif %}
     </aside>
+    <div class="sidebar-overlay" onclick="toggleSidebar()"></div>
 
-    <!-- ================= MAIN ================= -->
-    <main class="app-container">
+    <!-- MAIN -->
+    <div class="main-area">
+        <div class="content">
 
-        <!-- SUCCESS / ERROR MESSAGES -->
-        {% if message %}
-        <section class="success-card">{{ message }}</section>
-        {% endif %}
-
-        {% if error %}
-        <section class="error-card">{{ error }}</section>
-        {% endif %}
-
-        <!-- RESULTS -->
-        {% if results %}
-        <section class="card" style="margin-top: 0;">
-
-            <!-- ACTION BAR -->
-            <div class="actions">
-                <strong>📊 Query Results</strong>
-
-                {% if results %}
-                <div style="display: flex; align-items: center; gap: 10px;">
-                    <span style="font-size: 0.85rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em;">Export</span>
-                    <a href="/export" class="secondary link-btn">⬇ Export CSV</a>
+            <!-- CONTEXT BAR -->
+            <div class="context-bar">
+                <div class="context-pill">
+                    <span class="label">DB</span>
+                    <form method="POST" action="/databases/select" style="margin:0">
+                        <select name="conn_name" onchange="this.form.submit()">
+                            {% for conn in connections %}
+                            <option value="{{ conn.name }}" {% if conn.name == db_info.name %}selected{% endif %}>
+                                {{ conn.name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </form>
                 </div>
-                {% if analysis_enabled %}
-                <a href="/analysis" class="secondary link-btn">
-                    📊 Analyze & Visualize
-                </a>
-                {% endif %}
-                {% endif %}
-
-                {% if db_info.supports_snapshot %}
-                <form method="POST" action="/undo">
-                    <button class="secondary">↩ Undo Last Change</button>
-                </form>
-                {% endif %}
+                <span class="db-type-badge">{{ db_info.display_type }}</span>
+                <div class="context-pill" style="margin-left:auto;">
+                    <span class="label">LLM</span>
+                    <form method="POST" action="/set_llm_provider" style="margin:0">
+                        <select name="provider" id="llm-sel" onchange="handleLlm(this)">
+                            <option value="mistral" {% if llm_provider == 'mistral' %}selected{% endif %}>Mistral</option>
+                            <option value="groq" {% if llm_provider == 'groq' %}selected{% endif %}>Groq</option>
+                        </select>
+                    </form>
+                </div>
             </div>
 
-            <div class="table-wrapper">
-                <table>
-                    <thead>
-                        <tr>
-                            {% for col in columns %}
-                            <th>{{ col }}</th>
-                            {% endfor %}
-                        </tr>
-                    </thead>
-                    <tbody>
+            {% if not db_info.supports_snapshot %}
+            <div class="notice-box">
+                <strong>No undo</strong> &mdash; Snapshots unavailable for {{ db_info.display_type }}.
+            </div>
+            {% endif %}
+
+            <!-- MESSAGES -->
+            {% if message %}<div class="success-card">{{ message }}</div>{% endif %}
+            {% if error %}<div class="error-card">{{ error }}</div>{% endif %}
+
+            <!-- ============ RESULTS ============ -->
+            {% if results %}
+            <div class="card" style="margin-bottom:12px;">
+                <div class="actions">
+                    <strong>Results</strong>
+                    <a href="/export" class="secondary link-btn" style="font-size:0.75rem; padding:5px 12px;">CSV</a>
+                    <a href="/export/ppt" class="secondary link-btn" style="font-size:0.75rem; padding:5px 12px;">PPT</a>
+                    {% if analysis_enabled %}
+                    <a href="/analysis" class="secondary link-btn" style="font-size:0.75rem; padding:5px 12px;">Analyze</a>
+                    {% endif %}
+                </div>
+
+                <div class="table-wrapper">
+                    <table>
+                        <thead><tr>{% for col in columns %}<th>{{ col }}</th>{% endfor %}</tr></thead>
+                        <tbody>
                         {% for row in results %}
-                        <tr>
-                            {% for cell in row %}
-                            <td>{{ cell }}</td>
-                            {% endfor %}
-                        </tr>
+                        <tr>{% for cell in row %}<td>{{ cell }}</td>{% endfor %}</tr>
                         {% endfor %}
-                    </tbody>
-                </table>
-            </div>
-
-            <!-- PAGINATION -->
-            <div style="margin-top:20px; display:flex; justify-content:space-between;">
-                <div>
-                    Showing {{ results|length }} rows
-                    {% if total_rows %} out of {{ total_rows }}{% endif %}
+                        </tbody>
+                    </table>
                 </div>
 
-                <div style="display:flex; gap:10px;">
-                    {% if page > 1 %}
-                    <a href="?page={{ page - 1 }}" class="secondary link-btn">⬅ Previous</a>
-                    {% endif %}
-                    {% if total_rows and page * page_size < total_rows %}
-                    <a href="?page={{ page + 1 }}" class="secondary link-btn">Next ➡</a>
-                    {% endif %}
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-top:12px; font-size:0.75rem; color:var(--text-dim);">
+                    <span>{{ results|length }} rows{% if total_rows %} / {{ total_rows }}{% endif %}</span>
+                    <div style="display:flex; gap:8px;">
+                        {% if page and page > 1 %}
+                        <a href="?page={{ page - 1 }}" class="secondary link-btn" style="font-size:0.7rem; padding:4px 10px;">Prev</a>
+                        {% endif %}
+                        {% if total_rows and page and page * page_size < total_rows %}
+                        <a href="?page={{ page + 1 }}" class="secondary link-btn" style="font-size:0.7rem; padding:4px 10px;">Next</a>
+                        {% endif %}
+                    </div>
                 </div>
             </div>
-        </section>
-        {% elif not sql and not explanation and not error and not message %}
-        <!-- Welcome State -->
-        <div style="height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--text-muted); opacity: 0.6; padding-top: 40px;">
-            <div style="font-size: 3rem; margin-bottom: 20px;">🤖</div>
-            <h2>How can I help with your data today?</h2>
-            <p>Type a natural language command below to query or modify the active database.</p>
-        </div>
-        {% endif %}
 
-        <!-- GENERATED SQL -->
-        {% if sql %}
-        <section class="card" style="margin-top:20px;">
-            <h2>
-                🧾 Generated SQL
-                {% if task %}
-                <span class="badge {{ task }}">{{ task }}</span>
+            <!-- ============ AI RESPONSE ============ -->
+            {% elif ai_response %}
+            <div class="card" style="border-color: rgba(59,130,246,0.2); margin-bottom:12px;">
+                <h2>AI Response</h2>
+                <div class="markdown-body" id="ai-response-body">{{ ai_response }}</div>
+                {% if ai_suggestions %}
+                <div style="margin-top:16px; padding-top:12px; border-top:1px solid var(--border);">
+                    <div style="font-size:0.65rem; color:var(--text-dim); text-transform:uppercase; font-weight:600; margin-bottom:8px;">Follow-up queries</div>
+                    <div class="chip-row">
+                        {% for sq in ai_suggestions %}
+                        <button class="chip" onclick="runCmd('{{ sq }}')">{{ sq[:60] }}{% if sq|length > 60 %}...{% endif %}</button>
+                        {% endfor %}
+                    </div>
+                </div>
                 {% endif %}
-            </h2>
-            <pre>{{ sql }}</pre>
-        </section>
-        {% endif %}
+            </div>
 
-        <!-- EXPLANATION -->
-        {% if explanation %}
-        <section class="card" style="margin-top:20px;">
-            <h2>🧠 Why this SQL was generated</h2>
-            <pre style="white-space: pre-wrap;">{{ explanation }}</pre>
-        </section>
-        {% endif %}
+            <!-- ============ WELCOME ============ -->
+            {% elif not sql and not explanation and not error and not message %}
+            <div class="welcome">
+                <div class="welcome-logo">M</div>
+                <h1>What do you want to know?</h1>
+                <p>Ask in plain English. Query, analyze, or explore your database.</p>
 
-        <!-- QUERY INPUT (FIXED AT BOTTOM) -->
-        <section class="query-box" style="margin-top: 40px; position: sticky; bottom: 20px;">
-            <form method="POST" action="/" style="background: var(--card-bg); border: 1px solid var(--card-border); border-radius: var(--radius-lg); padding: 12px; box-shadow: 0 16px 40px rgba(0,0,0,0.6); backdrop-filter: blur(24px);">
-                <textarea
-                    id="command-input"
-                    name="command"
-                    placeholder="Message AI SQL Agent... (e.g. Show me the top 5 customers by revenue)"
-                    required
-                    style="border: none; background: transparent; box-shadow: none; min-height: 80px; font-size: 1.05rem;"
-                ></textarea>
-                <div style="display: flex; justify-content: flex-end; align-items: center; gap: 10px; margin-top: 8px;">
-                    <a href="/insights" class="secondary link-btn" style="padding: 8px 16px; font-size: 0.85rem; border-radius: 20px;">
-                        ✨ Generate Database Insights
-                    </a>
-                    <button type="submit" class="btn-primary" style="margin-top: 0; width: auto; padding: 10px 20px; border-radius: 20px;">
-                        Send ↗
-                    </button>
+                <div class="quick-grid">
+                    <div class="quick-card" onclick="runCmd('show tables')">
+                        <div class="qc-title">Show Tables</div>
+                        <div class="qc-desc">List all tables in the database</div>
+                    </div>
+                    <div class="quick-card" onclick="runCmd('show foreign keys')">
+                        <div class="qc-title">Foreign Keys</div>
+                        <div class="qc-desc">See all table relationships</div>
+                    </div>
+                    <div class="quick-card" onclick="runCmd('show table counts')">
+                        <div class="qc-title">Row Counts</div>
+                        <div class="qc-desc">How much data is in each table</div>
+                    </div>
+                    <div class="quick-card" onclick="runCmd('show constraints')">
+                        <div class="qc-title">Constraints</div>
+                        <div class="qc-desc">PKs, FKs, unique, not null</div>
+                    </div>
+                    <div class="quick-card" onclick="runCmd('show top 10 orders with customer names using a join')">
+                        <div class="qc-title">JOIN Example</div>
+                        <div class="qc-desc">Orders joined with customers</div>
+                    </div>
+                    <div class="quick-card" onclick="runCmd('show aggregate statistics for each table')">
+                        <div class="qc-title">Aggregate Stats</div>
+                        <div class="qc-desc">COUNT, SUM, AVG across tables</div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- SQL + EXPLANATION -->
+            {% if sql %}
+            <div class="card">
+                <h2>Generated SQL <span class="badge {{ task }}">{{ task }}</span></h2>
+                <pre>{{ sql }}</pre>
+            </div>
+            {% endif %}
+
+            {% if explanation %}
+            <div class="card">
+                <h2>Explanation</h2>
+                <pre style="white-space:pre-wrap; border:none; background:transparent; padding:0; color:var(--text-sec);">{{ explanation }}</pre>
+            </div>
+            {% endif %}
+
+        </div><!-- /content -->
+
+        <!-- CHAT INPUT -->
+        <div class="chat-input-wrap">
+            <form method="POST" action="/" id="qform">
+                <div class="chat-input-box">
+                    <textarea id="qinput" name="command" placeholder="Ask anything about your database..." required rows="1"></textarea>
+                    <div class="chat-actions">
+                        <div class="chip-row">
+                            <button type="button" class="chip" onclick="runCmd('show tables')">Tables</button>
+                            <button type="button" class="chip" onclick="runCmd('show foreign keys')">FKs</button>
+                            <button type="button" class="chip" onclick="runCmd('show indexes')">Indexes</button>
+                        </div>
+                        <button type="submit" class="send-btn" id="send-btn">Send</button>
+                    </div>
                 </div>
             </form>
-        </section>
+        </div>
 
-    </main>
-</div>
-
-<footer>
-    <span>⚙️ LLM + Validator + Snapshot Protection</span>
-</footer>
+    </div><!-- /main-area -->
+</div><!-- /shell -->
 
 <script>
-  const textarea = document.getElementById("command-input");
-  if (textarea) {
-      textarea.addEventListener("keydown", function (event) {
-        if (event.key === "Enter" && !event.shiftKey) {
-          event.preventDefault();
-          textarea.closest("form").submit();
-        }
-      });
-  }
+const qinput = document.getElementById('qinput');
+const qform  = document.getElementById('qform');
+const sendBtn= document.getElementById('send-btn');
 
-  function confirmAndReRun(query) {
-      if (confirm(`Do you want to re-run this command?\n\n"${query}"`)) {
-          const area = document.getElementById("command-input");
-          if (area) {
-              area.value = query;
-              area.closest("form").submit();
-          }
-      }
-  }
+// Auto-resize textarea
+qinput.addEventListener('input', function() {
+    this.style.height = 'auto';
+    this.style.height = Math.min(this.scrollHeight, 160) + 'px';
+});
+
+// Enter to send
+qinput.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        submitQ();
+    }
+});
+
+qform.addEventListener('submit', function() {
+    sendBtn.disabled = true;
+    sendBtn.textContent = 'Sending...';
+});
+
+function submitQ() {
+    if (qinput.value.trim()) {
+        sendBtn.disabled = true;
+        sendBtn.textContent = 'Sending...';
+        qform.submit();
+    }
+}
+
+function runCmd(cmd) {
+    qinput.value = cmd;
+    submitQ();
+}
+
+function reRun(q) {
+    qinput.value = q;
+    submitQ();
+}
+
+function handleLlm(sel) {
+    if (sel.value === 'groq') {
+        if (!confirm('This will send your schema to Groq cloud API. Continue?')) {
+            sel.value = 'mistral';
+            return;
+        }
+    }
+    sel.form.submit();
+}
+
+function toggleSidebar() {
+    document.getElementById('sidebar').classList.toggle('open');
+}
+
+// Render markdown in AI response
+const aiBody = document.getElementById('ai-response-body');
+if (aiBody && typeof marked !== 'undefined') {
+    aiBody.innerHTML = marked.parse(aiBody.textContent);
+}
 </script>
 
 </body>

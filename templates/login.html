@@ -2,62 +2,116 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Login - Meridian Data</title>
+    <title>Sign in - Meridian</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
-        .login-wrapper {
+        .login-shell {
             display: flex;
-            justify-content: center;
-            align-items: center;
             min-height: 100vh;
+            align-items: center;
+            justify-content: center;
             padding: 20px;
+            background: var(--bg);
         }
-        
         .login-card {
             width: 100%;
-            max-width: 400px;
+            max-width: 380px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: var(--r-xl);
+            padding: 40px 36px;
             text-align: center;
-            padding: 40px;
         }
-
+        .login-logo {
+            width: 48px; height: 48px;
+            border-radius: 14px;
+            background: linear-gradient(135deg, var(--blue), var(--purple));
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            font-size: 1.1rem;
+            color: #fff;
+            margin-bottom: 20px;
+            box-shadow: 0 8px 24px rgba(59,130,246,0.2);
+        }
         .login-card h2 {
-            font-size: 1.8rem;
-            margin-bottom: 8px;
-            background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
-            -webkit-background-clip: text;
-            background-clip: text;
-            -webkit-text-fill-color: transparent;
+            font-size: 1.3rem;
+            color: var(--text);
+            margin-bottom: 4px;
         }
-
-        .login-card p {
-            color: var(--text-muted);
-            margin-bottom: 30px;
-            font-size: 0.95rem;
+        .login-card .sub {
+            color: var(--text-dim);
+            font-size: 0.85rem;
+            margin-bottom: 28px;
         }
-
         .login-card input {
-            margin-bottom: 16px;
+            margin-bottom: 14px;
+            background: rgba(0,0,0,0.3);
+            border: 1px solid var(--border);
+            padding: 12px 14px;
+            border-radius: var(--r-md);
+        }
+        .login-card input:focus {
+            border-color: var(--blue);
+            box-shadow: 0 0 0 3px var(--blue-dim);
+            background: rgba(0,0,0,0.5);
+        }
+        .login-btn {
+            width: 100%;
+            padding: 12px;
+            border-radius: var(--r-md);
+            background: var(--text);
+            color: var(--bg);
+            font-weight: 600;
+            font-size: 0.9rem;
+            border: none;
+            cursor: pointer;
+            margin-top: 8px;
+            transition: all 0.2s ease;
+        }
+        .login-btn:hover {
+            background: #d4d4d8;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(255,255,255,0.08);
+        }
+        .login-hint {
+            margin-top: 24px;
+            font-size: 0.72rem;
+            color: var(--text-dim);
+            line-height: 1.5;
+        }
+        .login-hint code {
+            background: var(--surface-2);
+            padding: 1px 5px;
+            border-radius: 4px;
+            font-size: 0.7rem;
         }
     </style>
 </head>
 <body>
 
-<div class="login-wrapper">
-    <form method="POST" class="card login-card">
-        <h2>✨ Meridian Data</h2>
-        <p>Sign in to your database workspace</p>
-    
+<div class="login-shell">
+    <form method="POST" class="login-card">
+        <div class="login-logo">M</div>
+        <h2>Meridian Data</h2>
+        <p class="sub">Sign in to your database workspace</p>
+
         <input name="username" placeholder="Username" required autocomplete="username">
         <input name="password" type="password" placeholder="Password" required autocomplete="current-password">
-    
-        <button type="submit" class="btn-primary" style="margin-top: 24px; padding: 14px;">Continue</button>
-    
+
+        <button type="submit" class="login-btn">Continue</button>
+
         {% if error %}
-        <div class="error-card" style="margin-top:20px; padding: 12px; font-size: 0.9rem;">
-            {{ error }}
-        </div>
+        <div class="error-card" style="margin-top:16px;">{{ error }}</div>
         {% endif %}
+
+        <div class="login-hint">
+            Demo accounts: <code>admin1</code> / <code>admin123</code> &middot;
+            <code>editor1</code> / <code>editor123</code> &middot;
+            <code>viewer1</code> / <code>viewer123</code>
+        </div>
     </form>
 </div>
 

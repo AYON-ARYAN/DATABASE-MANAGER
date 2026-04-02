@@ -10,30 +10,30 @@
 
 <!-- ================= GLOBAL NAVIGATION ================= -->
 <nav class="global-nav">
-    <div class="nav-brand">✨ Meridian Data</div>
+    <div class="nav-brand">Meridian</div>
     <div class="nav-links">
-        <a href="/" class="nav-link">🔍 Query Agent</a>
-        <a href="/analysis" class="nav-link">📊 AI Analysis</a>
-        <a href="/databases" class="nav-link">⚙️ Manage DBs</a>
-        <a href="/snapshots" class="nav-link active">📸 Snapshots</a>
-        <a href="/dashboards" class="nav-link">📈 Dashboards</a>
+        <a href="/" class="nav-link">Query</a>
+        <a href="/overview" class="nav-link">Overview</a>
+        <a href="/analysis" class="nav-link">Analysis</a>
+        <a href="/databases" class="nav-link">Databases</a>
+        <a href="/dashboards" class="nav-link">Dashboards</a>
+        <a href="/command-guide" class="nav-link">Guide</a>
         {% if session.role == 'ADMIN' %}
-        <a href="/admin" class="nav-link">🛠 Admin</a>
+        <a href="/admin" class="nav-link">Admin</a>
         {% endif %}
     </div>
     <div class="user-info">
         <span class="user-name">{{ session.username }}</span>
-        <span class="role-badge {{ session.role }}">{{ session.role }}</span>
+        <span class="role-badge">{{ session.role }}</span>
         <a href="/logout" class="logout-link">Logout</a>
     </div>
 </nav>
 
-<header style="margin-top: 30px;">
-    <h1>📸 Database Snapshots</h1>
-    <p>Backup and restore your data schemas and tables</p>
-</header>
-
 <div class="db-page">
+    <header>
+        <h1>Database Snapshots</h1>
+        <p>Backup and restore your data schemas and tables</p>
+    </header>
 
     <!-- Flash messages -->
     {% if message %}

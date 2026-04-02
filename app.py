@@ -239,27 +239,314 @@ def index():
 
         adapter = get_active_adapter()
         dialect = adapter.dialect
+        cmd_lower = user_cmd.lower().strip()
+
+        # =============================================================
+        # HARDCODED DBMS COMMANDS (bypass LLM for reliability)
+        # =============================================================
+
+        # --- DESCRIBE TABLE ---
+        describe_match = None
+        for prefix in ("describe ", "desc ", "show structure ", "show columns ", "show schema "):
+            if cmd_lower.startswith(prefix):
+                describe_match = user_cmd[len(prefix):].strip().strip(";").strip('"').strip("'")
+                break
+
+        if describe_match and dialect == "sqlite":
+            table_name = describe_match
+            try:
+                info = adapter.describe_table(table_name)
+                # Build result columns and rows for display
+                columns = ["Column", "Type", "Not Null", "Default", "Primary Key"]
+                rows = []
+                for c in info["columns"]:
+                    rows.append([c["name"], c["type"], "YES" if c["not_null"] else "NO",
+                                 c["default"] if c["default"] is not None else "",
+                                 "YES" if c["primary_key"] else "NO"])
+
+                # Add FK info as extra rows
+                if info["foreign_keys"]:
+                    rows.append(["", "", "", "", ""])
+                    rows.append(["--- FOREIGN KEYS ---", "", "", "", ""])
+                    for fk in info["foreign_keys"]:
+                        rows.append([fk["from"], f"-> {fk['to_table']}.{fk['to_column']}", "", "", ""])
+
+                if info["indexes"]:
+                    rows.append(["", "", "", "", ""])
+                    rows.append(["--- INDEXES ---", "", "", "", ""])
+                    for idx in info["indexes"]:
+                        rows.append([idx["name"], ", ".join(idx["columns"]),
+                                     "UNIQUE" if idx["unique"] else "", "", ""])
+
+                session["last_read_sql"] = f'PRAGMA table_info("{table_name}")'
+                session["last_query"] = user_cmd
+                session["last_explanation"] = f"Detailed structure of table '{table_name}' including columns, foreign keys, and indexes."
+                session["last_read_columns"] = columns
+                add_to_history(user_cmd, f"DESCRIBE {table_name}", "SYSTEM", "EXECUTED")
+
+                return render_template(
+                    "index.html", task="SYSTEM", columns=columns, results=rows,
+                    page=1, page_size=len(rows), total_rows=len(rows),
+                    sql=f'PRAGMA table_info("{table_name}")',
+                    explanation=f"Table '{table_name}': {info['row_count']} rows, {len(info['columns'])} columns, {len(info['foreign_keys'])} foreign keys, {len(info['indexes'])} indexes.",
+                    history=session.get("history", []), db_info=db_info,
+                    connections=connections, llm_provider=llm_provider,
+                    analysis_enabled=analysis_enabled,
+                )
+            except Exception as e:
+                return render_template(
+                    "index.html", error=f"Table '{table_name}' not found or error: {str(e)}",
+                    history=session.get("history", []), db_info=db_info,
+                    connections=connections, llm_provider=llm_provider,
+                    analysis_enabled=analysis_enabled,
+                )
+
+        # --- SHOW FOREIGN KEYS ---
+        if cmd_lower in ("show foreign keys", "list foreign keys", "show fk", "show fks",
+                          "show relationships", "list relationships", "show refs", "show references"):
+            if dialect == "sqlite" and hasattr(adapter, 'get_foreign_keys'):
+                fks = adapter.get_foreign_keys()
+                columns = ["From Table", "From Column", "To Table", "To Column"]
+                rows = [[fk["from_table"], fk["from_column"], fk["to_table"], fk["to_column"]] for fk in fks]
+                if not rows:
+                    rows = [["No foreign keys found", "", "", ""]]
+
+                session["last_read_sql"] = "-- Foreign Key Relationships"
+                session["last_query"] = user_cmd
+                session["last_explanation"] = "All foreign key relationships in the database."
+                session["last_read_columns"] = columns
+                add_to_history(user_cmd, "SHOW FOREIGN KEYS", "SYSTEM", "EXECUTED")
+
+                return render_template(
+                    "index.html", task="SYSTEM", columns=columns, results=rows,
+                    page=1, page_size=len(rows), total_rows=len(rows),
+                    explanation=f"Found {len(fks)} foreign key relationships across all tables.",
+                    history=session.get("history", []), db_info=db_info,
+                    connections=connections, llm_provider=llm_provider,
+                    analysis_enabled=analysis_enabled,
+                )
+
+        # --- SHOW FOREIGN KEYS FOR specific table ---
+        fk_table_match = None
+        for prefix in ("show foreign keys for ", "show fk for ", "show fks for ",
+                        "show references for ", "show refs for "):
+            if cmd_lower.startswith(prefix):
+                fk_table_match = user_cmd[len(prefix):].strip().strip(";").strip('"').strip("'")
+                break
+
+        if fk_table_match and dialect == "sqlite":
+            table_name = fk_table_match
+            try:
+                conn = adapter.get_connection()
+                cur = conn.cursor()
+                cur.execute(f'PRAGMA foreign_key_list("{table_name}");')
+                fk_rows = cur.fetchall()
+                columns = ["From Column", "References Table", "References Column"]
+                rows = [[fk[3], fk[2], fk[4]] for fk in fk_rows]
+                if not rows:
+                    rows = [["No foreign keys found for this table", "", ""]]
+                adapter.disconnect()
+
+                session["last_read_sql"] = f'PRAGMA foreign_key_list("{table_name}")'
+                session["last_query"] = user_cmd
+                session["last_read_columns"] = columns
+                add_to_history(user_cmd, f"SHOW FK FOR {table_name}", "SYSTEM", "EXECUTED")
+
+                return render_template(
+                    "index.html", task="SYSTEM", columns=columns, results=rows,
+                    page=1, page_size=len(rows), total_rows=len(rows),
+                    explanation=f"Foreign keys for table '{table_name}'.",
+                    history=session.get("history", []), db_info=db_info,
+                    connections=connections, llm_provider=llm_provider,
+                    analysis_enabled=analysis_enabled,
+                )
+            except Exception as e:
+                return render_template(
+                    "index.html", error=f"Error: {str(e)}",
+                    history=session.get("history", []), db_info=db_info,
+                    connections=connections, llm_provider=llm_provider,
+                    analysis_enabled=analysis_enabled,
+                )
+
+        # --- SHOW INDEXES ---
+        if cmd_lower in ("show indexes", "list indexes", "show index", "show indices"):
+            if dialect == "sqlite" and hasattr(adapter, 'get_indexes'):
+                indexes = adapter.get_indexes()
+                columns = ["Table", "Index Name", "Unique", "Columns"]
+                rows = [[idx["table"], idx["index_name"],
+                         "YES" if idx["unique"] else "NO",
+                         ", ".join(idx["columns"])] for idx in indexes]
+                if not rows:
+                    rows = [["No indexes found", "", "", ""]]
+
+                session["last_read_sql"] = "-- All Indexes"
+                session["last_query"] = user_cmd
+                session["last_read_columns"] = columns
+                add_to_history(user_cmd, "SHOW INDEXES", "SYSTEM", "EXECUTED")
+
+                return render_template(
+                    "index.html", task="SYSTEM", columns=columns, results=rows,
+                    page=1, page_size=len(rows), total_rows=len(rows),
+                    explanation=f"Found {len(indexes)} indexes across all tables.",
+                    history=session.get("history", []), db_info=db_info,
+                    connections=connections, llm_provider=llm_provider,
+                    analysis_enabled=analysis_enabled,
+                )
+
+        # --- SHOW TABLE COUNT / SHOW ROW COUNTS ---
+        if cmd_lower in ("show table counts", "show row counts", "count all tables", "table sizes"):
+            try:
+                tables = adapter.list_tables()
+                columns = ["Table Name", "Row Count"]
+                rows = []
+                for t in tables:
+                    try:
+                        _, count_rows = adapter.execute(f'SELECT COUNT(*) FROM "{t}"')
+                        rows.append([t, count_rows[0][0] if count_rows else 0])
+                    except Exception:
+                        rows.append([t, "Error"])
+
+                session["last_read_sql"] = "-- Table Row Counts"
+                session["last_query"] = user_cmd
+                session["last_read_columns"] = columns
+                add_to_history(user_cmd, "TABLE ROW COUNTS", "SYSTEM", "EXECUTED")
+
+                return render_template(
+                    "index.html", task="SYSTEM", columns=columns, results=rows,
+                    page=1, page_size=len(rows), total_rows=len(rows),
+                    explanation=f"Row counts for all {len(tables)} tables.",
+                    history=session.get("history", []), db_info=db_info,
+                    connections=connections, llm_provider=llm_provider,
+                    analysis_enabled=analysis_enabled,
+                )
+            except Exception as e:
+                return render_template(
+                    "index.html", error=f"Error: {str(e)}",
+                    history=session.get("history", []), db_info=db_info,
+                    connections=connections, llm_provider=llm_provider,
+                    analysis_enabled=analysis_enabled,
+                )
+
+        # --- SHOW CONSTRAINTS ---
+        if cmd_lower in ("show constraints", "list constraints", "show all constraints"):
+            if dialect == "sqlite":
+                try:
+                    tables = adapter.list_tables()
+                    columns = ["Table", "Constraint Type", "Details"]
+                    rows = []
+                    conn = adapter.get_connection()
+                    cur = conn.cursor()
+                    for t in tables:
+                        # Primary keys
+                        cur.execute(f'PRAGMA table_info("{t}");')
+                        for col in cur.fetchall():
+                            if col[5]:
+                                rows.append([t, "PRIMARY KEY", col[1]])
+                        # Foreign keys
+                        cur.execute(f'PRAGMA foreign_key_list("{t}");')
+                        for fk in cur.fetchall():
+                            rows.append([t, "FOREIGN KEY", f"{fk[3]} -> {fk[2]}.{fk[4]}"])
+                        # NOT NULL
+                        cur.execute(f'PRAGMA table_info("{t}");')
+                        for col in cur.fetchall():
+                            if col[3]:
+                                rows.append([t, "NOT NULL", col[1]])
+                        # Unique indexes
+                        cur.execute(f'PRAGMA index_list("{t}");')
+                        for idx in cur.fetchall():
+                            if idx[2]:
+                                cur.execute(f'PRAGMA index_info("{idx[1]}");')
+                                idx_cols = [ic[2] for ic in cur.fetchall()]
+                                rows.append([t, "UNIQUE", f"{idx[1]} ({', '.join(idx_cols)})"])
+                    adapter.disconnect()
+
+                    if not rows:
+                        rows = [["No constraints found", "", ""]]
+
+                    session["last_read_sql"] = "-- All Constraints"
+                    session["last_query"] = user_cmd
+                    session["last_read_columns"] = columns
+                    add_to_history(user_cmd, "SHOW CONSTRAINTS", "SYSTEM", "EXECUTED")
+
+                    return render_template(
+                        "index.html", task="SYSTEM", columns=columns, results=rows,
+                        page=1, page_size=len(rows), total_rows=len(rows),
+                        explanation=f"All constraints (PK, FK, NOT NULL, UNIQUE) across all tables.",
+                        history=session.get("history", []), db_info=db_info,
+                        connections=connections, llm_provider=llm_provider,
+                        analysis_enabled=analysis_enabled,
+                    )
+                except Exception as e:
+                    return render_template(
+                        "index.html", error=f"Error: {str(e)}",
+                        history=session.get("history", []), db_info=db_info,
+                        connections=connections, llm_provider=llm_provider,
+                        analysis_enabled=analysis_enabled,
+                    )
+
+        # --- SHOW CREATE TABLE ---
+        create_table_match = None
+        for prefix in ("show create table ", "show ddl ", "show sql "):
+            if cmd_lower.startswith(prefix):
+                create_table_match = user_cmd[len(prefix):].strip().strip(";").strip('"').strip("'")
+                break
+
+        if create_table_match and dialect == "sqlite":
+            table_name = create_table_match
+            try:
+                _, ddl_rows = adapter.execute(
+                    f"SELECT sql FROM sqlite_master WHERE type='table' AND name='{table_name}'"
+                )
+                columns = ["CREATE TABLE Statement"]
+                rows = [[ddl_rows[0][0]]] if ddl_rows and ddl_rows[0][0] else [["Table not found"]]
+
+                session["last_read_sql"] = f"SELECT sql FROM sqlite_master WHERE name='{table_name}'"
+                session["last_query"] = user_cmd
+                session["last_read_columns"] = columns
+                add_to_history(user_cmd, f"SHOW CREATE TABLE {table_name}", "SYSTEM", "EXECUTED")
+
+                return render_template(
+                    "index.html", task="SYSTEM", columns=columns, results=rows,
+                    page=1, page_size=1, total_rows=1,
+                    explanation=f"DDL (CREATE TABLE) statement for '{table_name}'.",
+                    history=session.get("history", []), db_info=db_info,
+                    connections=connections, llm_provider=llm_provider,
+                    analysis_enabled=analysis_enabled,
+                )
+            except Exception as e:
+                return render_template(
+                    "index.html", error=f"Error: {str(e)}",
+                    history=session.get("history", []), db_info=db_info,
+                    connections=connections, llm_provider=llm_provider,
+                    analysis_enabled=analysis_enabled,
+                )
+
+        # =============================================================
+        # END HARDCODED COMMANDS
+        # =============================================================
 
         # SYSTEM: list tables / show tables
-        if user_cmd.lower() in ("list tables", "show tables", "list collections", "show collections"):
+        if cmd_lower in ("list tables", "show tables", "list collections", "show collections"):
             if not is_allowed(role, "SYSTEM"):
                 return render_template(
                     "index.html",
-                    error="❌ Permission denied.",
+                    error="Permission denied.",
                     history=session.get("history", []),
                     db_info=db_info,
                     connections=connections,
                     llm_provider=llm_provider,
+                    analysis_enabled=analysis_enabled,
                 )
 
             tables = adapter.list_tables()
             label = "Collections" if adapter.is_nosql else "Tables"
-            
-            # Metadata for PPT/Export (No heavy data)
+
+            # Metadata for PPT/Export
             session["last_read_sql"] = "SELECT name FROM sqlite_master WHERE type='table'" if dialect == "sqlite" else "SHOW TABLES"
             session["last_query"] = user_cmd
             session["last_explanation"] = "Listing all tables/collections in the database."
-            
+            session["last_read_columns"] = [label]
+
             add_to_history(user_cmd, "SHOW TABLES", "SYSTEM", "EXECUTED")
 
             return render_template(
@@ -327,6 +614,7 @@ def index():
 
             session["last_read_sql"] = query
             session["last_explanation"] = explanation
+            session["last_query"] = user_cmd
 
             page = 1
 
@@ -345,27 +633,83 @@ def index():
                     columns, rows = adapter.execute(paginated_sql)
                     total_rows = safe_count(adapter, query)
             except Exception as e:
-                # If it's a "Safe Unknown" (plain text), and it fails as SQL,
-                # just return the text itself as a single row result.
+                # If it's a "Safe Unknown" (plain text), or if the generated SQL fails,
+                # try AI Ask as a fallback to answer the user's question directly
                 if task == "UNKNOWN" and effective_task == "READ":
+                    # Try AI Ask with Groq if available
+                    if analysis_enabled:
+                        try:
+                            from core.analyzer import ai_ask
+                            schema = adapter.get_schema()
+                            db_name = session.get("active_db", "Unknown DB")
+                            ai_result = ai_ask(user_cmd, schema, db_name)
+                            if "error" not in ai_result:
+                                columns = ["AI Response"]
+                                rows = [[ai_result.get("answer", query)]]
+                                total_rows = 1
+                                paginated_sql = "N/A (AI Response)"
+                                explanation = "Your question was answered by AI with full database context."
+
+                                session["last_query"] = user_cmd
+                                session["last_explanation"] = explanation
+                                add_to_history(user_cmd, "AI_ASK", "READ", "EXECUTED")
+
+                                return render_template(
+                                    "index.html",
+                                    sql=None,
+                                    explanation=None,
+                                    task="READ",
+                                    ai_response=ai_result.get("answer", ""),
+                                    ai_suggestions=ai_result.get("suggested_queries", []),
+                                    history=session.get("history", []),
+                                    db_info=db_info,
+                                    connections=connections,
+                                    llm_provider=llm_provider,
+                                    analysis_enabled=analysis_enabled,
+                                )
+                        except Exception:
+                            pass
+
+                    # Fallback: show the raw LLM text
                     columns = ["Intelligence Response"]
                     rows = [[query]]
                     total_rows = 1
                     paginated_sql = "N/A (Non-SQL Response)"
-                    
-                    # Store even non-SQL intelligence responses for PPT
-                    session["last_results"] = rows
-                    session["last_columns"] = columns
-                    session["last_sql"] = paginated_sql
+
                     session["last_query"] = user_cmd
                     session["last_explanation"] = explanation
                 else:
+                    # SQL execution genuinely failed - try AI Ask as a last resort
+                    if analysis_enabled and "syntax" in str(e).lower() or "no such" in str(e).lower():
+                        try:
+                            from core.analyzer import ai_ask
+                            schema = adapter.get_schema()
+                            db_name = session.get("active_db", "Unknown DB")
+                            ai_result = ai_ask(user_cmd, schema, db_name)
+                            if "error" not in ai_result:
+                                add_to_history(user_cmd, "AI_ASK (fallback)", "READ", "EXECUTED")
+                                return render_template(
+                                    "index.html",
+                                    sql=query,
+                                    explanation=f"The generated SQL failed ({str(e)}), so AI answered your question directly.",
+                                    task="READ",
+                                    ai_response=ai_result.get("answer", ""),
+                                    ai_suggestions=ai_result.get("suggested_queries", []),
+                                    history=session.get("history", []),
+                                    db_info=db_info,
+                                    connections=connections,
+                                    llm_provider=llm_provider,
+                                    analysis_enabled=analysis_enabled,
+                                )
+                        except Exception:
+                            pass
+
                     return render_template(
                         "index.html",
                         sql=query,
                         explanation=explanation,
                         task="READ",
-                        error=f"❌ Execution failed: {str(e)}",
+                        error=f"Execution failed: {str(e)}",
                         history=session.get("history", []),
                         db_info=db_info,
                         connections=connections,
@@ -373,9 +717,10 @@ def index():
                         analysis_enabled=analysis_enabled,
                     )
             
-            # CRITICAL: Do NOT store rows/columns in session to avoid "Cookie too large"
-            # PPT/Export will re-fetch data as needed.
-            
+            # Store column names (small) for CSV export & analysis
+            # Do NOT store rows to avoid "Cookie too large"
+            session["last_read_columns"] = columns
+
             add_to_history(user_cmd, query, task, "EXECUTED")
             
             return render_template(
@@ -418,6 +763,7 @@ def index():
         sql = session["last_read_sql"]
         explanation = session.get("last_explanation")
         page = max(1, int(page))
+        page_task = "READ"
 
         try:
             if adapter.is_nosql:
@@ -433,7 +779,7 @@ def index():
                 "index.html",
                 sql=sql,
                 explanation=explanation,
-                task=task,
+                task=page_task,
                 error=f"❌ Execution failed: {str(e)}",
                 history=session.get("history", []),
                 db_info=db_info,
@@ -445,7 +791,7 @@ def index():
             "index.html",
             sql=paginated_sql,
             explanation=explanation,
-            task=task,
+            task=page_task,
             columns=columns,
             results=rows_to_list(rows) if rows and not isinstance(rows[0], list) else rows if rows else [],
             page=page,
@@ -474,13 +820,15 @@ def index():
 @app.route("/export")
 def export_csv():
     sql = session.get("last_read_sql")
-    columns = session.get("last_read_columns")
 
-    if not sql or not columns:
+    if not sql:
         return redirect(url_for("index"))
 
     adapter = get_active_adapter()
-    _, rows = adapter.execute(sql)
+    columns, rows = adapter.execute(sql)
+
+    if not columns:
+        return redirect(url_for("index"))
 
     output = StringIO()
     writer = csv.writer(output)
@@ -749,53 +1097,91 @@ def api_auto_generate_dashboard():
     prompt = request.json.get("prompt", "")
     if not prompt:
         return jsonify({"error": "Prompt is required"}), 400
-    
-    # 1. Get schema from active adapter
+
     active_db = session.get("active_db", "Default SQLite")
     adapter = get_active_adapter()
     schema = adapter.get_schema()
-    llm_provider = session.get("llm_provider", "mistral")
-    
-    # 2. Ask LLM to suggest widgets in JSON format
-    from core.llm import generate_query
-    system_prompt = f"""
-    You are a Data Analyst. Based on the user's request and the database schema, suggest a set of 3 to 5 useful dashboard widgets.
-    Return ONLY a JSON array of objects with 'title', 'query', and 'chart_type' (one of: bar, line, pie, table).
-    SCHEMA:
-    {schema}
-    """
-    suggestion_json = generate_query(
-        f"SUGGEST WIDGETS FOR: {prompt}", 
-        adapter.dialect, 
-        system_prompt=system_prompt, 
-        provider=llm_provider
-    )
-    
+
+    # Collect table stats for better context
+    table_stats = ""
     try:
-        # Clean potential markdown from LLM
-        suggestion_json = suggestion_json.strip()
-        if "```json" in suggestion_json:
-            suggestion_json = suggestion_json.split("```json")[1].split("```")[0].strip()
-        elif "```" in suggestion_json:
-            suggestion_json = suggestion_json.split("```")[1].split("```")[0].strip()
-            
-        widgets = json.loads(suggestion_json)
-    except Exception as e:
-        print(f"Auto-generate parse error: {e}\nRaw output: {suggestion_json}")
-        return jsonify({"error": "Failed to parse AI suggestions. The LLM output was not valid JSON."}), 500
-        
-    # 3. Create Dashboard and add widgets
-    dash = create_dashboard(f"AI: {prompt[:30]}...")
+        tables = adapter.list_tables()
+        for t in tables:
+            try:
+                _, cr = adapter.execute(f'SELECT COUNT(*) FROM "{t}"')
+                table_stats += f"  - {t}: {cr[0][0]} rows\n"
+            except Exception:
+                table_stats += f"  - {t}: ? rows\n"
+    except Exception:
+        pass
+
+    # Use Groq directly for reliable JSON generation
+    if analysis_enabled:
+        try:
+            from groq import Groq
+            client = Groq(api_key=GROQ_API_KEY)
+            response = client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=[
+                    {"role": "system", "content": "You generate dashboard widget configurations as strict JSON."},
+                    {"role": "user", "content": f"""Based on this database schema and the user's request, generate 4-6 dashboard widgets.
+
+DATABASE: {active_db}
+SCHEMA:
+{schema}
+
+TABLE STATS:
+{table_stats}
+
+USER REQUEST: {prompt}
+
+Return a JSON object with this structure:
+{{
+    "name": "Dashboard title based on the request",
+    "widgets": [
+        {{"title": "Widget title", "query": "SELECT ...", "chart_type": "bar"}},
+        {{"title": "Widget title", "query": "SELECT ...", "chart_type": "pie"}},
+        {{"title": "Data table", "query": "SELECT ...", "chart_type": "table"}}
+    ]
+}}
+
+RULES:
+- All SQL must be valid for the schema above (use real table/column names)
+- chart_type must be one of: bar, line, pie, doughnut, table
+- For charts, the SELECT must return exactly 2 columns: a label column and a numeric column
+- For tables, SELECT can return any columns
+- Include a mix of chart types
+- Make queries analytical and insightful (use JOINs, GROUP BY, ORDER BY, aggregates)
+"""}
+                ],
+                temperature=0.2,
+                response_format={"type": "json_object"}
+            )
+
+            result = json.loads(response.choices[0].message.content.strip())
+            widgets = result.get("widgets", [])
+            dash_name = result.get("name", f"AI: {prompt[:30]}")
+
+        except Exception as e:
+            return jsonify({"error": f"AI generation failed: {str(e)}"}), 500
+    else:
+        return jsonify({"error": "Groq API key required for AI dashboard generation. Set GROQ_API_KEY in .env."}), 400
+
+    # Create dashboard and add widgets
+    dash = create_dashboard(dash_name)
+    added = 0
     for w in widgets:
         if w.get("query"):
             add_widget(
-                dash["id"], 
-                w.get("title", "Insight"), 
-                w.get("query"), 
+                dash["id"],
+                w.get("title", "Insight"),
+                w.get("query"),
                 w.get("chart_type", "table"),
                 active_db
             )
-        
+            added += 1
+
+    dash["widget_count"] = added
     return jsonify(dash)
 
 
@@ -911,8 +1297,10 @@ def export_ppt():
     sql = session.get("last_read_sql")
     explanation = session.get("last_explanation")
     analysis = session.get("last_analysis")
-    
+    user_query = session.get("last_query", "Custom Analysis")
+
     if not sql:
+        session["error"] = "No query results to export. Please run a query first."
         return redirect(url_for("index"))
 
     # Re-fetch data on demand to keep session cookie small
@@ -920,45 +1308,58 @@ def export_ppt():
         adapter = get_active_adapter()
         # Limit to 10 rows for PPT summary table
         if not (adapter.is_nosql or is_system_query(sql) or is_already_limited(sql)):
-            fetch_sql = paginate_sql(sql, 1) # Page 1 = 50 rows
+            fetch_sql = paginate_sql(sql, 1)
         else:
             fetch_sql = sql
-        
+
         columns, rows = adapter.execute(fetch_sql)
-        results = rows_to_list(rows)[:10] # Top 10 for slide
+        results = rows_to_list(rows)[:10]
     except Exception as e:
-        return f"Error fetching data for PPT: {str(e)}", 500
+        session["error"] = f"Error fetching data for PPT: {str(e)}"
+        return redirect(url_for("index"))
 
     from core.ppt_generator import PPTGenerator
     gen = PPTGenerator(title="Meridian Data Insight Report")
-    
+
     # 1. Title Slide
-    gen.add_title_slide(subtitle=f"Query: {session.get('last_query', 'Custom Analysis')}")
-    
-    # 2. SQL Slide
+    gen.add_title_slide(subtitle=f"Query: {user_query}")
+
+    # 2. Schema slide (shows DB structure for context)
+    try:
+        schema = adapter.get_schema()
+        if schema:
+            gen.add_schema_slide(schema)
+    except Exception:
+        pass
+
+    # 3. SQL Slide
     gen.add_text_slide("Generated SQL", sql or "N/A")
-    
-    # 3. Explanation Slide
+
+    # 4. Explanation Slide
     if explanation:
         gen.add_text_slide("AI Logic Explanation", explanation)
-        
-    # 4. Data Table Slide
-    gen.add_table_slide("Query Results (Top 10)", columns, results)
-    
-    # 5. Analysis & Chart Slide (if available)
-    if analysis and "summary" in analysis:
+
+    # 5. Data Table Slide
+    if columns and results:
+        gen.add_table_slide("Query Results (Top 10)", columns, results)
+
+    # 6. Analysis & Chart Slide (if available)
+    if analysis and isinstance(analysis, dict) and "summary" in analysis:
         gen.add_text_slide("AI Data Insights", analysis["summary"])
-        if "chart" in analysis:
+        if "chart" in analysis and analysis["chart"]:
             gen.add_chart_slide("Data Visualization", analysis["chart"])
-            
-    ppt_file = gen.save()
-    
-    return send_file(
-        ppt_file,
-        mimetype="application/vnd.openxmlformats-officedocument.presentationml.presentation",
-        as_attachment=True,
-        download_name=f"meridian_report_{int(time.time())}.pptx"
-    )
+
+    try:
+        ppt_file = gen.save()
+        return send_file(
+            ppt_file,
+            mimetype="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            as_attachment=True,
+            download_name=f"meridian_report_{int(time.time())}.pptx"
+        )
+    except Exception as e:
+        session["error"] = f"PPT generation failed: {str(e)}"
+        return redirect(url_for("index"))
 
 # ---------------------------------------------------
 # Command Intelligence & Guide
@@ -1097,7 +1498,8 @@ def select_db():
 def show_analysis_page():
     if not session.get("username"):
         return redirect(url_for("login"))
-    return render_template("analysis.html", analysis_enabled=analysis_enabled)
+    db_info = get_active_db_info()
+    return render_template("analysis.html", analysis_enabled=analysis_enabled, db_info=db_info)
 
 
 @app.route("/insights")
@@ -1131,17 +1533,25 @@ def analyze():
     columns = session.get("last_read_columns")
     user_hint = request.form.get("hint", "")
 
-    if not sql or not columns:
+    if not sql:
         return jsonify({"error": "No query results to analyze. Please run a query first."})
 
     try:
         adapter = get_active_adapter()
         # Ensure we only analyze a reasonable chunk (analyzer cuts off at 100 rows anyway)
         paginated_sql = paginate_sql(sql, 1) if not (adapter.is_nosql or is_system_query(sql) or is_already_limited(sql)) else sql
-        _, rows = adapter.execute(paginated_sql)
+        fetched_columns, rows = adapter.execute(paginated_sql)
+
+        # Use fetched columns if session columns are missing
+        use_columns = columns or fetched_columns
 
         from core.analyzer import analyze_data
-        result = analyze_data(columns, rows, user_hint)
+        result = analyze_data(use_columns, rows, user_hint)
+
+        # Store analysis in session so PPT export can use it
+        if "error" not in result:
+            session["last_analysis"] = result
+
         return jsonify(result)
     except Exception as e:
         return jsonify({"error": str(e)})
@@ -1165,6 +1575,238 @@ def analyze_csv():
         return jsonify(result)
     except Exception as e:
         return jsonify({"error": str(e)})
+
+
+# ---------------------------------------------------
+# Direct Analysis (fetches data from DB itself)
+# ---------------------------------------------------
+@app.route("/api/analyze-direct", methods=["POST"])
+def analyze_direct():
+    """Analyze data directly from a table or custom SQL query. Read-only."""
+    if not analysis_enabled:
+        return jsonify({"error": "Groq API not configured. Set GROQ_API_KEY in .env."})
+
+    data = request.json or {}
+    source = data.get("source", "")  # table name or "custom"
+    custom_sql = data.get("sql", "")
+    hint = data.get("hint", "")
+
+    adapter = get_active_adapter()
+
+    try:
+        if source == "custom" and custom_sql:
+            # Validate: only allow SELECT
+            sql_lower = custom_sql.strip().lower()
+            if not sql_lower.startswith("select"):
+                return jsonify({"error": "Only SELECT queries are allowed for analysis."})
+            sql = custom_sql.rstrip(";")
+        elif source:
+            # Fetch from table directly
+            sql = f'SELECT * FROM "{source}" LIMIT 200'
+        else:
+            return jsonify({"error": "Provide a table name or custom SQL query."})
+
+        columns, rows = adapter.execute(sql)
+
+        if not columns or not rows:
+            return jsonify({"error": "Query returned no data."})
+
+        from core.analyzer import analyze_data
+        result = analyze_data(columns, rows_to_list(rows), hint)
+
+        if "error" not in result:
+            session["last_analysis"] = result
+            session["last_read_sql"] = sql
+            session["last_read_columns"] = columns
+
+        return jsonify(result)
+
+    except Exception as e:
+        return jsonify({"error": f"Analysis failed: {str(e)}"})
+
+
+@app.route("/api/tables-list", methods=["GET"])
+def api_tables_list():
+    """Returns list of tables with row counts for the analysis page."""
+    try:
+        adapter = get_active_adapter()
+        tables = adapter.list_tables()
+        result = []
+        for t in tables:
+            try:
+                _, count_rows = adapter.execute(f'SELECT COUNT(*) FROM "{t}"')
+                count = count_rows[0][0] if count_rows else 0
+            except Exception:
+                count = 0
+            result.append({"name": t, "rows": count})
+        return jsonify({"tables": result, "db_name": session.get("active_db", "Unknown")})
+    except Exception as e:
+        return jsonify({"error": str(e)})
+
+
+@app.route("/api/table-preview", methods=["POST"])
+def api_table_preview():
+    """Returns first 10 rows of a table for preview."""
+    data = request.json or {}
+    source = data.get("source", "")
+    custom_sql = data.get("sql", "")
+
+    adapter = get_active_adapter()
+
+    try:
+        if source == "custom" and custom_sql:
+            sql_lower = custom_sql.strip().lower()
+            if not sql_lower.startswith("select"):
+                return jsonify({"error": "Only SELECT queries allowed."})
+            sql = custom_sql.rstrip(";")
+            if "limit" not in sql_lower:
+                sql += " LIMIT 10"
+        elif source:
+            sql = f'SELECT * FROM "{source}" LIMIT 10'
+        else:
+            return jsonify({"error": "Provide a table name or SQL."})
+
+        columns, rows = adapter.execute(sql)
+        return jsonify({"columns": columns, "rows": rows_to_list(rows)})
+    except Exception as e:
+        return jsonify({"error": str(e)})
+
+
+# ---------------------------------------------------
+# AI Ask (General Q&A with full DB context)
+# ---------------------------------------------------
+@app.route("/api/ask", methods=["POST"])
+def ai_ask_endpoint():
+    if not analysis_enabled:
+        return jsonify({"error": "Groq API key not configured. Set GROQ_API_KEY in .env."})
+
+    question = request.json.get("question", "").strip()
+    if not question:
+        return jsonify({"error": "Question is required."})
+
+    try:
+        adapter = get_active_adapter()
+        schema = adapter.get_schema()
+        db_name = session.get("active_db", "Unknown DB")
+
+        # Get table stats for context
+        table_stats = []
+        try:
+            tables = adapter.list_tables()
+            for t in tables:
+                try:
+                    _, count_rows = adapter.execute(f'SELECT COUNT(*) FROM "{t}"')
+                    table_stats.append({"table": t, "rows": count_rows[0][0] if count_rows else 0})
+                except Exception:
+                    table_stats.append({"table": t, "rows": "?"})
+        except Exception:
+            pass
+
+        from core.analyzer import ai_ask
+        result = ai_ask(question, schema, db_name, table_stats)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)})
+
+
+# ---------------------------------------------------
+# Database Overview Dashboard
+# ---------------------------------------------------
+@app.route("/overview")
+def overview_page():
+    db_info = get_active_db_info()
+    connections = list_connections()
+    return render_template(
+        "overview.html",
+        db_info=db_info,
+        connections=connections,
+        analysis_enabled=analysis_enabled,
+    )
+
+
+@app.route("/api/overview", methods=["POST"])
+def api_overview():
+    """Generates a full database overview with AI-powered analysis."""
+    adapter = get_active_adapter()
+    db_name = session.get("active_db", "Unknown DB")
+
+    # Collect table stats
+    table_stats = []
+    try:
+        tables = adapter.list_tables()
+        for t in tables:
+            try:
+                _, count_rows = adapter.execute(f'SELECT COUNT(*) FROM "{t}"')
+                table_stats.append({"table": t, "rows": count_rows[0][0] if count_rows else 0})
+            except Exception:
+                table_stats.append({"table": t, "rows": 0})
+    except Exception as e:
+        return jsonify({"error": f"Failed to get tables: {str(e)}"})
+
+    # Collect FK info
+    fk_list = []
+    if hasattr(adapter, 'get_foreign_keys'):
+        try:
+            fk_list = adapter.get_foreign_keys()
+        except Exception:
+            pass
+
+    # If Groq is available, get AI analysis
+    if analysis_enabled:
+        try:
+            schema = adapter.get_schema()
+            from core.analyzer import get_table_overview
+            ai_result = get_table_overview(schema, db_name, table_stats)
+            if "error" not in ai_result:
+                # Merge FK data in case AI didn't capture all
+                if not ai_result.get("relationship_map") and fk_list:
+                    ai_result["relationship_map"] = [
+                        {"from": fk["from_table"], "to": fk["to_table"], "via": fk["from_column"]}
+                        for fk in fk_list
+                    ]
+                return jsonify(ai_result)
+        except Exception:
+            pass
+
+    # Fallback: return raw stats without AI
+    total_rows = sum(ts["rows"] for ts in table_stats if isinstance(ts["rows"], int))
+    return jsonify({
+        "summary": f"Database '{db_name}' contains {len(table_stats)} tables with {total_rows:,} total rows.",
+        "highlights": [
+            {"label": "Total Tables", "value": str(len(table_stats))},
+            {"label": "Total Rows", "value": f"{total_rows:,}"},
+            {"label": "Foreign Keys", "value": str(len(fk_list))},
+            {"label": "Largest Table", "value": max(table_stats, key=lambda x: x["rows"] if isinstance(x["rows"], int) else 0)["table"] if table_stats else "N/A"},
+        ],
+        "table_size_chart": {
+            "labels": [ts["table"] for ts in sorted(table_stats, key=lambda x: x["rows"] if isinstance(x["rows"], int) else 0, reverse=True)],
+            "data": [ts["rows"] for ts in sorted(table_stats, key=lambda x: x["rows"] if isinstance(x["rows"], int) else 0, reverse=True)],
+        },
+        "relationship_map": [
+            {"from": fk["from_table"], "to": fk["to_table"], "via": fk["from_column"]}
+            for fk in fk_list
+        ],
+        "suggested_queries": [],
+    })
+
+
+@app.route("/api/overview/query", methods=["POST"])
+def api_overview_query():
+    """Execute a suggested query from the overview and return results."""
+    query = request.json.get("query", "")
+    if not query:
+        return jsonify({"error": "Query required"}), 400
+
+    try:
+        adapter = get_active_adapter()
+        columns, rows = adapter.execute(query)
+        return jsonify({
+            "success": True,
+            "columns": columns,
+            "rows": rows_to_list(rows)[:50]
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)})
 
 
 # ---------------------------------------------------

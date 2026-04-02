@@ -82,7 +82,7 @@ RULES FOR CHART:
     - "area": For volume trends over time (stacked or singular).
     - "scatter": For identifying correlations between two numerical variables.
     - Choose the chart type that BEST represents the data shape provided.
-"" concept logic."""
+"""
 
     try:
         response = GROQ_CLIENT.chat.completions.create(
@@ -107,6 +107,149 @@ RULES FOR CHART:
 
     except Exception as e:
         return {"error": f"Analysis failed: {str(e)}"}
+
+
+def ai_ask(question: str, schema: str, db_name: str, table_stats: list = None) -> dict:
+    """
+    General-purpose AI Q&A with full database context.
+    Answers any question about the database using Groq.
+    Returns {"answer": "...", "suggested_queries": [...]}
+    """
+    if not GROQ_CLIENT:
+        return {"error": "Groq API key not configured. Set GROQ_API_KEY in .env file."}
+
+    stats_str = ""
+    if table_stats:
+        stats_str = "\n\nTABLE STATISTICS:\n"
+        for ts in table_stats:
+            stats_str += f"  - {ts['table']}: {ts['rows']} rows\n"
+
+    prompt = f"""You are an expert DBMS teaching assistant and database analyst.
+You have full access to the following database schema.
+
+DATABASE: {db_name}
+
+SCHEMA:
+{schema}
+{stats_str}
+
+USER QUESTION: {question}
+
+INSTRUCTIONS:
+- Answer the question thoroughly and helpfully
+- If the question is about SQL concepts (JOINs, normalization, indexes, etc.), explain with examples from THIS database
+- If the question is about the data, suggest specific SQL queries they can run
+- If they ask "what can I do" or "help", give a comprehensive overview of the database and suggest interesting queries
+- Format your answer in clean Markdown with headers, bullet points, and code blocks for SQL
+- At the end, suggest 3 follow-up SQL queries they might want to try (as a JSON array in a special section)
+
+RESPONSE FORMAT:
+Start with your detailed answer in Markdown.
+Then at the very end, add this exact section:
+---SUGGESTED_QUERIES---
+["query1", "query2", "query3"]
+"""
+
+    try:
+        response = GROQ_CLIENT.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {"role": "system", "content": "You are a helpful DBMS teaching assistant. You explain database concepts clearly and provide practical SQL examples from the user's actual database."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.3
+        )
+
+        raw = response.choices[0].message.content.strip()
+
+        # Parse out suggested queries
+        answer = raw
+        suggested = []
+        if "---SUGGESTED_QUERIES---" in raw:
+            parts = raw.split("---SUGGESTED_QUERIES---")
+            answer = parts[0].strip()
+            try:
+                suggested = json.loads(parts[1].strip())
+            except Exception:
+                suggested = []
+
+        return {"answer": answer, "suggested_queries": suggested}
+
+    except Exception as e:
+        return {"error": f"AI Ask failed: {str(e)}"}
+
+
+def get_table_overview(schema: str, db_name: str, table_stats: list) -> dict:
+    """
+    Generates a complete database overview with charts data for the overview dashboard.
+    Returns {"summary": "...", "charts": [...]}
+    """
+    if not GROQ_CLIENT:
+        return {"error": "Groq API key not configured."}
+
+    stats_str = "\n".join([f"  - {ts['table']}: {ts['rows']} rows" for ts in table_stats])
+
+    prompt = f"""You are a database analytics engine. Analyze this database and return a JSON overview report.
+
+DATABASE: {db_name}
+
+SCHEMA:
+{schema}
+
+TABLE STATISTICS:
+{stats_str}
+
+Return ONLY a raw JSON object with this structure:
+{{
+    "summary": "A 2-3 paragraph executive summary of this database - what it stores, key relationships, and notable patterns.",
+    "highlights": [
+        {{"label": "Total Tables", "value": "N"}},
+        {{"label": "Total Rows", "value": "N"}},
+        {{"label": "Foreign Keys", "value": "N"}},
+        {{"label": "Largest Table", "value": "tablename (N rows)"}}
+    ],
+    "table_size_chart": {{
+        "labels": ["table1", "table2"],
+        "data": [100, 200]
+    }},
+    "relationship_map": [
+        {{"from": "Orders", "to": "Customers", "via": "CustomerID"}},
+        {{"from": "OrderDetails", "to": "Products", "via": "ProductID"}}
+    ],
+    "suggested_queries": [
+        {{"title": "Top customers by order count", "query": "SELECT ...", "chart_type": "bar"}},
+        {{"title": "Revenue by category", "query": "SELECT ...", "chart_type": "pie"}}
+    ]
+}}
+
+RULES:
+- All SQL must be valid for the actual schema shown above
+- Use real table and column names from the schema
+- suggested_queries should be 4-6 interesting analytical queries
+- table_size_chart should include ALL tables sorted by size
+- relationship_map should include ALL foreign key relationships
+"""
+
+    try:
+        response = GROQ_CLIENT.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {"role": "system", "content": "You are a database analytics engine that outputs strict JSON."},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.2,
+            response_format={"type": "json_object"}
+        )
+
+        result_text = response.choices[0].message.content.strip()
+        if result_text.startswith("```json"):
+            result_text = result_text[7:]
+        if result_text.endswith("```"):
+            result_text = result_text[:-3]
+        return json.loads(result_text)
+
+    except Exception as e:
+        return {"error": f"Overview generation failed: {str(e)}"}
 
 
 def analyze_schema(schema: str, db_name: str) -> dict:

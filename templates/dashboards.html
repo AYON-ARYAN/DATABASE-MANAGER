@@ -2,130 +2,193 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Dashboards</title>
+    <title>Dashboards - Meridian</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        .dash-page { max-width: 1000px; margin: 0 auto; padding: calc(var(--nav-h) + 28px) 24px 60px; }
+        .dash-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 32px; gap: 16px; flex-wrap: wrap; }
+        .dash-header h1 { font-size: 1.4rem; margin-bottom: 4px; }
+        .dash-header p { color: var(--text-dim); font-size: 0.85rem; }
+        .header-actions { display: flex; gap: 8px; flex-shrink: 0; }
+
+        .ai-gen-box { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); padding: 20px; margin-bottom: 28px; }
+        .ai-gen-row { display: flex; gap: 10px; margin-top: 12px; }
+        .ai-gen-row input { flex: 1; }
+        .ai-gen-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+
+        .dash-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
+        .dash-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); padding: 20px; display: flex; flex-direction: column; justify-content: space-between; min-height: 160px; transition: all var(--transition); }
+        .dash-card:hover { border-color: var(--border-hover); transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.25); }
+        .dash-card h3 { font-size: 0.95rem; margin-bottom: 6px; }
+        .dash-meta { font-size: 0.72rem; color: var(--text-dim); }
+        .dash-actions { display: flex; gap: 8px; margin-top: 14px; }
+
+        .empty-state { text-align: center; padding: 60px 20px; border: 2px dashed var(--border); border-radius: var(--r-lg); color: var(--text-dim); grid-column: 1 / -1; }
+
+        .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 200; align-items: center; justify-content: center; padding: 20px; }
+        .modal-box { background: var(--bg-subtle); border: 1px solid var(--border); border-radius: var(--r-xl); padding: 28px; width: 100%; max-width: 420px; }
+        .modal-box h2 { font-size: 1.1rem; margin-bottom: 16px; }
+        .modal-box label { display: block; margin-bottom: 6px; font-size: 0.7rem; color: var(--text-dim); text-transform: uppercase; font-weight: 600; letter-spacing: 0.05em; }
+        .modal-box input { margin-bottom: 16px; }
+        .modal-btns { display: flex; gap: 10px; }
+        .modal-btns button { flex: 1; }
+
+        .gen-status { margin-top: 12px; font-size: 0.8rem; color: var(--blue); display: none; }
+        .gen-status .spin { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--border); border-top-color: var(--blue); border-radius: 50%; animation: spin 0.7s linear infinite; margin-right: 8px; vertical-align: middle; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
 </head>
 <body>
 
-<!-- ================= GLOBAL NAVIGATION ================= -->
 <nav class="global-nav">
-    <div class="nav-brand">✨ Meridian Data</div>
+    <div class="nav-brand">Meridian</div>
     <div class="nav-links">
-        <a href="/" class="nav-link">🔍 Query Agent</a>
-        <a href="/analysis" class="nav-link">📊 AI Analysis</a>
-        <a href="/databases" class="nav-link">⚙️ Manage DBs</a>
-        <a href="/snapshots" class="nav-link">📸 Snapshots</a>
-        <a href="/dashboards" class="nav-link active">📈 Dashboards</a>
+        <a href="/" class="nav-link">Query</a>
+        <a href="/overview" class="nav-link">Overview</a>
+        <a href="/analysis" class="nav-link">Analysis</a>
+        <a href="/databases" class="nav-link">Databases</a>
+        <a href="/dashboards" class="nav-link active">Dashboards</a>
+        <a href="/command-guide" class="nav-link">Guide</a>
         {% if session.role == 'ADMIN' %}
-        <a href="/admin" class="nav-link">🛠 Admin</a>
+        <a href="/admin" class="nav-link">Admin</a>
         {% endif %}
     </div>
     <div class="user-info">
         <span class="user-name">{{ session.username }}</span>
-        <span class="role-badge {{ session.role }}">{{ session.role }}</span>
+        <span class="role-badge">{{ session.role }}</span>
         <a href="/logout" class="logout-link">Logout</a>
     </div>
 </nav>
 
-<div class="app-container" style="max-width: 1200px; margin: 40px auto; padding: 0 20px;">
-    <header style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 40px;">
+<div class="dash-page">
+    <div class="dash-header">
         <div>
-            <h1>📈 AI Dashboards</h1>
-            <p>Create and manage persistent collections of charts and insights.</p>
+            <h1>Dashboards</h1>
+            <p>Create collections of live charts and tables from your database.</p>
         </div>
-        <div style="display: flex; gap: 10px;">
-            <button onclick="autoGenerate()" class="secondary" id="btn-auto">✨ AI Auto-Generate</button>
-            <button onclick="showCreateModal()" class="btn-primary">+ Create New Dashboard</button>
+        <div class="header-actions">
+            <button onclick="showCreateModal()" class="btn-primary" style="margin:0; width:auto; padding:8px 18px;">+ New Dashboard</button>
         </div>
-    </header>
+    </div>
 
-    <div id="dash-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px;">
+    <!-- AI GENERATE BOX -->
+    <div class="ai-gen-box">
+        <div style="font-size:0.85rem; font-weight:600; color:var(--text);">Generate a dashboard with AI</div>
+        <div style="font-size:0.75rem; color:var(--text-dim); margin-top:2px;">Describe what you want to see and AI will create charts and tables automatically.</div>
+        <div class="ai-gen-row">
+            <input type="text" id="ai-prompt" placeholder="e.g. Sales overview with revenue by category, top customers, order trends">
+            <button onclick="aiGenerate()" id="btn-gen" class="btn-primary" style="margin:0; width:auto; padding:8px 20px; white-space:nowrap;">Generate</button>
+        </div>
+        <div class="ai-gen-chips">
+            <button class="chip" onclick="quickGen('Complete database overview with charts for every table')">Full Overview</button>
+            <button class="chip" onclick="quickGen('Sales and revenue analysis dashboard')">Sales Analysis</button>
+            <button class="chip" onclick="quickGen('Customer insights and order history')">Customer Insights</button>
+            <button class="chip" onclick="quickGen('Inventory and product analysis')">Product Analysis</button>
+        </div>
+        <div class="gen-status" id="gen-status"><span class="spin"></span>Generating dashboard with AI... this takes 10-20s</div>
+    </div>
+
+    <!-- DASHBOARD GRID -->
+    <div class="dash-grid">
         {% for dash in dashboards %}
-        <div class="card" style="position: relative; display: flex; flex-direction: column; justify-content: space-between; height: 180px;">
+        <div class="dash-card">
             <div>
-                <h3 style="margin-bottom: 10px;">{{ dash.name }}</h3>
-                <p style="color: var(--text-muted); font-size: 0.9rem;">
-                    {{ dash.widgets|length }} Widgets · Created {{ dash.created_at[:10] }}
-                </p>
+                <h3>{{ dash.name }}</h3>
+                <div class="dash-meta">{{ dash.widgets|length }} widget{{ 's' if dash.widgets|length != 1 }} &middot; {{ dash.created_at[:10] }}</div>
             </div>
-            <div style="display: flex; gap: 10px;">
-                <a href="/dashboards/{{ dash.id }}" class="btn-primary" style="flex: 1; text-align: center;">Open Builder</a>
-                <button onclick="deleteDash('{{ dash.id }}')" class="secondary" style="color: #ef4444;">Delete</button>
+            <div class="dash-actions">
+                <a href="/dashboards/{{ dash.id }}" class="btn-primary" style="flex:1; text-align:center; margin:0; padding:7px 14px; font-size:0.8rem;">Open</a>
+                <button onclick="deleteDash('{{ dash.id }}')" class="secondary" style="padding:7px 14px; font-size:0.8rem; color:var(--red);">Delete</button>
             </div>
         </div>
         {% endfor %}
 
         {% if not dashboards %}
-        <div class="card" style="grid-column: 1 / -1; text-align: center; padding: 60px; border: 2px dashed var(--card-border);">
-            <p style="color: var(--text-muted); margin-bottom: 20px;">No dashboards created yet.</p>
-            <button onclick="showCreateModal()" class="btn-primary">Get Started</button>
+        <div class="empty-state">
+            <div style="font-size:1.5rem; margin-bottom:12px;">No dashboards yet</div>
+            <p style="margin-bottom:16px;">Use the AI generator above or create one manually.</p>
         </div>
         {% endif %}
     </div>
 </div>
 
-<!-- Create Modal -->
-<div id="create-modal" style="display:none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 1000; display: none; align-items: center; justify-content: center;">
-    <div class="card" style="width: 400px;">
+<!-- CREATE MODAL -->
+<div class="modal-overlay" id="create-modal">
+    <div class="modal-box">
         <h2>New Dashboard</h2>
-        <label class="db-select-label">Dashboard Name</label>
-        <input type="text" id="new-dash-name" class="db-select" style="width: 100%; margin-bottom: 20px;" placeholder="e.g. Sales Q1 Report">
-        <div style="display: flex; gap: 10px;">
-            <button onclick="createDash()" class="btn-primary" style="flex: 1;">Create</button>
-            <button onclick="hideCreateModal()" class="secondary" style="flex: 1;">Cancel</button>
+        <label>Name</label>
+        <input type="text" id="new-dash-name" placeholder="e.g. Q1 Sales Report">
+        <div class="modal-btns">
+            <button onclick="createDash()" class="btn-primary" style="margin:0;">Create</button>
+            <button onclick="hideCreateModal()" class="secondary">Cancel</button>
         </div>
     </div>
 </div>
 
 <script>
-    function showCreateModal() {
-        document.getElementById('create-modal').style.display = 'flex';
-    }
-    function hideCreateModal() {
-        document.getElementById('create-modal').style.display = 'none';
-    }
+function showCreateModal() { document.getElementById('create-modal').style.display = 'flex'; }
+function hideCreateModal() { document.getElementById('create-modal').style.display = 'none'; }
 
-    async function createDash() {
-        const name = document.getElementById('new-dash-name').value;
-        if (!name) return alert("Enter a name");
-        
-        const res = await fetch('/api/dashboards', {
+document.getElementById('ai-prompt').addEventListener('keydown', e => {
+    if (e.key === 'Enter') aiGenerate();
+});
+
+async function createDash() {
+    const name = document.getElementById('new-dash-name').value.trim();
+    if (!name) return;
+    const res = await fetch('/api/dashboards', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({name})
+    });
+    if (res.ok) {
+        const dash = await res.json();
+        location.href = '/dashboards/' + dash.id;
+    }
+}
+
+async function deleteDash(id) {
+    if (!confirm("Delete this dashboard and all its widgets?")) return;
+    await fetch('/api/dashboards/' + id, { method: 'DELETE' });
+    location.reload();
+}
+
+function quickGen(prompt) {
+    document.getElementById('ai-prompt').value = prompt;
+    aiGenerate();
+}
+
+async function aiGenerate() {
+    const prompt = document.getElementById('ai-prompt').value.trim();
+    if (!prompt) return;
+
+    const btn = document.getElementById('btn-gen');
+    const status = document.getElementById('gen-status');
+    btn.disabled = true;
+    status.style.display = 'block';
+
+    try {
+        const res = await fetch('/api/dashboards/auto-generate', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({name})
+            body: JSON.stringify({prompt})
         });
-        if (res.ok) location.reload();
-    }
-
-    async function deleteDash(id) {
-        if (!confirm("Are you sure? All widgets will be deleted.")) return;
-        const res = await fetch(`/api/dashboards/${id}`, { method: 'DELETE' });
-        if (res.ok) location.reload();
-    }
-
-    async function autoGenerate() {
-        const p = prompt("What kind of dashboard do you need? (e.g. 'Sales and Inventory Overview')");
-        if (!p) return;
-        
-        const btn = document.getElementById('btn-auto');
-        btn.textContent = "⌛ Generating...";
-        btn.disabled = true;
-
-        try {
-            const res = await fetch('/api/dashboards/auto-generate', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({prompt: p})
-            });
-            if (res.ok) location.reload();
-            else alert("Generation failed. Check logs.");
-        } finally {
-            btn.textContent = "✨ AI Auto-Generate";
-            btn.disabled = false;
+        const data = await res.json();
+        if (data.error) {
+            alert('Generation failed: ' + data.error);
+        } else if (data.id) {
+            location.href = '/dashboards/' + data.id;
+        } else {
+            location.reload();
         }
+    } catch(e) {
+        alert('Network error: ' + e.message);
+    } finally {
+        btn.disabled = false;
+        status.style.display = 'none';
     }
+}
 </script>
-
 </body>
 </html>

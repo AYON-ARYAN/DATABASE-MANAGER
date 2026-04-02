@@ -31,8 +31,8 @@ class CommandIntelligence:
         """
         
         # Use existing LLM generation logic
-        from core.llm import GROQ_API_KEY, GROQ_URL
-        
+        from core.llm import GROQ_API_KEY, GROQ_API_URL
+
         if self.llm_provider == "groq" and GROQ_API_KEY:
             # GROQ Implementation
             headers = {
@@ -40,13 +40,13 @@ class CommandIntelligence:
                 "Content-Type": "application/json"
             }
             data = {
-                "model": "mixtral-8x7b-32768",
+                "model": "llama-3.3-70b-versatile",
                 "messages": [{"role": "user", "content": prompt}],
                 "temperature": 0.1,
                 "response_format": {"type": "json_object"}
             }
             try:
-                response = requests.post(GROQ_URL, headers=headers, json=data, timeout=10)
+                response = requests.post(GROQ_API_URL, headers=headers, json=data, timeout=10)
                 res_json = response.json()
                 content = res_json['choices'][0]['message']['content']
                 return json.loads(content)
@@ -77,8 +77,20 @@ class CommandIntelligence:
     def get_canonical_commands(self):
         """Returns a list of common command patterns for the guide."""
         return [
-            {"intent": "List all tables", "task": "SYSTEM", "desc": "Explore database structure"},
-            {"intent": "Show me the top 10 users", "task": "READ", "desc": "Standard data retrieval"},
-            {"intent": "Add a new record to products", "task": "WRITE", "desc": "Data modification"},
-            {"intent": "Remove table 'old_data'", "task": "SCHEMA", "desc": "Structural changes (DANGER)"},
+            # Hardcoded commands (bypass LLM - always work)
+            {"intent": "show tables", "task": "SYSTEM", "desc": "List all tables in the database (hardcoded - no LLM needed)"},
+            {"intent": "describe <table_name>", "task": "SYSTEM", "desc": "Show columns, types, PKs, FKs, and indexes for a table (hardcoded)"},
+            {"intent": "show foreign keys", "task": "SYSTEM", "desc": "List all foreign key relationships across all tables (hardcoded)"},
+            {"intent": "show foreign keys for <table>", "task": "SYSTEM", "desc": "Show FK relationships for a specific table (hardcoded)"},
+            {"intent": "show indexes", "task": "SYSTEM", "desc": "List all indexes across all tables (hardcoded)"},
+            {"intent": "show constraints", "task": "SYSTEM", "desc": "Show all PKs, FKs, NOT NULLs, and UNIQUE constraints (hardcoded)"},
+            {"intent": "show table counts", "task": "SYSTEM", "desc": "Show row count for every table (hardcoded)"},
+            {"intent": "show create table <name>", "task": "SYSTEM", "desc": "Show the DDL/CREATE TABLE statement (hardcoded)"},
+            # AI-powered commands
+            {"intent": "Show me the top 10 customers", "task": "READ", "desc": "AI generates SELECT with LIMIT (uses LLM)"},
+            {"intent": "Join orders with customers", "task": "READ", "desc": "AI generates JOIN query using FK relationships (uses LLM)"},
+            {"intent": "Count records grouped by category", "task": "READ", "desc": "AI generates GROUP BY with COUNT (uses LLM)"},
+            {"intent": "Find duplicate emails", "task": "READ", "desc": "AI generates GROUP BY + HAVING COUNT > 1 (uses LLM)"},
+            {"intent": "Add a new record to products", "task": "WRITE", "desc": "AI generates INSERT statement - requires review (uses LLM)"},
+            {"intent": "Update prices by 10%", "task": "WRITE", "desc": "AI generates UPDATE statement - requires review (uses LLM)"},
         ]

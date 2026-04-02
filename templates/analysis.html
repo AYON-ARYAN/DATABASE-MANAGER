@@ -2,253 +2,393 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>AI Data Analysis</title>
+    <title>Analysis - Meridian</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <!-- Marked.js for rendering markdown summaries safely -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        .analysis-shell { max-width:1100px; margin:0 auto; padding:calc(var(--nav-h) + 28px) 24px 60px; }
+        .source-tabs { display:flex; gap:2px; background:var(--surface); border:1px solid var(--border); border-radius:var(--r-md); padding:3px; margin-bottom:20px; width:fit-content; }
+        .source-tab { padding:7px 18px; border-radius:var(--r-sm); font-size:0.8rem; font-weight:500; cursor:pointer; color:var(--text-dim); background:transparent; border:none; transition:all var(--transition); }
+        .source-tab.active { background:var(--surface-2); color:var(--text); }
+        .source-tab:hover:not(.active) { color:var(--text-sec); }
+
+        .source-panel { display:none; }
+        .source-panel.active { display:block; }
+
+        .table-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(180px, 1fr)); gap:8px; margin-bottom:16px; }
+        .table-chip { padding:10px 14px; border-radius:var(--r-sm); background:var(--surface); border:1px solid var(--border); cursor:pointer; transition:all var(--transition); }
+        .table-chip:hover { border-color:var(--border-hover); background:var(--surface-2); }
+        .table-chip.selected { border-color:rgba(59,130,246,0.4); background:var(--blue-dim); }
+        .table-chip .tc-name { font-size:0.82rem; font-weight:600; color:var(--text); }
+        .table-chip .tc-rows { font-size:0.65rem; color:var(--text-dim); margin-top:2px; }
+
+        .preview-box { background:rgba(0,0,0,0.2); border:1px solid var(--border); border-radius:var(--r-md); overflow:auto; max-height:240px; margin-bottom:16px; }
+        .preview-box table { font-size:0.75rem; }
+        .preview-box th { font-size:0.6rem; padding:8px 10px; }
+        .preview-box td { padding:6px 10px; font-size:0.72rem; }
+
+        .hint-area { margin-bottom:16px; }
+        .hint-area textarea { min-height:60px; resize:vertical; font-size:0.85rem; }
+        .hint-area label { display:block; margin-bottom:6px; font-size:0.7rem; color:var(--text-dim); text-transform:uppercase; font-weight:600; letter-spacing:0.05em; }
+
+        .analyze-btn { padding:10px 28px; border-radius:var(--r-md); font-size:0.85rem; }
+        .analyze-btn:disabled { opacity:0.4; cursor:default; }
+
+        .results-area { margin-top:28px; }
+        .insight-card { background:var(--surface); border:1px solid var(--border); border-radius:var(--r-lg); padding:24px; margin-bottom:20px; }
+        .insight-card h3 { font-size:0.85rem; color:var(--text-sec); margin-bottom:14px; }
+        .chart-container { background:rgba(0,0,0,0.15); border:1px solid var(--border); border-radius:var(--r-md); padding:16px; }
+        .chart-container canvas { max-height:400px; }
+
+        .loading-state { text-align:center; padding:50px 20px; color:var(--blue); }
+        .loading-state .spinner { width:36px; height:36px; border:3px solid var(--border); border-top-color:var(--blue); border-radius:50%; animation:spin 0.8s linear infinite; margin:0 auto 16px; }
+        @keyframes spin { to { transform:rotate(360deg); } }
+
+        .csv-drop { border:2px dashed var(--border); border-radius:var(--r-md); padding:24px; text-align:center; color:var(--text-dim); font-size:0.85rem; cursor:pointer; transition:all var(--transition); }
+        .csv-drop:hover { border-color:var(--border-hover); background:var(--surface); }
+        .csv-drop input[type=file] { display:none; }
+    </style>
 </head>
 <body>
 
-<!-- ================= GLOBAL NAVIGATION ================= -->
 <nav class="global-nav">
-    <div class="nav-brand">✨ Meridian Data</div>
+    <div class="nav-brand">Meridian</div>
     <div class="nav-links">
-        <a href="/" class="nav-link">🔍 Query Agent</a>
-        <a href="/analysis" class="nav-link active">📊 AI Analysis</a>
-        <a href="/databases" class="nav-link">⚙️ Manage DBs</a>
-        <a href="/snapshots" class="nav-link">📸 Snapshots</a>
-        <a href="/dashboards" class="nav-link">📈 Dashboards</a>
+        <a href="/" class="nav-link">Query</a>
+        <a href="/overview" class="nav-link">Overview</a>
+        <a href="/analysis" class="nav-link active">Analysis</a>
+        <a href="/databases" class="nav-link">Databases</a>
+        <a href="/dashboards" class="nav-link">Dashboards</a>
+        <a href="/command-guide" class="nav-link">Guide</a>
         {% if session.role == 'ADMIN' %}
-        <a href="/admin" class="nav-link">🛠 Admin</a>
+        <a href="/admin" class="nav-link">Admin</a>
         {% endif %}
     </div>
     <div class="user-info">
         <span class="user-name">{{ session.username }}</span>
+        <span class="role-badge">{{ session.role }}</span>
         <a href="/logout" class="logout-link">Logout</a>
     </div>
 </nav>
 
-<div class="db-page">
-    <header>
-        <h1>📊 Data Analysis & Visualization</h1>
-        <p>Analyze the results of your last query or upload a standalone CSV file for AI-generated insights and charting.</p>
-    </header>
+<div class="analysis-shell">
+
+    <div style="margin-bottom:24px;">
+        <h1 style="font-size:1.4rem; margin-bottom:4px;">AI Data Analysis</h1>
+        <p style="color:var(--text-dim); font-size:0.85rem;">
+            Pick a table, write a query, or upload a CSV. AI analyzes the actual data and generates insights + charts.
+            <span style="color:var(--text-sec);">Connected to {{ db_info.name }} ({{ db_info.display_type }})</span>
+        </p>
+    </div>
 
     {% if not analysis_enabled %}
-    <section class="error-card" style="margin-top: 20px;">
-        ⚠️ Groq API is not configured. Please add your API key to the .env file to enable AI Analysis.
-    </section>
+    <div class="error-card">Groq API key not configured. Add GROQ_API_KEY to your .env file.</div>
     {% else %}
-    
-    <div style="display:flex; gap:30px; flex-wrap:wrap; margin-top:20px;">
-        
-        <!-- Left Side: Controls -->
-        <div style="flex:1; min-width:350px;">
-            <div class="card" style="margin-top:0;">
-                <h3 style="margin-top:0; color:#e5e7eb;">Analysis Options</h3>
-                
-                <div style="margin-bottom:20px;">
-                    <label class="db-select-label">Custom Hint / Instructions (Optional)</label>
-                    <textarea id="analyze-hint" class="db-select" 
-                              placeholder="e.g. Create a bar chart comparing regional sales and list top 3 action items to improve worst region..."
-                              style="width:100%; height:90px; margin-top:8px; resize:vertical; padding:10px;"></textarea>
-                </div>
-                
-                <button onclick="runAnalysis()" id="btn-analyze" class="btn-primary" style="width:100%; padding:14px; font-size:1.05rem; border-radius:10px;">
-                    ✨ Generate from Last Query
-                </button>
-                <div style="font-size:0.8rem; color:#64748b; margin-top:8px; text-align:center;">
-                    Analyzes the data currently active in your 🔍 Query Agent tab.
-                </div>
 
-                <div style="margin-top:30px; padding-top:20px; border-top:1px solid #1e293b;">
-                    <label class="db-select-label" style="display:block; margin-bottom:10px;">Or Analyze an External CSV File</label>
-                    <input type="file" id="csv-upload" accept=".csv"
-                           style="display:block; width:100%; padding:10px; border:1px dashed #334155; border-radius:8px; color:#9ca3af; background:rgba(0,0,0,0.2);">
-                    <button onclick="analyzeCSV()" id="btn-analyze-csv" class="btn-test" style="width:100%; margin-top:15px; padding:12px; border-radius:10px;">
-                        📤 Upload & Analyze CSV
-                    </button>
-                </div>
-            </div>
-        </div>
-
-        <!-- Right Side: Results -->
-        <div style="flex:2; min-width:500px;">
-            <div id="welcome-message" style="text-align:center; padding:50px; color:#64748b; font-style:italic;">
-                Select an option on the left to begin generating insights...
-            </div>
-            
-            <div id="analysis-loading" style="display:none; color:#38bdf8; font-weight:600; text-align:center; padding:40px; background:rgba(2, 6, 23, 0.5); border-radius:12px; border:1px solid #1e293b;">
-                <div style="font-size:2rem; margin-bottom:15px;">⏳</div>
-                Generating AI Insights and Visualization...<br>
-                <span style="font-size:0.85rem; color:#64748b; font-weight:normal; margin-top:10px; display:inline-block;">This might take 10-20 seconds...</span>
-            </div>
-            
-            <div id="analysis-error" class="error-card" style="display:none; margin-top:0;"></div>
-            
-            <div id="analysis-results" style="display:none;">
-                <!-- Formatted LLM Output Box -->
-                <div class="card markdown-body" style="margin-top:0; border-color:#22d3ee; background:rgba(34, 211, 238, 0.05); padding:25px;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 1px solid rgba(34,211,238,0.2); padding-bottom: 10px;">
-                        <strong style="color:#22d3ee; font-size:1.1rem; margin:0;">🧠 AI Strategic Insights</strong>
-                        <a href="/export/ppt" class="secondary link-btn" style="font-size: 0.8rem; padding: 6px 12px; border-color: rgba(34,211,238,0.3) !important;">📊 Download PPT</a>
-                    </div>
-                    <div id="analysis-summary" style="margin:0; font-size:0.95rem; line-height:1.6; color:#e2e8f0;"></div>
-                </div>
-                
-                <div style="margin-top:25px; background:rgba(2, 6, 23, 0.5); border-radius:12px; padding:20px; border:1px solid #1e293b; box-shadow:0 10px 30px rgba(0,0,0,0.5);">
-                    <div style="height: 450px;">
-                        <canvas id="analysis-chart"></canvas>
-                    </div>
-                </div>
-            </div>
-        </div>
-        
+    <!-- SOURCE TABS -->
+    <div class="source-tabs">
+        <button class="source-tab active" onclick="switchTab('table')">From Table</button>
+        <button class="source-tab" onclick="switchTab('sql')">Custom SQL</button>
+        <button class="source-tab" onclick="switchTab('csv')">Upload CSV</button>
     </div>
+
+    <!-- TAB: TABLE -->
+    <div class="source-panel active" id="panel-table">
+        <div style="font-size:0.75rem; color:var(--text-dim); margin-bottom:10px;" id="tables-status">Loading tables...</div>
+        <div class="table-grid" id="table-grid"></div>
+    </div>
+
+    <!-- TAB: CUSTOM SQL -->
+    <div class="source-panel" id="panel-sql">
+        <div class="hint-area">
+            <label>SQL Query (SELECT only)</label>
+            <textarea id="custom-sql" placeholder="SELECT ProductName, UnitPrice, UnitsInStock FROM Products ORDER BY UnitPrice DESC LIMIT 50"></textarea>
+        </div>
+        <button class="secondary" onclick="previewCustom()" style="margin-bottom:12px;">Preview Data</button>
+    </div>
+
+    <!-- TAB: CSV -->
+    <div class="source-panel" id="panel-csv">
+        <div class="csv-drop" onclick="document.getElementById('csv-file').click()">
+            <input type="file" id="csv-file" accept=".csv" onchange="csvSelected(this)">
+            <div id="csv-label">Click to select a CSV file or drag it here</div>
+        </div>
+    </div>
+
+    <!-- PREVIEW -->
+    <div id="preview-section" style="display:none; margin-top:16px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+            <span style="font-size:0.7rem; color:var(--text-dim); text-transform:uppercase; font-weight:600;">Data Preview</span>
+            <span id="preview-count" style="font-size:0.7rem; color:var(--text-dim);"></span>
+        </div>
+        <div class="preview-box">
+            <table id="preview-table"><thead></thead><tbody></tbody></table>
+        </div>
+    </div>
+
+    <!-- HINT + ANALYZE -->
+    <div class="hint-area" style="margin-top:16px;">
+        <label>Analysis Instructions (optional)</label>
+        <textarea id="analyze-hint" placeholder="e.g. Compare sales by category, identify top performers, suggest improvements..."></textarea>
+    </div>
+
+    <div style="display:flex; gap:10px; align-items:center;">
+        <button class="btn-primary analyze-btn" id="btn-analyze" onclick="runAnalysis()" disabled>
+            Analyze with AI
+        </button>
+        <span id="analyze-status" style="font-size:0.75rem; color:var(--text-dim);"></span>
+    </div>
+
+    <!-- LOADING -->
+    <div id="loading" class="loading-state" style="display:none;">
+        <div class="spinner"></div>
+        <div style="font-weight:600; font-size:0.9rem;">Analyzing data with AI...</div>
+        <div style="font-size:0.75rem; color:var(--text-dim); margin-top:6px;">This takes 10-20 seconds</div>
+    </div>
+
+    <!-- ERROR -->
+    <div id="analysis-error" class="error-card" style="display:none; margin-top:16px;"></div>
+
+    <!-- RESULTS -->
+    <div id="results" class="results-area" style="display:none;">
+        <div class="insight-card">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+                <h3 style="margin:0;">AI Insights</h3>
+                <a href="/export/ppt" class="secondary link-btn" style="font-size:0.72rem; padding:4px 12px;">Export PPT</a>
+            </div>
+            <div id="summary" class="markdown-body"></div>
+        </div>
+
+        <div class="insight-card">
+            <h3>Visualization</h3>
+            <div class="chart-container">
+                <canvas id="chart"></canvas>
+            </div>
+        </div>
+    </div>
+
     {% endif %}
 </div>
 
 <script>
-  let currentChart = null;
+let currentChart = null;
+let selectedTable = null;
+let currentMode = 'table'; // 'table', 'sql', 'csv'
 
-  function setAnalysisLoading(isLoading) {
-      document.getElementById('welcome-message').style.display = 'none';
-      document.getElementById('analysis-loading').style.display = isLoading ? 'block' : 'none';
-      document.getElementById('analysis-results').style.display = 'none';
-      document.getElementById('analysis-error').style.display = 'none';
-      document.getElementById('btn-analyze').disabled = isLoading;
-      document.getElementById('btn-analyze-csv').disabled = isLoading;
-      
-      if (isLoading) {
-          document.getElementById('btn-analyze').style.opacity = 0.6;
-          document.getElementById('btn-analyze-csv').style.opacity = 0.6;
-      } else {
-          document.getElementById('btn-analyze').style.opacity = 1;
-          document.getElementById('btn-analyze-csv').style.opacity = 1;
-      }
-  }
+// --- Tab switching ---
+function switchTab(tab) {
+    currentMode = tab;
+    document.querySelectorAll('.source-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.source-panel').forEach(p => p.classList.remove('active'));
+    document.querySelector(`.source-tab[onclick*="${tab}"]`).classList.add('active');
+    document.getElementById('panel-' + tab).classList.add('active');
+    document.getElementById('preview-section').style.display = 'none';
+    updateAnalyzeBtn();
+}
 
-  function handleAnalysisResponse(data) {
-      setAnalysisLoading(false);
-      
-      if (data.error) {
-          const errDiv = document.getElementById('analysis-error');
-          errDiv.textContent = '❌ ' + data.error;
-          errDiv.style.display = 'block';
-          return;
-      }
+function updateAnalyzeBtn() {
+    const btn = document.getElementById('btn-analyze');
+    if (currentMode === 'table') btn.disabled = !selectedTable;
+    else if (currentMode === 'sql') btn.disabled = !document.getElementById('custom-sql').value.trim();
+    else if (currentMode === 'csv') btn.disabled = !document.getElementById('csv-file').files.length;
+}
 
-      // Render Markdown output safely for bolding, bullet points, etc.
-      document.getElementById('analysis-summary').innerHTML = marked.parse(data.summary);
-      document.getElementById('analysis-results').style.display = 'block';
+// --- Load tables on page load ---
+async function loadTables() {
+    try {
+        const res = await fetch('/api/tables-list');
+        const data = await res.json();
+        if (data.error) {
+            document.getElementById('tables-status').textContent = 'Error: ' + data.error;
+            return;
+        }
+        const grid = document.getElementById('table-grid');
+        document.getElementById('tables-status').textContent = data.tables.length + ' tables in ' + data.db_name;
+        grid.innerHTML = data.tables.map(t => `
+            <div class="table-chip" onclick="selectTable('${t.name}', this)">
+                <div class="tc-name">${t.name}</div>
+                <div class="tc-rows">${t.rows.toLocaleString()} rows</div>
+            </div>
+        `).join('');
+    } catch(e) {
+        document.getElementById('tables-status').textContent = 'Failed to load tables';
+    }
+}
 
-      if (currentChart) currentChart.destroy();
-      
-      const ctx = document.getElementById('analysis-chart').getContext('2d');
-      // Premium dark mode palette
-      const palette = ['#22d3ee', '#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#22c55e', '#ef4444', '#14b8a6', '#f97316'];
-      
-      const datasets = data.chart.datasets.map(ds => {
-          let chartType = data.chart.type;
-          let fillValue = (chartType === 'area' || chartType === 'bar' || chartType === 'pie' || chartType === 'doughnut');
-          
-          return {
-              ...ds,
-              backgroundColor: chartType === 'pie' || chartType === 'doughnut' 
-                                 ? ds.data.map((_, i) => palette[i % palette.length])
-                                 : (chartType === 'area' ? 'rgba(34, 211, 238, 0.2)' : palette[0]),
-              borderColor: (chartType === 'line' || chartType === 'area') ? palette[0] : 'rgba(255,255,255,0.05)',
-              borderWidth: (chartType === 'line' || chartType === 'area') ? 3 : 1,
-              fill: fillValue,
-              tension: 0.3,
-              borderRadius: chartType === 'bar' ? 6 : 0,
-              pointStyle: chartType === 'scatter' ? 'circle' : false,
-              pointRadius: chartType === 'scatter' ? 6 : 3,
-              pointHoverRadius: chartType === 'scatter' ? 8 : 5
-          };
-      });
+async function selectTable(name, el) {
+    selectedTable = name;
+    document.querySelectorAll('.table-chip').forEach(c => c.classList.remove('selected'));
+    el.classList.add('selected');
+    updateAnalyzeBtn();
+    // Auto-preview
+    await previewData('table', name);
+}
 
-      // Special handling for Scatter data mapping if needed
-      let finalLabels = data.chart.labels;
-      let finalDatasets = datasets;
-      let actualChartType = data.chart.type === 'area' ? 'line' : data.chart.type;
+// --- Preview ---
+async function previewData(mode, source) {
+    const section = document.getElementById('preview-section');
+    try {
+        const body = mode === 'table'
+            ? { source: source }
+            : { source: 'custom', sql: source };
+        const res = await fetch('/api/table-preview', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+        const data = await res.json();
+        if (data.error) {
+            section.style.display = 'none';
+            return;
+        }
+        renderPreview(data.columns, data.rows);
+        section.style.display = 'block';
+    } catch(e) {
+        section.style.display = 'none';
+    }
+}
 
-      if (data.chart.type === 'scatter') {
-          finalDatasets = datasets.map(ds => ({
-              ...ds,
-              data: ds.data.map((val, i) => ({ x: data.chart.labels[i], y: val }))
-          }));
-          finalLabels = null; // Chart.js scatter uses x/y objects
-      }
+function renderPreview(columns, rows) {
+    const table = document.getElementById('preview-table');
+    let h = '<thead><tr>' + columns.map(c => '<th>' + c + '</th>').join('') + '</tr></thead>';
+    h += '<tbody>' + rows.map(r => '<tr>' + r.map(c => '<td>' + (c !== null ? c : '') + '</td>').join('') + '</tr>').join('') + '</tbody>';
+    table.innerHTML = h;
+    document.getElementById('preview-count').textContent = rows.length + ' rows shown';
+}
 
-      currentChart = new Chart(ctx, {
-          type: actualChartType,
-          data: {
-              labels: finalLabels,
-              datasets: finalDatasets
-          },
-          options: {
-              responsive: true,
-              maintainAspectRatio: false,
-              plugins: {
-                  title: { display: true, text: data.chart.title, color: '#f8fafc', font: {size: 18, family: 'Inter, sans-serif'} },
-                  legend: { position: 'bottom', labels: { color: '#cbd5e1', padding: 20, usePointStyle: true } }
-              },
-              scales: data.chart.type === 'pie' || data.chart.type === 'doughnut'
-                  ? {} 
-                  : { 
-                      y: { 
-                          grid: {color: 'rgba(51, 65, 85, 0.3)', drawBorder: false}, 
-                          ticks: { color: '#94a3b8' }
-                      }, 
-                      x: { 
-                          grid: {display: false}, 
-                          ticks: { color: '#94a3b8' } 
-                      } 
-                  }
-          }
-      });
-  }
+function previewCustom() {
+    const sql = document.getElementById('custom-sql').value.trim();
+    if (!sql) return;
+    previewData('custom', sql);
+    updateAnalyzeBtn();
+}
 
-  function runAnalysis() {
-      setAnalysisLoading(true);
-      const hint = document.getElementById('analyze-hint').value;
-      const formData = new FormData();
-      formData.append('hint', hint);
+document.getElementById('custom-sql').addEventListener('input', updateAnalyzeBtn);
 
-      fetch('/analyze', { method: 'POST', body: formData })
-          .then(r => r.json())
-          .then(handleAnalysisResponse)
-          .catch(err => {
-              setAnalysisLoading(false);
-              document.getElementById('analysis-error').textContent = '❌ Network or server error.';
-              document.getElementById('analysis-error').style.display = 'block';
-          });
-  }
+// --- CSV ---
+function csvSelected(input) {
+    if (input.files.length) {
+        document.getElementById('csv-label').textContent = input.files[0].name;
+        updateAnalyzeBtn();
+    }
+}
 
-  function analyzeCSV() {
-      const fileInput = document.getElementById('csv-upload');
-      if (!fileInput.files.length) {
-          alert('Please select a CSV file first.');
-          return;
-      }
+// --- Analyze ---
+async function runAnalysis() {
+    const btn = document.getElementById('btn-analyze');
+    const loading = document.getElementById('loading');
+    const results = document.getElementById('results');
+    const errDiv = document.getElementById('analysis-error');
+    const hint = document.getElementById('analyze-hint').value;
 
-      setAnalysisLoading(true);
-      const formData = new FormData();
-      formData.append('csv_file', fileInput.files[0]);
-      formData.append('hint', document.getElementById('analyze-hint').value);
+    btn.disabled = true;
+    loading.style.display = 'block';
+    results.style.display = 'none';
+    errDiv.style.display = 'none';
 
-      fetch('/analyze-csv', { method: 'POST', body: formData })
-          .then(r => r.json())
-          .then(handleAnalysisResponse)
-          .catch(err => {
-              setAnalysisLoading(false);
-              document.getElementById('analysis-error').textContent = '❌ Network or server error.';
-              document.getElementById('analysis-error').style.display = 'block';
-          });
-  }
+    try {
+        let data;
+
+        if (currentMode === 'csv') {
+            // CSV upload
+            const formData = new FormData();
+            formData.append('csv_file', document.getElementById('csv-file').files[0]);
+            formData.append('hint', hint);
+            const res = await fetch('/analyze-csv', { method: 'POST', body: formData });
+            data = await res.json();
+        } else {
+            // Table or custom SQL — use direct endpoint
+            const body = currentMode === 'table'
+                ? { source: selectedTable, hint: hint }
+                : { source: 'custom', sql: document.getElementById('custom-sql').value.trim(), hint: hint };
+            const res = await fetch('/api/analyze-direct', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body)
+            });
+            data = await res.json();
+        }
+
+        loading.style.display = 'none';
+
+        if (data.error) {
+            errDiv.textContent = data.error;
+            errDiv.style.display = 'block';
+            btn.disabled = false;
+            return;
+        }
+
+        // Render summary
+        document.getElementById('summary').innerHTML = marked.parse(data.summary || '');
+        results.style.display = 'block';
+
+        // Render chart
+        if (data.chart) renderChart(data.chart);
+
+        btn.disabled = false;
+    } catch(e) {
+        loading.style.display = 'none';
+        errDiv.textContent = 'Request failed: ' + e.message;
+        errDiv.style.display = 'block';
+        btn.disabled = false;
+    }
+}
+
+function renderChart(cfg) {
+    if (currentChart) currentChart.destroy();
+
+    const ctx = document.getElementById('chart').getContext('2d');
+    const palette = ['#3b82f6','#8b5cf6','#22c55e','#f59e0b','#ef4444','#06b6d4','#ec4899','#14b8a6','#f97316','#6366f1'];
+
+    const chartType = cfg.type === 'area' ? 'line' : cfg.type;
+    const isPie = cfg.type === 'pie' || cfg.type === 'doughnut';
+
+    const datasets = (cfg.datasets || []).map((ds, idx) => ({
+        ...ds,
+        backgroundColor: isPie
+            ? (ds.data || []).map((_, i) => palette[i % palette.length])
+            : palette[idx % palette.length] + (cfg.type === 'bar' ? '80' : '30'),
+        borderColor: isPie ? 'rgba(0,0,0,0.2)' : palette[idx % palette.length],
+        borderWidth: isPie ? 1 : 2,
+        borderRadius: cfg.type === 'bar' ? 4 : 0,
+        fill: cfg.type === 'area',
+        tension: 0.3,
+        pointRadius: cfg.type === 'scatter' ? 5 : 2,
+    }));
+
+    let labels = cfg.labels;
+    let finalDatasets = datasets;
+
+    if (cfg.type === 'scatter') {
+        finalDatasets = datasets.map(ds => ({
+            ...ds,
+            data: (ds.data || []).map((v, i) => ({ x: cfg.labels[i], y: v }))
+        }));
+        labels = undefined;
+    }
+
+    currentChart = new Chart(ctx, {
+        type: chartType,
+        data: { labels, datasets: finalDatasets },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                title: { display: true, text: cfg.title || '', color: '#e4e4e7', font: { size: 14, family: 'Inter' } },
+                legend: { position: 'bottom', labels: { color: '#a1a1aa', padding: 16, usePointStyle: true, font: { size: 11 } } }
+            },
+            scales: isPie ? {} : {
+                y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#71717a', font: { size: 11 } } },
+                x: { grid: { display: false }, ticks: { color: '#71717a', font: { size: 11 }, maxRotation: 45 } }
+            }
+        }
+    });
+}
+
+// Init
+loadTables();
 </script>
 
 </body>
