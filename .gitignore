@@ -40,3 +40,4 @@ Thumbs.db
 # Screenshots and extraneous files
 Screenshot *.png
 pass_test.txt
+db/llm_config.json
