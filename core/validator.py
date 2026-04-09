@@ -64,14 +64,18 @@ def is_safe(query: str, dialect: str = "sqlite") -> bool:
         return True
 
     # ---- SQL dialects ----
-    # Always allow SELECT
-    if q_lower.startswith("select"):
-        return True
-
-    # Block dangerous keywords
+    # Block dangerous keywords first (before any fast-paths)
     for keyword in SQL_DANGEROUS:
         if keyword in q_lower:
             return False
+
+    # Block statement stacking (semicolons enable chaining destructive commands)
+    if ";" in q:
+        return False
+
+    # Allow SELECT (after dangerous keyword and semicolon checks)
+    if q_lower.startswith("select"):
+        return True
 
     # Allow standard write operations
     if q_lower.startswith(("insert", "update", "delete")):
@@ -155,7 +159,12 @@ def classify_query(query: str, dialect: str = "sqlite") -> str:
 
     # ---- SQL dialects (SQLite, MySQL, PostgreSQL, MSSQL, Oracle, Cassandra) ----
     # Introspection / System Queries
-    SYSTEM_PREFIXES = ("show ", "describe ", "explain ", "pragma ", "\\d")
+    SYSTEM_PREFIXES = ("show tables", "show foreign", "show index", "show constraint",
+                       "show table count", "show row count", "show create table",
+                       "show ddl", "show sql", "show structure", "show columns",
+                       "show schema", "describe ", "desc ", "explain ", "pragma ", "\\d",
+                       "list tables", "list collections", "show collections",
+                       "table sizes")
     if q_lower.startswith(SYSTEM_PREFIXES):
         return "SYSTEM"
     

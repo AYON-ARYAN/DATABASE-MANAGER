@@ -1,125 +1,85 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Database Insights - AI SQL Agent</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <!-- Marked.js for rendering markdown summaries safely -->
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-</head>
-<body>
+{% extends "layouts/page.html" %}
 
-<!-- ================= GLOBAL NAVIGATION ================= -->
-<nav class="global-nav">
-    <div class="nav-brand">Meridian</div>
-    <div class="nav-links">
-        <a href="/" class="nav-link">Query</a>
-        <a href="/overview" class="nav-link">Overview</a>
-        <a href="/analysis" class="nav-link active">Analysis</a>
-        <a href="/databases" class="nav-link">Databases</a>
-        <a href="/dashboards" class="nav-link">Dashboards</a>
-        <a href="/command-guide" class="nav-link">Guide</a>
-        {% if session.role == 'ADMIN' %}
-        <a href="/admin" class="nav-link">Admin</a>
-        {% endif %}
-    </div>
-    <div class="user-info">
-        <span class="user-name">{{ session.username }}</span>
-        <span class="role-badge">{{ session.role }}</span>
-        <a href="/logout" class="logout-link">Logout</a>
-    </div>
-</nav>
+{% block title %}Database Insights{% endblock %}
+{% block nav_analysis %}active{% endblock %}
+{% block page_class %}db-page{% endblock %}
 
-<div class="db-page" style="max-width: 1200px;">
-    <header>
-        <h1>AI Database Insights</h1>
-        <p>Comprehensive Business Intelligence and Schema Analysis for <strong>{{ db_info.name }}</strong></p>
-    </header>
+{% block head_extra %}
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+{% endblock %}
 
-    {% if not analysis_enabled %}
-    <section class="error-card" style="margin-top: 20px;">
-        ⚠️ Groq API is not configured. Please add your API key to the .env file to enable AI Insights.
-    </section>
-    {% else %}
-    
-    <div style="text-align: center; margin-bottom: 40px;">
-        <button id="btn-generate" onclick="generateInsights()" class="btn-primary" style="padding: 16px 32px; font-size: 1.1rem; border-radius: var(--radius-pill); max-width: 400px; margin: 0 auto; display: inline-flex;">
-            🚀 Generate Comprehensive Report
-        </button>
-        <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 12px;">This will analyze the entire {{ db_info.name }} schema and identify key business operations.</p>
-    </div>
+{% block content %}
+<header>
+    <h1>AI Database Insights</h1>
+    <p>Comprehensive Business Intelligence and Schema Analysis for <strong>{{ db_info.name }}</strong></p>
+</header>
 
-    <!-- Loading State -->
-    <div id="insights-loading" style="display:none; color: var(--accent-blue); font-weight: 600; text-align: center; padding: 60px; background: var(--card-bg); border-radius: var(--radius-lg); border: 1px solid var(--card-border); backdrop-filter: blur(24px);">
-        <div style="font-size: 3rem; margin-bottom: 20px; animation: pulse 2s infinite;">🧠</div>
-        Scanning Schema & Generating Business Intelligence...<br>
-        <span style="font-size:0.85rem; color: var(--text-muted); font-weight:normal; margin-top:10px; display:inline-block;">This might take 15-30 seconds depending on database size...</span>
-    </div>
-    
-    <!-- Error State -->
-    <div id="insights-error" class="error-card" style="display:none;"></div>
-    
-    <!-- Results Container -->
-    <div id="insights-results" style="display:none;">
-        <div class="card markdown-body" style="padding: 40px; border-color: rgba(139, 92, 246, 0.3); background: rgba(139, 92, 246, 0.05);">
-            <div id="insights-content" style="color: var(--text-primary);"></div>
-        </div>
-    </div>
-    
-    {% endif %}
+{% if not analysis_enabled %}
+<section class="error-card" style="margin-top: 20px;">
+    Groq API is not configured. Please add your API key to the .env file to enable AI Insights.
+</section>
+{% else %}
+
+<div style="text-align: center; margin-bottom: 40px;">
+    <button id="btn-generate" onclick="generateInsights()" class="btn-primary" style="padding: 16px 32px; font-size: 1.1rem; border-radius: var(--r-full); max-width: 400px; margin: 0 auto; display: inline-flex;">
+        Generate Comprehensive Report
+    </button>
+    <p style="color: var(--text-dim); font-size: 0.85rem; margin-top: 12px;">This will analyze the entire {{ db_info.name }} schema and identify key business operations.</p>
 </div>
 
-<style>
-    @keyframes pulse {
-        0% { transform: scale(1); opacity: 1; }
-        50% { transform: scale(1.1); opacity: 0.7; }
-        100% { transform: scale(1); opacity: 1; }
-    }
-</style>
+<div id="insights-loading" class="loading-state" style="display:none;">
+    <div class="spinner" style="margin: 0 auto 16px;"></div>
+    <div style="font-weight: 600; font-size: 0.9rem;">Scanning Schema & Generating Business Intelligence...</div>
+    <div style="font-size:0.85rem; color: var(--text-dim); margin-top:10px;">This might take 15-30 seconds depending on database size...</div>
+</div>
 
+<div id="insights-error" class="error-card" style="display:none;"></div>
+
+<div id="insights-results" style="display:none;">
+    <div class="card markdown-body" style="padding: 40px; border-color: rgba(139, 92, 246, 0.3); background: rgba(139, 92, 246, 0.05);">
+        <div id="insights-content" style="color: var(--text);"></div>
+    </div>
+</div>
+
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
 <script>
-  function generateInsights() {
-      const btn = document.getElementById('btn-generate');
-      const loader = document.getElementById('insights-loading');
-      const results = document.getElementById('insights-results');
-      const errorDiv = document.getElementById('insights-error');
-      
-      btn.style.display = 'none';
-      loader.style.display = 'block';
-      results.style.display = 'none';
-      errorDiv.style.display = 'none';
+function generateInsights() {
+    const btn = document.getElementById('btn-generate');
+    const loader = document.getElementById('insights-loading');
+    const results = document.getElementById('insights-results');
+    const errorDiv = document.getElementById('insights-error');
 
-      fetch('/api/insights', { method: 'POST' })
-          .then(r => r.json())
-          .then(data => {
-              loader.style.display = 'none';
-              
-              if (data.error) {
-                  errorDiv.textContent = '❌ ' + data.error;
-                  errorDiv.style.display = 'block';
-                  btn.style.display = 'inline-flex';
-                  return;
-              }
+    btn.style.display = 'none';
+    loader.style.display = 'block';
+    results.style.display = 'none';
+    errorDiv.style.display = 'none';
 
-              // Render Markdown output
-              document.getElementById('insights-content').innerHTML = marked.parse(data.markdown);
-              results.style.display = 'block';
-              
-              // Change button text and show it again for regenerations
-              btn.innerHTML = '🔄 Regenerate Report';
-              btn.className = 'secondary';
-              btn.style.display = 'inline-flex';
-              btn.style.marginTop = '40px';
-          })
-          .catch(err => {
-              loader.style.display = 'none';
-              errorDiv.textContent = '❌ Network or server error.';
-              errorDiv.style.display = 'block';
-              btn.style.display = 'inline-flex';
-          });
-  }
+    fetch('/api/insights', { method: 'POST' })
+        .then(r => r.json())
+        .then(data => {
+            loader.style.display = 'none';
+            if (data.error) {
+                errorDiv.textContent = data.error;
+                errorDiv.style.display = 'block';
+                btn.style.display = 'inline-flex';
+                return;
+            }
+            document.getElementById('insights-content').innerHTML = marked.parse(data.markdown);
+            results.style.display = 'block';
+            btn.innerHTML = 'Regenerate Report';
+            btn.className = 'secondary';
+            btn.style.display = 'inline-flex';
+            btn.style.marginTop = '40px';
+        })
+        .catch(err => {
+            loader.style.display = 'none';
+            errorDiv.textContent = 'Network or server error.';
+            errorDiv.style.display = 'block';
+            btn.style.display = 'inline-flex';
+        });
+}
 </script>
-
-</body>
-</html>
+{% endblock %}

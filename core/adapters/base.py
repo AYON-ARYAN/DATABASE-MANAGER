@@ -110,6 +110,44 @@ class DatabaseAdapter(ABC):
         raise NotImplementedError
 
     # --------------------------------------------------
+    # Introspection (override in SQL adapters)
+    # --------------------------------------------------
+    def get_foreign_keys(self) -> list:
+        """
+        Return all FK relationships across all tables.
+        Each item: {"from_table", "from_column", "to_table", "to_column"}
+        """
+        return []
+
+    def get_indexes(self) -> list:
+        """
+        Return all indexes across all tables.
+        Each item: {"table", "index_name", "unique": bool, "columns": list}
+        """
+        return []
+
+    def describe_table(self, table_name: str) -> dict:
+        """
+        Return detailed info about a single table.
+        Returns: {"table", "columns": [...], "foreign_keys": [...],
+                  "indexes": [...], "row_count": int}
+        """
+        raise NotImplementedError
+
+    def get_constraints(self) -> list:
+        """
+        Return all constraints (PK, FK, NOT NULL, UNIQUE) across all tables.
+        Each item: {"table", "type", "details"}
+        """
+        return []
+
+    def get_create_table(self, table_name: str) -> str:
+        """
+        Return the DDL / CREATE TABLE statement for a table.
+        """
+        raise NotImplementedError
+
+    # --------------------------------------------------
     # Properties
     # --------------------------------------------------
     @property

@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{% block title %}Meridian Data{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {% block head_extra %}{% endblock %}
+</head>
+<body class="{% block body_class %}{% endblock %}">
+
+<!-- Top progress bar -->
+<div class="top-progress" id="top-progress"><div class="bar"></div></div>
+
+<!-- NAV -->
+<nav class="global-nav">
+    <div class="nav-brand">Meridian</div>
+    <!-- Hamburger for mobile -->
+    <button class="nav-hamburger" style="display:none; background:none; border:none; color:var(--text-sec); font-size:1.2rem; padding:6px 8px; cursor:pointer; border-radius:var(--r-sm);" onclick="toggleMobileNav()">&#9776;</button>
+    <div class="nav-links">
+        <a href="/" class="nav-link {% block nav_query %}{% endblock %}">Query</a>
+        <a href="/overview" class="nav-link {% block nav_overview %}{% endblock %}">Overview</a>
+        <span class="nav-sep"></span>
+        <a href="/analysis" class="nav-link {% block nav_analysis %}{% endblock %}">Analysis</a>
+        <a href="/dashboards" class="nav-link {% block nav_dashboards %}{% endblock %}">Dashboards</a>
+        <span class="nav-sep"></span>
+        <a href="/databases" class="nav-link {% block nav_databases %}{% endblock %}">Databases</a>
+        <a href="/create-database" class="nav-link {% block nav_createdb %}{% endblock %}">Create DB</a>
+        <a href="/snapshots" class="nav-link {% block nav_snapshots %}{% endblock %}">Snapshots</a>
+        <span class="nav-sep"></span>
+        <a href="/command-guide" class="nav-link {% block nav_guide %}{% endblock %}">Guide</a>
+        {% if session.role == 'ADMIN' %}
+        <a href="/admin" class="nav-link {% block nav_admin %}{% endblock %}">Admin</a>
+        {% endif %}
+    </div>
+    <div class="user-info">
+        <button onclick="CommandPalette.open()" class="nav-kbd" style="cursor:pointer; background:var(--surface); border:1px solid var(--border); border-radius:4px; padding:2px 8px; font-size:0.65rem; color:var(--text-dim);" title="Command Palette">&#8984;K</button>
+        <span class="user-name">{{ session.username }}</span>
+        <span class="role-badge">{{ session.role }}</span>
+        <a href="/logout" class="logout-link">Logout</a>
+    </div>
+</nav>
+
+<!-- Mobile full-screen nav overlay (hidden by default, shown only on mobile via CSS) -->
+<div class="mobile-nav-overlay" id="mobile-nav" style="display:none;">
+    <div class="mobile-nav-section">Explore</div>
+    <a href="/" class="mobile-nav-link {% block mnav_query %}{% endblock %}">Query</a>
+    <a href="/overview" class="mobile-nav-link {% block mnav_overview %}{% endblock %}">Overview</a>
+    <div class="mobile-nav-section">Analyze</div>
+    <a href="/analysis" class="mobile-nav-link {% block mnav_analysis %}{% endblock %}">Analysis</a>
+    <a href="/dashboards" class="mobile-nav-link {% block mnav_dashboards %}{% endblock %}">Dashboards</a>
+    <div class="mobile-nav-section">Manage</div>
+    <a href="/databases" class="mobile-nav-link">Databases</a>
+    <a href="/create-database" class="mobile-nav-link">Create DB</a>
+    <a href="/snapshots" class="mobile-nav-link">Snapshots</a>
+    <div class="mobile-nav-section">Help</div>
+    <a href="/command-guide" class="mobile-nav-link">Guide</a>
+    {% if session.role == 'ADMIN' %}
+    <a href="/admin" class="mobile-nav-link">Admin</a>
+    {% endif %}
+    <div style="margin-top:20px; padding:16px; border-top:1px solid var(--border);">
+        <div style="font-size:0.8rem; color:var(--text-sec); margin-bottom:8px;">{{ session.username }} <span class="role-badge" style="margin-left:4px;">{{ session.role }}</span></div>
+        <a href="/logout" style="font-size:0.85rem; color:var(--red);">Logout</a>
+    </div>
+</div>
+
+<!-- Mobile bottom tab bar -->
+<div class="mobile-tabs" style="display:none; position:fixed; bottom:0; left:0; right:0; height:56px; background:rgba(9,9,11,0.95); border-top:1px solid var(--border); backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px); z-index:90; padding:0 8px;">
+    <div style="display:flex; justify-content:space-around; align-items:center; height:100%; max-width:500px; margin:0 auto;">
+        <a href="/" style="display:flex; flex-direction:column; align-items:center; gap:2px; color:var(--text-dim); font-size:0.6rem; font-weight:500; padding:4px 12px; text-decoration:none; border-radius:var(--r-sm); transition:color 0.15s;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            Query
+        </a>
+        <a href="/overview" style="display:flex; flex-direction:column; align-items:center; gap:2px; color:var(--text-dim); font-size:0.6rem; font-weight:500; padding:4px 12px; text-decoration:none; border-radius:var(--r-sm); transition:color 0.15s;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+            Overview
+        </a>
+        <a href="/dashboards" style="display:flex; flex-direction:column; align-items:center; gap:2px; color:var(--text-dim); font-size:0.6rem; font-weight:500; padding:4px 12px; text-decoration:none; border-radius:var(--r-sm); transition:color 0.15s;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+            Dashboards
+        </a>
+        <a href="/databases" style="display:flex; flex-direction:column; align-items:center; gap:2px; color:var(--text-dim); font-size:0.6rem; font-weight:500; padding:4px 12px; text-decoration:none; border-radius:var(--r-sm); transition:color 0.15s;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+            DBs
+        </a>
+        <button onclick="toggleMobileNav()" style="display:flex; flex-direction:column; align-items:center; gap:2px; color:var(--text-dim); font-size:0.6rem; font-weight:500; padding:4px 12px; background:none; border:none; cursor:pointer;">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg>
+            More
+        </button>
+    </div>
+</div>
+
+{% block body %}
+{% block content %}{% endblock %}
+{% endblock %}
+
+{% block scripts %}{% endblock %}
+
+<script>
+// Top progress bar helper
+window.TopProgress = {
+    el: document.getElementById('top-progress'),
+    start() { this.el.classList.add('active'); },
+    stop() { this.el.classList.remove('active'); }
+};
+
+// Mobile nav toggle
+function toggleMobileNav() {
+    document.getElementById('mobile-nav').classList.toggle('open');
+}
+</script>
+<script src="{{ url_for('static', filename='js/toast.js') }}"></script>
+<script src="{{ url_for('static', filename='js/command-palette.js') }}"></script>
+<script src="{{ url_for('static', filename='js/table-sort.js') }}"></script>
+</body>
+</html>

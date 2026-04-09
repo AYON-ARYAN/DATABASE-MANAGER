@@ -200,6 +200,43 @@ class SQLiteAdapter(DatabaseAdapter):
             "row_count": row_count,
         }
 
+    def get_constraints(self) -> list:
+        """Returns all constraints (PK, FK, NOT NULL, UNIQUE) across all tables."""
+        self.connect()
+        cur = self._conn.cursor()
+        cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%';")
+        tables = [r[0] for r in cur.fetchall()]
+        constraints = []
+        for t in tables:
+            cur.execute(f'PRAGMA table_info("{t}");')
+            for col in cur.fetchall():
+                if col[5]:
+                    constraints.append({"table": t, "type": "PRIMARY KEY", "details": col[1]})
+            cur.execute(f'PRAGMA foreign_key_list("{t}");')
+            for fk in cur.fetchall():
+                constraints.append({"table": t, "type": "FOREIGN KEY", "details": f"{fk[3]} -> {fk[2]}.{fk[4]}"})
+            cur.execute(f'PRAGMA table_info("{t}");')
+            for col in cur.fetchall():
+                if col[3]:
+                    constraints.append({"table": t, "type": "NOT NULL", "details": col[1]})
+            cur.execute(f'PRAGMA index_list("{t}");')
+            for idx in cur.fetchall():
+                if idx[2]:
+                    cur.execute(f'PRAGMA index_info("{idx[1]}");')
+                    idx_cols = [ic[2] for ic in cur.fetchall()]
+                    constraints.append({"table": t, "type": "UNIQUE", "details": f"{idx[1]} ({', '.join(idx_cols)})"})
+        self.disconnect()
+        return constraints
+
+    def get_create_table(self, table_name: str) -> str:
+        """Returns the DDL / CREATE TABLE statement for a table."""
+        self.connect()
+        cur = self._conn.cursor()
+        cur.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name=?", (table_name,))
+        row = cur.fetchone()
+        self.disconnect()
+        return row[0] if row and row[0] else f"-- Table '{table_name}' not found"
+
     def list_tables(self) -> list:
         self.connect()
         cur = self._conn.cursor()

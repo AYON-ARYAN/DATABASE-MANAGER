@@ -1,282 +1,226 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Meridian Data</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-</head>
-<body>
+{% extends "layouts/shell.html" %}
 
-<!-- NAV -->
-<nav class="global-nav">
-    <div class="nav-brand">Meridian</div>
-    <div class="nav-links">
-        <a href="/" class="nav-link active">Query</a>
-        <a href="/overview" class="nav-link">Overview</a>
-        <a href="/analysis" class="nav-link">Analysis</a>
-        <a href="/databases" class="nav-link">Databases</a>
-        <a href="/dashboards" class="nav-link">Dashboards</a>
-        <a href="/command-guide" class="nav-link">Guide</a>
-        {% if session.role == 'ADMIN' %}
-        <a href="/admin" class="nav-link">Admin</a>
-        {% endif %}
-    </div>
-    <div class="user-info">
-        <span class="user-name">{{ session.username }}</span>
-        <span class="role-badge">{{ session.role }}</span>
-        <a href="/logout" class="logout-link">Logout</a>
-    </div>
-</nav>
+{% block title %}Meridian Data{% endblock %}
+{% block nav_query %}active{% endblock %}
 
-<!-- SHELL -->
-<div class="shell">
+{% block head_extra %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+{% endblock %}
 
-    <!-- SIDEBAR TOGGLE (mobile) -->
-    <button class="sidebar-toggle" id="sidebar-toggle" onclick="toggleSidebar()">&#9776;</button>
-
-    <!-- SIDEBAR -->
-    <aside class="sidebar" id="sidebar">
-        <h3>History</h3>
-        {% if history %}
-            {% for h in history %}
-            <div class="history-item" onclick='reRun({{ h.query|tojson|safe }})'>
-                <div class="history-meta">
-                    {{ h.time }}
-                    <span class="badge {{ h.task }}">{{ h.task }}</span>
-                </div>
-                <div class="history-query">{{ h.query }}</div>
-                <div class="history-sql">{{ h.sql[:60] }}{% if h.sql|length > 60 %}...{% endif %}</div>
-            </div>
-            {% endfor %}
-        {% else %}
-            <p style="color:var(--text-dim); font-size:0.8rem; padding: 8px;">No queries yet. Start typing below.</p>
-        {% endif %}
-    </aside>
-    <div class="sidebar-overlay" onclick="toggleSidebar()"></div>
-
-    <!-- MAIN -->
-    <div class="main-area">
-        <div class="content">
-
-            <!-- CONTEXT BAR -->
-            <div class="context-bar">
-                <div class="context-pill">
-                    <span class="label">DB</span>
-                    <form method="POST" action="/databases/select" style="margin:0">
-                        <select name="conn_name" onchange="this.form.submit()">
-                            {% for conn in connections %}
-                            <option value="{{ conn.name }}" {% if conn.name == db_info.name %}selected{% endif %}>
-                                {{ conn.name }}
-                            </option>
-                            {% endfor %}
-                        </select>
-                    </form>
-                </div>
-                <span class="db-type-badge">{{ db_info.display_type }}</span>
-                <div class="context-pill" style="margin-left:auto;">
-                    <span class="label">LLM</span>
-                    <form method="POST" action="/set_llm_provider" style="margin:0">
-                        <select name="provider" id="llm-sel" onchange="handleLlm(this)">
-                            <option value="mistral" {% if llm_provider == 'mistral' %}selected{% endif %}>Mistral</option>
-                            <option value="groq" {% if llm_provider == 'groq' %}selected{% endif %}>Groq</option>
-                        </select>
-                    </form>
-                </div>
-            </div>
-
-            {% if not db_info.supports_snapshot %}
-            <div class="notice-box">
-                <strong>No undo</strong> &mdash; Snapshots unavailable for {{ db_info.display_type }}.
-            </div>
-            {% endif %}
-
-            <!-- MESSAGES -->
-            {% if message %}<div class="success-card">{{ message }}</div>{% endif %}
-            {% if error %}<div class="error-card">{{ error }}</div>{% endif %}
-
-            <!-- ============ RESULTS ============ -->
-            {% if results %}
-            <div class="card" style="margin-bottom:12px;">
-                <div class="actions">
-                    <strong>Results</strong>
-                    <a href="/export" class="secondary link-btn" style="font-size:0.75rem; padding:5px 12px;">CSV</a>
-                    <a href="/export/ppt" class="secondary link-btn" style="font-size:0.75rem; padding:5px 12px;">PPT</a>
-                    {% if analysis_enabled %}
-                    <a href="/analysis" class="secondary link-btn" style="font-size:0.75rem; padding:5px 12px;">Analyze</a>
-                    {% endif %}
-                </div>
-
-                <div class="table-wrapper">
-                    <table>
-                        <thead><tr>{% for col in columns %}<th>{{ col }}</th>{% endfor %}</tr></thead>
-                        <tbody>
-                        {% for row in results %}
-                        <tr>{% for cell in row %}<td>{{ cell }}</td>{% endfor %}</tr>
-                        {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-top:12px; font-size:0.75rem; color:var(--text-dim);">
-                    <span>{{ results|length }} rows{% if total_rows %} / {{ total_rows }}{% endif %}</span>
-                    <div style="display:flex; gap:8px;">
-                        {% if page and page > 1 %}
-                        <a href="?page={{ page - 1 }}" class="secondary link-btn" style="font-size:0.7rem; padding:4px 10px;">Prev</a>
-                        {% endif %}
-                        {% if total_rows and page and page * page_size < total_rows %}
-                        <a href="?page={{ page + 1 }}" class="secondary link-btn" style="font-size:0.7rem; padding:4px 10px;">Next</a>
-                        {% endif %}
-                    </div>
-                </div>
-            </div>
-
-            <!-- ============ AI RESPONSE ============ -->
-            {% elif ai_response %}
-            <div class="card" style="border-color: rgba(59,130,246,0.2); margin-bottom:12px;">
-                <h2>AI Response</h2>
-                <div class="markdown-body" id="ai-response-body">{{ ai_response }}</div>
-                {% if ai_suggestions %}
-                <div style="margin-top:16px; padding-top:12px; border-top:1px solid var(--border);">
-                    <div style="font-size:0.65rem; color:var(--text-dim); text-transform:uppercase; font-weight:600; margin-bottom:8px;">Follow-up queries</div>
-                    <div class="chip-row">
-                        {% for sq in ai_suggestions %}
-                        <button class="chip" onclick="runCmd('{{ sq }}')">{{ sq[:60] }}{% if sq|length > 60 %}...{% endif %}</button>
-                        {% endfor %}
-                    </div>
-                </div>
-                {% endif %}
-            </div>
-
-            <!-- ============ WELCOME ============ -->
-            {% elif not sql and not explanation and not error and not message %}
-            <div class="welcome">
-                <div class="welcome-logo">M</div>
-                <h1>What do you want to know?</h1>
-                <p>Ask in plain English. Query, analyze, or explore your database.</p>
-
-                <div class="quick-grid">
-                    <div class="quick-card" onclick="runCmd('show tables')">
-                        <div class="qc-title">Show Tables</div>
-                        <div class="qc-desc">List all tables in the database</div>
-                    </div>
-                    <div class="quick-card" onclick="runCmd('show foreign keys')">
-                        <div class="qc-title">Foreign Keys</div>
-                        <div class="qc-desc">See all table relationships</div>
-                    </div>
-                    <div class="quick-card" onclick="runCmd('show table counts')">
-                        <div class="qc-title">Row Counts</div>
-                        <div class="qc-desc">How much data is in each table</div>
-                    </div>
-                    <div class="quick-card" onclick="runCmd('show constraints')">
-                        <div class="qc-title">Constraints</div>
-                        <div class="qc-desc">PKs, FKs, unique, not null</div>
-                    </div>
-                    <div class="quick-card" onclick="runCmd('show top 10 orders with customer names using a join')">
-                        <div class="qc-title">JOIN Example</div>
-                        <div class="qc-desc">Orders joined with customers</div>
-                    </div>
-                    <div class="quick-card" onclick="runCmd('show aggregate statistics for each table')">
-                        <div class="qc-title">Aggregate Stats</div>
-                        <div class="qc-desc">COUNT, SUM, AVG across tables</div>
-                    </div>
-                </div>
-            </div>
-            {% endif %}
-
-            <!-- SQL + EXPLANATION -->
-            {% if sql %}
-            <div class="card">
-                <h2>Generated SQL <span class="badge {{ task }}">{{ task }}</span></h2>
-                <pre>{{ sql }}</pre>
-            </div>
-            {% endif %}
-
-            {% if explanation %}
-            <div class="card">
-                <h2>Explanation</h2>
-                <pre style="white-space:pre-wrap; border:none; background:transparent; padding:0; color:var(--text-sec);">{{ explanation }}</pre>
-            </div>
-            {% endif %}
-
-        </div><!-- /content -->
-
-        <!-- CHAT INPUT -->
-        <div class="chat-input-wrap">
-            <form method="POST" action="/" id="qform">
-                <div class="chat-input-box">
-                    <textarea id="qinput" name="command" placeholder="Ask anything about your database..." required rows="1"></textarea>
-                    <div class="chat-actions">
-                        <div class="chip-row">
-                            <button type="button" class="chip" onclick="runCmd('show tables')">Tables</button>
-                            <button type="button" class="chip" onclick="runCmd('show foreign keys')">FKs</button>
-                            <button type="button" class="chip" onclick="runCmd('show indexes')">Indexes</button>
-                        </div>
-                        <button type="submit" class="send-btn" id="send-btn">Send</button>
-                    </div>
-                </div>
-            </form>
+{% block sidebar %}
+<h3>History</h3>
+{% if history %}
+    {% for h in history %}
+    <div class="history-item" onclick='reRun({{ h.query|tojson|safe }})'>
+        <div class="history-meta">
+            {{ h.time }}
+            <span class="badge {{ h.task }}">{{ h.task }}</span>
         </div>
+        <div class="history-query">{{ h.query }}</div>
+        <div class="history-sql">{{ h.sql[:60] }}{% if h.sql|length > 60 %}...{% endif %}</div>
+    </div>
+    {% endfor %}
+{% else %}
+    <p style="color:var(--text-dim); font-size:0.8rem; padding: 8px;">No queries yet. Start typing below.</p>
+{% endif %}
+{% endblock %}
 
-    </div><!-- /main-area -->
-</div><!-- /shell -->
+{% block content %}
+<!-- Context Bar -->
+<div class="context-bar">
+    <div class="context-pill">
+        <span class="label">DB</span>
+        <form method="POST" action="/databases/select" style="margin:0">
+            <select name="conn_name" onchange="this.form.submit()">
+                {% for conn in connections %}
+                <option value="{{ conn.name }}" {% if conn.name == db_info.name %}selected{% endif %}>{{ conn.name }}</option>
+                {% endfor %}
+            </select>
+        </form>
+    </div>
+    <span class="db-type-badge">{{ db_info.display_type }}</span>
+    <div class="context-pill" style="margin-left:auto;">
+        <span class="label">LLM</span>
+        <form method="POST" action="/set_llm_provider" style="margin:0">
+            <select name="provider" id="llm-sel" onchange="handleLlm(this)">
+                <option value="mistral" {% if llm_provider == 'mistral' %}selected{% endif %}>Mistral</option>
+                <option value="groq" {% if llm_provider == 'groq' %}selected{% endif %}>Groq</option>
+            </select>
+        </form>
+    </div>
+</div>
 
+{% if not db_info.supports_snapshot %}
+<div class="notice-box">
+    <strong>No undo</strong> &mdash; Snapshots unavailable for {{ db_info.display_type }}.
+</div>
+{% endif %}
+
+<!-- Messages -->
+{% if message %}<div class="success-card">{{ message }}</div>{% endif %}
+{% if error %}<div class="error-card">{{ error }}</div>{% endif %}
+
+<!-- Results -->
+{% if results %}
+<div class="card" style="margin-bottom:12px;">
+    <div class="actions">
+        <strong>Results</strong>
+        <a href="/export" class="secondary link-btn" style="font-size:0.75rem; padding:5px 12px;">CSV</a>
+        <a href="/export/ppt" class="secondary link-btn" style="font-size:0.75rem; padding:5px 12px;">PPT</a>
+        {% if analysis_enabled %}
+        <a href="/analysis" class="secondary link-btn" style="font-size:0.75rem; padding:5px 12px;">Analyze</a>
+        {% endif %}
+    </div>
+    <div class="table-wrapper">
+        <table>
+            <thead><tr>{% for col in columns %}<th>{{ col }}</th>{% endfor %}</tr></thead>
+            <tbody>
+            {% for row in results %}
+            <tr>{% for cell in row %}<td>{{ cell }}</td>{% endfor %}</tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-top:12px; font-size:0.75rem; color:var(--text-dim);">
+        <span>{{ results|length }} rows{% if total_rows %} / {{ total_rows }}{% endif %}</span>
+        <div style="display:flex; gap:8px;">
+            {% if page and page > 1 %}
+            <a href="?page={{ page - 1 }}" class="secondary link-btn" style="font-size:0.7rem; padding:4px 10px;">Prev</a>
+            {% endif %}
+            {% if total_rows and page and page * page_size < total_rows %}
+            <a href="?page={{ page + 1 }}" class="secondary link-btn" style="font-size:0.7rem; padding:4px 10px;">Next</a>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- AI Response -->
+{% elif ai_response %}
+<div class="card" style="border-color: rgba(59,130,246,0.2); margin-bottom:12px;">
+    <h2>AI Response</h2>
+    <div class="markdown-body" id="ai-response-body">{{ ai_response }}</div>
+    {% if ai_suggestions %}
+    <div style="margin-top:16px; padding-top:12px; border-top:1px solid var(--border);">
+        <div style="font-size:0.65rem; color:var(--text-dim); text-transform:uppercase; font-weight:600; margin-bottom:8px;">Follow-up queries</div>
+        <div class="chip-row">
+            {% for sq in ai_suggestions %}
+            <button class="chip" onclick="runCmd('{{ sq }}')">{{ sq[:60] }}{% if sq|length > 60 %}...{% endif %}</button>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Welcome -->
+{% elif not sql and not explanation and not error and not message %}
+<div class="welcome">
+    <div class="welcome-logo">M</div>
+    <h1>What do you want to know?</h1>
+    <p>Ask in plain English. Query, analyze, or explore your database.</p>
+
+    <div class="quick-grid">
+        <div class="quick-card" onclick="runCmd('show tables')">
+            <div class="qc-title">Show Tables</div>
+            <div class="qc-desc">List all tables in the database</div>
+        </div>
+        <div class="quick-card" onclick="runCmd('show foreign keys')">
+            <div class="qc-title">Foreign Keys</div>
+            <div class="qc-desc">See all table relationships</div>
+        </div>
+        <div class="quick-card" onclick="runCmd('show table counts')">
+            <div class="qc-title">Row Counts</div>
+            <div class="qc-desc">How much data is in each table</div>
+        </div>
+        <div class="quick-card" onclick="runCmd('show constraints')">
+            <div class="qc-title">Constraints</div>
+            <div class="qc-desc">PKs, FKs, unique, not null</div>
+        </div>
+        <div class="quick-card" onclick="runCmd('show top 10 orders with customer names using a join')">
+            <div class="qc-title">JOIN Example</div>
+            <div class="qc-desc">Orders joined with customers</div>
+        </div>
+        <div class="quick-card" onclick="runCmd('show aggregate statistics for each table')">
+            <div class="qc-title">Aggregate Stats</div>
+            <div class="qc-desc">COUNT, SUM, AVG across tables</div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<!-- SQL + Explanation -->
+{% if sql %}
+<div class="card">
+    <h2>Generated SQL <span class="badge {{ task }}">{{ task }}</span></h2>
+    <pre>{{ sql }}</pre>
+</div>
+{% endif %}
+
+{% if explanation %}
+<div class="card">
+    <h2>Explanation</h2>
+    <pre style="white-space:pre-wrap; border:none; background:transparent; padding:0; color:var(--text-sec);">{{ explanation }}</pre>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block bottom_bar %}
+<!-- Chat Input -->
+<div class="chat-input-wrap">
+    <form method="POST" action="/" id="qform">
+        <div class="chat-input-box">
+            <textarea id="qinput" name="command" placeholder="Ask anything about your database..." required rows="1"></textarea>
+            <div class="chat-actions">
+                <div class="chip-row">
+                    <button type="button" class="chip" onclick="runCmd('show tables')">Tables</button>
+                    <button type="button" class="chip" onclick="runCmd('show foreign keys')">FKs</button>
+                    <button type="button" class="chip" onclick="runCmd('show indexes')">Indexes</button>
+                </div>
+                <button type="submit" class="send-btn" id="send-btn">Send</button>
+            </div>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
 <script>
 const qinput = document.getElementById('qinput');
 const qform  = document.getElementById('qform');
 const sendBtn= document.getElementById('send-btn');
 
-// Auto-resize textarea
 qinput.addEventListener('input', function() {
     this.style.height = 'auto';
     this.style.height = Math.min(this.scrollHeight, 160) + 'px';
 });
 
-// Enter to send
 qinput.addEventListener('keydown', function(e) {
-    if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        submitQ();
-    }
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submitQ(); }
 });
 
 qform.addEventListener('submit', function() {
     sendBtn.disabled = true;
     sendBtn.textContent = 'Sending...';
+    TopProgress.start();
 });
 
 function submitQ() {
     if (qinput.value.trim()) {
         sendBtn.disabled = true;
         sendBtn.textContent = 'Sending...';
+        TopProgress.start();
         qform.submit();
     }
 }
 
-function runCmd(cmd) {
-    qinput.value = cmd;
-    submitQ();
-}
-
-function reRun(q) {
-    qinput.value = q;
-    submitQ();
-}
+function runCmd(cmd) { qinput.value = cmd; submitQ(); }
+function reRun(q) { qinput.value = q; submitQ(); }
 
 function handleLlm(sel) {
     if (sel.value === 'groq') {
-        if (!confirm('This will send your schema to Groq cloud API. Continue?')) {
-            sel.value = 'mistral';
-            return;
-        }
+        if (!confirm('This will send your schema to Groq cloud API. Continue?')) { sel.value = 'mistral'; return; }
     }
     sel.form.submit();
-}
-
-function toggleSidebar() {
-    document.getElementById('sidebar').classList.toggle('open');
 }
 
 // Render markdown in AI response
@@ -285,6 +229,4 @@ if (aiBody && typeof marked !== 'undefined') {
     aiBody.innerHTML = marked.parse(aiBody.textContent);
 }
 </script>
-
-</body>
-</html>
+{% endblock %}

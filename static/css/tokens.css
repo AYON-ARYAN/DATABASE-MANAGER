@@ -1,0 +1,61 @@
+/* =========================================================================
+   MERIDIAN DATA — DESIGN TOKENS
+   ========================================================================= */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+:root {
+    --bg:          #09090b;
+    --bg-subtle:   #0c0c0f;
+    --surface:     rgba(255,255,255,0.03);
+    --surface-2:   rgba(255,255,255,0.06);
+    --border:      rgba(255,255,255,0.07);
+    --border-hover:rgba(255,255,255,0.14);
+
+    --text:        #e4e4e7;
+    --text-sec:    #a1a1aa;
+    --text-dim:    #52525b;
+
+    --blue:        #3b82f6;
+    --blue-dim:    rgba(59,130,246,0.12);
+    --purple:      #8b5cf6;
+    --green:       #22c55e;
+    --green-dim:   rgba(34,197,94,0.12);
+    --red:         #ef4444;
+    --red-dim:     rgba(239,68,68,0.10);
+    --amber:       #f59e0b;
+    --amber-dim:   rgba(245,158,11,0.10);
+
+    --r-sm: 8px;
+    --r-md: 12px;
+    --r-lg: 16px;
+    --r-xl: 20px;
+    --r-full: 9999px;
+
+    --sidebar-w: 280px;
+    --nav-h: 52px;
+    --transition: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+
+    /* Legacy aliases */
+    --bg-color: var(--bg);
+    --card-bg: var(--surface);
+    --card-border: var(--border);
+    --card-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    --text-primary: var(--text);
+    --text-secondary: var(--text-sec);
+    --text-muted: var(--text-dim);
+    --accent-blue: var(--blue);
+    --accent-purple: var(--purple);
+    --accent-green: var(--green);
+    --danger: var(--red);
+    --warning: var(--amber);
+    --success: var(--green);
+    --input-bg: var(--surface);
+    --input-border: var(--border);
+    --input-focus-ring: var(--blue-dim);
+    --radius-sm: var(--r-sm);
+    --radius-md: var(--r-md);
+    --radius-lg: var(--r-lg);
+    --radius-xl: var(--r-xl);
+    --radius-pill: var(--r-full);
+}

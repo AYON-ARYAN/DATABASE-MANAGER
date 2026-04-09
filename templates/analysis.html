@@ -1,183 +1,120 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Analysis - Meridian</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <style>
-        .analysis-shell { max-width:1100px; margin:0 auto; padding:calc(var(--nav-h) + 28px) 24px 60px; }
-        .source-tabs { display:flex; gap:2px; background:var(--surface); border:1px solid var(--border); border-radius:var(--r-md); padding:3px; margin-bottom:20px; width:fit-content; }
-        .source-tab { padding:7px 18px; border-radius:var(--r-sm); font-size:0.8rem; font-weight:500; cursor:pointer; color:var(--text-dim); background:transparent; border:none; transition:all var(--transition); }
-        .source-tab.active { background:var(--surface-2); color:var(--text); }
-        .source-tab:hover:not(.active) { color:var(--text-sec); }
+{% extends "layouts/page.html" %}
 
-        .source-panel { display:none; }
-        .source-panel.active { display:block; }
+{% block title %}Analysis - Meridian{% endblock %}
+{% block nav_analysis %}active{% endblock %}
+{% block page_class %}page--mid{% endblock %}
 
-        .table-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(180px, 1fr)); gap:8px; margin-bottom:16px; }
-        .table-chip { padding:10px 14px; border-radius:var(--r-sm); background:var(--surface); border:1px solid var(--border); cursor:pointer; transition:all var(--transition); }
-        .table-chip:hover { border-color:var(--border-hover); background:var(--surface-2); }
-        .table-chip.selected { border-color:rgba(59,130,246,0.4); background:var(--blue-dim); }
-        .table-chip .tc-name { font-size:0.82rem; font-weight:600; color:var(--text); }
-        .table-chip .tc-rows { font-size:0.65rem; color:var(--text-dim); margin-top:2px; }
+{% block head_extra %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+{% endblock %}
 
-        .preview-box { background:rgba(0,0,0,0.2); border:1px solid var(--border); border-radius:var(--r-md); overflow:auto; max-height:240px; margin-bottom:16px; }
-        .preview-box table { font-size:0.75rem; }
-        .preview-box th { font-size:0.6rem; padding:8px 10px; }
-        .preview-box td { padding:6px 10px; font-size:0.72rem; }
-
-        .hint-area { margin-bottom:16px; }
-        .hint-area textarea { min-height:60px; resize:vertical; font-size:0.85rem; }
-        .hint-area label { display:block; margin-bottom:6px; font-size:0.7rem; color:var(--text-dim); text-transform:uppercase; font-weight:600; letter-spacing:0.05em; }
-
-        .analyze-btn { padding:10px 28px; border-radius:var(--r-md); font-size:0.85rem; }
-        .analyze-btn:disabled { opacity:0.4; cursor:default; }
-
-        .results-area { margin-top:28px; }
-        .insight-card { background:var(--surface); border:1px solid var(--border); border-radius:var(--r-lg); padding:24px; margin-bottom:20px; }
-        .insight-card h3 { font-size:0.85rem; color:var(--text-sec); margin-bottom:14px; }
-        .chart-container { background:rgba(0,0,0,0.15); border:1px solid var(--border); border-radius:var(--r-md); padding:16px; }
-        .chart-container canvas { max-height:400px; }
-
-        .loading-state { text-align:center; padding:50px 20px; color:var(--blue); }
-        .loading-state .spinner { width:36px; height:36px; border:3px solid var(--border); border-top-color:var(--blue); border-radius:50%; animation:spin 0.8s linear infinite; margin:0 auto 16px; }
-        @keyframes spin { to { transform:rotate(360deg); } }
-
-        .csv-drop { border:2px dashed var(--border); border-radius:var(--r-md); padding:24px; text-align:center; color:var(--text-dim); font-size:0.85rem; cursor:pointer; transition:all var(--transition); }
-        .csv-drop:hover { border-color:var(--border-hover); background:var(--surface); }
-        .csv-drop input[type=file] { display:none; }
-    </style>
-</head>
-<body>
-
-<nav class="global-nav">
-    <div class="nav-brand">Meridian</div>
-    <div class="nav-links">
-        <a href="/" class="nav-link">Query</a>
-        <a href="/overview" class="nav-link">Overview</a>
-        <a href="/analysis" class="nav-link active">Analysis</a>
-        <a href="/databases" class="nav-link">Databases</a>
-        <a href="/dashboards" class="nav-link">Dashboards</a>
-        <a href="/command-guide" class="nav-link">Guide</a>
-        {% if session.role == 'ADMIN' %}
-        <a href="/admin" class="nav-link">Admin</a>
-        {% endif %}
-    </div>
-    <div class="user-info">
-        <span class="user-name">{{ session.username }}</span>
-        <span class="role-badge">{{ session.role }}</span>
-        <a href="/logout" class="logout-link">Logout</a>
-    </div>
-</nav>
-
-<div class="analysis-shell">
-
-    <div style="margin-bottom:24px;">
-        <h1 style="font-size:1.4rem; margin-bottom:4px;">AI Data Analysis</h1>
-        <p style="color:var(--text-dim); font-size:0.85rem;">
-            Pick a table, write a query, or upload a CSV. AI analyzes the actual data and generates insights + charts.
-            <span style="color:var(--text-sec);">Connected to {{ db_info.name }} ({{ db_info.display_type }})</span>
-        </p>
-    </div>
-
-    {% if not analysis_enabled %}
-    <div class="error-card">Groq API key not configured. Add GROQ_API_KEY to your .env file.</div>
-    {% else %}
-
-    <!-- SOURCE TABS -->
-    <div class="source-tabs">
-        <button class="source-tab active" onclick="switchTab('table')">From Table</button>
-        <button class="source-tab" onclick="switchTab('sql')">Custom SQL</button>
-        <button class="source-tab" onclick="switchTab('csv')">Upload CSV</button>
-    </div>
-
-    <!-- TAB: TABLE -->
-    <div class="source-panel active" id="panel-table">
-        <div style="font-size:0.75rem; color:var(--text-dim); margin-bottom:10px;" id="tables-status">Loading tables...</div>
-        <div class="table-grid" id="table-grid"></div>
-    </div>
-
-    <!-- TAB: CUSTOM SQL -->
-    <div class="source-panel" id="panel-sql">
-        <div class="hint-area">
-            <label>SQL Query (SELECT only)</label>
-            <textarea id="custom-sql" placeholder="SELECT ProductName, UnitPrice, UnitsInStock FROM Products ORDER BY UnitPrice DESC LIMIT 50"></textarea>
-        </div>
-        <button class="secondary" onclick="previewCustom()" style="margin-bottom:12px;">Preview Data</button>
-    </div>
-
-    <!-- TAB: CSV -->
-    <div class="source-panel" id="panel-csv">
-        <div class="csv-drop" onclick="document.getElementById('csv-file').click()">
-            <input type="file" id="csv-file" accept=".csv" onchange="csvSelected(this)">
-            <div id="csv-label">Click to select a CSV file or drag it here</div>
-        </div>
-    </div>
-
-    <!-- PREVIEW -->
-    <div id="preview-section" style="display:none; margin-top:16px;">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-            <span style="font-size:0.7rem; color:var(--text-dim); text-transform:uppercase; font-weight:600;">Data Preview</span>
-            <span id="preview-count" style="font-size:0.7rem; color:var(--text-dim);"></span>
-        </div>
-        <div class="preview-box">
-            <table id="preview-table"><thead></thead><tbody></tbody></table>
-        </div>
-    </div>
-
-    <!-- HINT + ANALYZE -->
-    <div class="hint-area" style="margin-top:16px;">
-        <label>Analysis Instructions (optional)</label>
-        <textarea id="analyze-hint" placeholder="e.g. Compare sales by category, identify top performers, suggest improvements..."></textarea>
-    </div>
-
-    <div style="display:flex; gap:10px; align-items:center;">
-        <button class="btn-primary analyze-btn" id="btn-analyze" onclick="runAnalysis()" disabled>
-            Analyze with AI
-        </button>
-        <span id="analyze-status" style="font-size:0.75rem; color:var(--text-dim);"></span>
-    </div>
-
-    <!-- LOADING -->
-    <div id="loading" class="loading-state" style="display:none;">
-        <div class="spinner"></div>
-        <div style="font-weight:600; font-size:0.9rem;">Analyzing data with AI...</div>
-        <div style="font-size:0.75rem; color:var(--text-dim); margin-top:6px;">This takes 10-20 seconds</div>
-    </div>
-
-    <!-- ERROR -->
-    <div id="analysis-error" class="error-card" style="display:none; margin-top:16px;"></div>
-
-    <!-- RESULTS -->
-    <div id="results" class="results-area" style="display:none;">
-        <div class="insight-card">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
-                <h3 style="margin:0;">AI Insights</h3>
-                <a href="/export/ppt" class="secondary link-btn" style="font-size:0.72rem; padding:4px 12px;">Export PPT</a>
-            </div>
-            <div id="summary" class="markdown-body"></div>
-        </div>
-
-        <div class="insight-card">
-            <h3>Visualization</h3>
-            <div class="chart-container">
-                <canvas id="chart"></canvas>
-            </div>
-        </div>
-    </div>
-
-    {% endif %}
+{% block content %}
+<div style="margin-bottom:24px;">
+    <h1 style="font-size:1.4rem; margin-bottom:4px;">AI Data Analysis</h1>
+    <p style="color:var(--text-dim); font-size:0.85rem;">
+        Pick a table, write a query, or upload a CSV. AI analyzes the actual data and generates insights + charts.
+        <span style="color:var(--text-sec);">Connected to {{ db_info.name }} ({{ db_info.display_type }})</span>
+    </p>
 </div>
 
+{% if not analysis_enabled %}
+<div class="error-card">Groq API key not configured. Add GROQ_API_KEY to your .env file.</div>
+{% else %}
+
+<!-- Source Tabs -->
+<div class="source-tabs">
+    <button class="source-tab active" onclick="switchTab('table')">From Table</button>
+    <button class="source-tab" onclick="switchTab('sql')">Custom SQL</button>
+    <button class="source-tab" onclick="switchTab('csv')">Upload CSV</button>
+    <button class="source-tab" onclick="switchTab('fulldb')">Entire Database</button>
+</div>
+
+<div class="source-panel active" id="panel-table">
+    <div style="font-size:0.75rem; color:var(--text-dim); margin-bottom:10px;" id="tables-status">Loading tables...</div>
+    <div class="table-grid" id="table-grid"></div>
+</div>
+<div class="source-panel" id="panel-sql">
+    <div class="hint-area"><label>SQL Query (SELECT only)</label>
+    <textarea id="custom-sql" placeholder="SELECT ProductName, UnitPrice, UnitsInStock FROM Products ORDER BY UnitPrice DESC LIMIT 50"></textarea></div>
+    <button class="secondary" onclick="previewCustom()" style="margin-bottom:12px;">Preview Data</button>
+</div>
+<div class="source-panel" id="panel-csv">
+    <div class="csv-drop" onclick="document.getElementById('csv-file').click()">
+        <input type="file" id="csv-file" accept=".csv" onchange="csvSelected(this)">
+        <div id="csv-label">Click to select a CSV file or drag it here</div>
+    </div>
+</div>
+<div class="source-panel" id="panel-fulldb">
+    <div class="fulldb-hero">
+        <h3>Full Database Intelligence</h3>
+        <p>AI analyzes your entire database — generates analytical queries, executes them automatically, and produces a comprehensive multi-chart report with insights.</p>
+        <div class="db-badge">{{ db_info.name }} ({{ db_info.display_type }})</div>
+    </div>
+</div>
+
+<div id="preview-section" style="display:none; margin-top:16px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+        <span style="font-size:0.7rem; color:var(--text-dim); text-transform:uppercase; font-weight:600;">Data Preview</span>
+        <span id="preview-count" style="font-size:0.7rem; color:var(--text-dim);"></span>
+    </div>
+    <div class="preview-box"><table id="preview-table"><thead></thead><tbody></tbody></table></div>
+</div>
+
+<div class="hint-area" style="margin-top:16px;" id="hint-area">
+    <label>Analysis Instructions (optional)</label>
+    <textarea id="analyze-hint" placeholder="e.g. Compare sales by category, identify top performers, suggest improvements..."></textarea>
+</div>
+
+<div style="display:flex; gap:10px; align-items:center;">
+    <button class="btn-primary analyze-btn" id="btn-analyze" onclick="runAnalysis()" disabled>Analyze with AI</button>
+    <span id="analyze-status" style="font-size:0.75rem; color:var(--text-dim);"></span>
+</div>
+
+<div id="loading" class="loading-state" style="display:none;">
+    <div class="spinner" style="margin:0 auto 16px;"></div>
+    <div style="font-weight:600; font-size:0.9rem;">Analyzing data with AI...</div>
+    <div style="font-size:0.75rem; color:var(--text-dim); margin-top:6px;">This takes 10-20 seconds</div>
+</div>
+
+<div id="analysis-error" class="error-card" style="display:none; margin-top:16px;"></div>
+
+<div id="results" class="results-area" style="display:none;">
+    <div class="insight-card">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;">
+            <h3 style="margin:0;">AI Insights</h3>
+            <a href="/export/ppt" class="secondary link-btn" style="font-size:0.72rem; padding:4px 12px;">Export PPT</a>
+        </div>
+        <div id="summary" class="markdown-body"></div>
+    </div>
+    <div class="insight-card">
+        <h3>Visualization</h3>
+        <div class="chart-container"><canvas id="chart"></canvas></div>
+    </div>
+</div>
+
+<div id="full-progress" class="loading-state" style="display:none;">
+    <div class="spinner" style="margin:0 auto 16px;"></div>
+    <div id="full-progress-text" style="font-weight:600; font-size:0.9rem;">Starting analysis...</div>
+    <div id="full-progress-detail" style="font-size:0.75rem; color:var(--text-dim); margin-top:6px;"></div>
+    <div class="progress-track" style="max-width:400px; margin:16px auto 0;">
+        <div id="full-progress-bar" class="progress-fill" style="width:0%;"></div>
+    </div>
+</div>
+
+<div id="full-report" class="report-section" style="display:none;"></div>
+
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
 <script>
 let currentChart = null;
+let fullCharts = [];
 let selectedTable = null;
-let currentMode = 'table'; // 'table', 'sql', 'csv'
+let currentMode = 'table';
+let pollTimer = null;
 
-// --- Tab switching ---
 function switchTab(tab) {
     currentMode = tab;
     document.querySelectorAll('.source-tab').forEach(t => t.classList.remove('active'));
@@ -185,6 +122,9 @@ function switchTab(tab) {
     document.querySelector(`.source-tab[onclick*="${tab}"]`).classList.add('active');
     document.getElementById('panel-' + tab).classList.add('active');
     document.getElementById('preview-section').style.display = 'none';
+    const hintArea = document.getElementById('hint-area');
+    if (tab === 'fulldb') { if (hintArea) hintArea.style.display = 'none'; }
+    else { if (hintArea) hintArea.style.display = 'block'; }
     updateAnalyzeBtn();
 }
 
@@ -193,28 +133,20 @@ function updateAnalyzeBtn() {
     if (currentMode === 'table') btn.disabled = !selectedTable;
     else if (currentMode === 'sql') btn.disabled = !document.getElementById('custom-sql').value.trim();
     else if (currentMode === 'csv') btn.disabled = !document.getElementById('csv-file').files.length;
+    else if (currentMode === 'fulldb') btn.disabled = false;
+    btn.textContent = currentMode === 'fulldb' ? 'Analyze Entire Database' : 'Analyze with AI';
 }
 
-// --- Load tables on page load ---
 async function loadTables() {
     try {
         const res = await fetch('/api/tables-list');
         const data = await res.json();
-        if (data.error) {
-            document.getElementById('tables-status').textContent = 'Error: ' + data.error;
-            return;
-        }
-        const grid = document.getElementById('table-grid');
+        if (data.error) { document.getElementById('tables-status').textContent = 'Error: ' + data.error; return; }
         document.getElementById('tables-status').textContent = data.tables.length + ' tables in ' + data.db_name;
-        grid.innerHTML = data.tables.map(t => `
-            <div class="table-chip" onclick="selectTable('${t.name}', this)">
-                <div class="tc-name">${t.name}</div>
-                <div class="tc-rows">${t.rows.toLocaleString()} rows</div>
-            </div>
+        document.getElementById('table-grid').innerHTML = data.tables.map(t => `
+            <div class="table-chip" onclick="selectTable('${t.name}', this)"><div class="tc-name">${t.name}</div><div class="tc-rows">${t.rows.toLocaleString()} rows</div></div>
         `).join('');
-    } catch(e) {
-        document.getElementById('tables-status').textContent = 'Failed to load tables';
-    }
+    } catch(e) { document.getElementById('tables-status').textContent = 'Failed to load tables'; }
 }
 
 async function selectTable(name, el) {
@@ -222,32 +154,19 @@ async function selectTable(name, el) {
     document.querySelectorAll('.table-chip').forEach(c => c.classList.remove('selected'));
     el.classList.add('selected');
     updateAnalyzeBtn();
-    // Auto-preview
     await previewData('table', name);
 }
 
-// --- Preview ---
 async function previewData(mode, source) {
     const section = document.getElementById('preview-section');
     try {
-        const body = mode === 'table'
-            ? { source: source }
-            : { source: 'custom', sql: source };
-        const res = await fetch('/api/table-preview', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body)
-        });
+        const body = mode === 'table' ? { source } : { source: 'custom', sql: source };
+        const res = await fetch('/api/table-preview', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
         const data = await res.json();
-        if (data.error) {
-            section.style.display = 'none';
-            return;
-        }
+        if (data.error) { section.style.display = 'none'; return; }
         renderPreview(data.columns, data.rows);
         section.style.display = 'block';
-    } catch(e) {
-        section.style.display = 'none';
-    }
+    } catch(e) { section.style.display = 'none'; }
 }
 
 function renderPreview(columns, rows) {
@@ -265,131 +184,172 @@ function previewCustom() {
     updateAnalyzeBtn();
 }
 
-document.getElementById('custom-sql').addEventListener('input', updateAnalyzeBtn);
+document.getElementById('custom-sql')?.addEventListener('input', updateAnalyzeBtn);
 
-// --- CSV ---
 function csvSelected(input) {
-    if (input.files.length) {
-        document.getElementById('csv-label').textContent = input.files[0].name;
-        updateAnalyzeBtn();
-    }
+    if (input.files.length) { document.getElementById('csv-label').textContent = input.files[0].name; updateAnalyzeBtn(); }
 }
 
-// --- Analyze ---
 async function runAnalysis() {
+    if (currentMode === 'fulldb') return runFullAnalysis();
     const btn = document.getElementById('btn-analyze');
     const loading = document.getElementById('loading');
     const results = document.getElementById('results');
     const errDiv = document.getElementById('analysis-error');
     const hint = document.getElementById('analyze-hint').value;
-
-    btn.disabled = true;
-    loading.style.display = 'block';
-    results.style.display = 'none';
-    errDiv.style.display = 'none';
-
+    btn.disabled = true; loading.style.display = 'block'; results.style.display = 'none'; errDiv.style.display = 'none';
+    document.getElementById('full-report').style.display = 'none';
+    TopProgress.start();
     try {
         let data;
-
         if (currentMode === 'csv') {
-            // CSV upload
             const formData = new FormData();
             formData.append('csv_file', document.getElementById('csv-file').files[0]);
             formData.append('hint', hint);
             const res = await fetch('/analyze-csv', { method: 'POST', body: formData });
             data = await res.json();
         } else {
-            // Table or custom SQL — use direct endpoint
-            const body = currentMode === 'table'
-                ? { source: selectedTable, hint: hint }
-                : { source: 'custom', sql: document.getElementById('custom-sql').value.trim(), hint: hint };
-            const res = await fetch('/api/analyze-direct', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(body)
-            });
+            const body = currentMode === 'table' ? { source: selectedTable, hint } : { source: 'custom', sql: document.getElementById('custom-sql').value.trim(), hint };
+            const res = await fetch('/api/analyze-direct', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
             data = await res.json();
         }
-
-        loading.style.display = 'none';
-
-        if (data.error) {
-            errDiv.textContent = data.error;
-            errDiv.style.display = 'block';
-            btn.disabled = false;
-            return;
-        }
-
-        // Render summary
+        loading.style.display = 'none'; TopProgress.stop();
+        if (data.error) { errDiv.textContent = data.error; errDiv.style.display = 'block'; btn.disabled = false; return; }
         document.getElementById('summary').innerHTML = marked.parse(data.summary || '');
         results.style.display = 'block';
-
-        // Render chart
         if (data.chart) renderChart(data.chart);
+        btn.disabled = false;
+    } catch(e) { loading.style.display = 'none'; TopProgress.stop(); errDiv.textContent = 'Request failed: ' + e.message; errDiv.style.display = 'block'; btn.disabled = false; }
+}
 
-        btn.disabled = false;
-    } catch(e) {
-        loading.style.display = 'none';
-        errDiv.textContent = 'Request failed: ' + e.message;
-        errDiv.style.display = 'block';
-        btn.disabled = false;
+async function runFullAnalysis() {
+    const btn = document.getElementById('btn-analyze');
+    const progress = document.getElementById('full-progress');
+    const errDiv = document.getElementById('analysis-error');
+    const fullReport = document.getElementById('full-report');
+    btn.disabled = true; progress.style.display = 'block'; errDiv.style.display = 'none'; fullReport.style.display = 'none';
+    document.getElementById('results').style.display = 'none'; document.getElementById('loading').style.display = 'none';
+    fullCharts.forEach(c => c.destroy()); fullCharts = [];
+    TopProgress.start();
+    try {
+        const res = await fetch('/api/analyze-full', { method: 'POST', headers: {'Content-Type':'application/json'} });
+        const data = await res.json();
+        if (data.error) { progress.style.display = 'none'; TopProgress.stop(); errDiv.textContent = data.error; errDiv.style.display = 'block'; btn.disabled = false; return; }
+        sessionStorage.setItem('fullAnalysisJobId', data.job_id);
+        pollJobStatus(data.job_id);
+    } catch(e) { progress.style.display = 'none'; TopProgress.stop(); errDiv.textContent = 'Failed to start analysis: ' + e.message; errDiv.style.display = 'block'; btn.disabled = false; }
+}
+
+function pollJobStatus(jobId) {
+    if (pollTimer) clearInterval(pollTimer);
+    pollTimer = setInterval(async () => {
+        try {
+            const res = await fetch(`/api/analyze-full/status/${jobId}`);
+            const data = await res.json();
+            updateProgress(data);
+            if (data.status === 'complete') {
+                clearInterval(pollTimer); pollTimer = null;
+                document.getElementById('full-progress').style.display = 'none';
+                document.getElementById('btn-analyze').disabled = false;
+                sessionStorage.removeItem('fullAnalysisJobId');
+                TopProgress.stop();
+                if (data.result) renderFullReport(data.result);
+            } else if (data.status === 'error') {
+                clearInterval(pollTimer); pollTimer = null;
+                document.getElementById('full-progress').style.display = 'none';
+                document.getElementById('btn-analyze').disabled = false;
+                sessionStorage.removeItem('fullAnalysisJobId');
+                TopProgress.stop();
+                const errDiv = document.getElementById('analysis-error');
+                errDiv.textContent = (data.result && data.result.error) || 'Analysis failed.';
+                errDiv.style.display = 'block';
+            }
+        } catch(e) {}
+    }, 2000);
+}
+
+function updateProgress(data) {
+    const statusLabels = { 'starting': 'Starting analysis...', 'collecting_schema': 'Collecting database schema...', 'generating_queries': 'AI is generating analytical queries...', 'executing_query': data.progress || 'Executing queries...', 'generating_report': 'AI is generating the full report...' };
+    document.getElementById('full-progress-text').textContent = statusLabels[data.status] || data.progress || 'Working...';
+    document.getElementById('full-progress-detail').textContent = data.total_steps > 0 ? `Step ${data.step} of ${data.total_steps}` : '';
+    if (data.total_steps > 0) document.getElementById('full-progress-bar').style.width = Math.round((data.step / data.total_steps) * 100) + '%';
+}
+
+function renderFullReport(data) {
+    const container = document.getElementById('full-report');
+    container.innerHTML = '';
+    if (data.executive_summary) {
+        const summaryCard = document.createElement('div');
+        summaryCard.className = 'exec-summary-card';
+        summaryCard.innerHTML = `<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;"><h2 style="margin:0;">Executive Summary</h2><a href="/export/ppt" class="secondary link-btn" style="font-size:0.72rem; padding:4px 12px;">Export PPT</a></div><div class="markdown-body">${marked.parse(data.executive_summary)}</div>`;
+        container.appendChild(summaryCard);
     }
+    const insights = data.insights || [];
+    if (insights.length > 0) {
+        const grid = document.createElement('div'); grid.className = 'insight-grid';
+        insights.forEach((insight, idx) => grid.appendChild(createInsightCard(insight, idx)));
+        container.appendChild(grid);
+    }
+    container.style.display = 'block';
+    requestAnimationFrame(() => { insights.forEach((insight, idx) => { if (insight.chart) renderInsightChart(insight.chart, `chart-full-${idx}`); }); });
+}
+
+function createInsightCard(insight, idx) {
+    const card = document.createElement('div'); card.className = 'insight-card-full';
+    let chartHtml = insight.chart ? `<div class="insight-chart-wrap"><canvas id="chart-full-${idx}" height="280"></canvas></div>` : '';
+    let sqlHtml = insight.sql ? `<details class="sql-details"><summary>Show SQL Query</summary><pre>${escapeHtml(insight.sql)}</pre></details>` : '';
+    card.innerHTML = `<h3><span class="insight-num">${idx+1}</span>${escapeHtml(insight.title||'Insight')}</h3><div class="insight-body markdown-body">${marked.parse(insight.markdown||'')}</div>${chartHtml}${sqlHtml}`;
+    return card;
+}
+
+function escapeHtml(str) { const div = document.createElement('div'); div.textContent = str; return div.innerHTML; }
+
+function renderInsightChart(cfg, canvasId) {
+    const canvas = document.getElementById(canvasId); if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const palette = ['#3b82f6','#8b5cf6','#22c55e','#f59e0b','#ef4444','#06b6d4','#ec4899','#14b8a6','#f97316','#6366f1'];
+    const chartType = cfg.type === 'area' ? 'line' : cfg.type;
+    const isPie = cfg.type === 'pie' || cfg.type === 'doughnut';
+    const datasets = (cfg.datasets || []).map((ds, didx) => ({
+        ...ds,
+        backgroundColor: isPie ? (ds.data || []).map((_, i) => palette[i % palette.length]) : palette[didx % palette.length] + (cfg.type === 'bar' ? '80' : '30'),
+        borderColor: isPie ? 'rgba(0,0,0,0.2)' : palette[didx % palette.length],
+        borderWidth: isPie ? 1 : 2, borderRadius: cfg.type === 'bar' ? 4 : 0, fill: cfg.type === 'area', tension: 0.3, pointRadius: cfg.type === 'scatter' ? 5 : 2,
+    }));
+    let labels = cfg.labels; let finalDatasets = datasets;
+    if (cfg.type === 'scatter') { finalDatasets = datasets.map(ds => ({ ...ds, data: (ds.data || []).map((v, i) => ({ x: cfg.labels[i], y: v })) })); labels = undefined; }
+    const chart = new Chart(ctx, {
+        type: chartType, data: { labels, datasets: finalDatasets },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { title: { display: true, text: cfg.title || '', color: '#e4e4e7', font: { size: 13, family: 'Inter' } }, legend: { position: 'bottom', labels: { color: '#a1a1aa', padding: 12, usePointStyle: true, font: { size: 10 } } } }, scales: isPie ? {} : { y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#71717a', font: { size: 10 } } }, x: { grid: { display: false }, ticks: { color: '#71717a', font: { size: 10 }, maxRotation: 45 } } } }
+    });
+    fullCharts.push(chart);
 }
 
 function renderChart(cfg) {
     if (currentChart) currentChart.destroy();
-
     const ctx = document.getElementById('chart').getContext('2d');
     const palette = ['#3b82f6','#8b5cf6','#22c55e','#f59e0b','#ef4444','#06b6d4','#ec4899','#14b8a6','#f97316','#6366f1'];
-
     const chartType = cfg.type === 'area' ? 'line' : cfg.type;
     const isPie = cfg.type === 'pie' || cfg.type === 'doughnut';
-
     const datasets = (cfg.datasets || []).map((ds, idx) => ({
         ...ds,
-        backgroundColor: isPie
-            ? (ds.data || []).map((_, i) => palette[i % palette.length])
-            : palette[idx % palette.length] + (cfg.type === 'bar' ? '80' : '30'),
+        backgroundColor: isPie ? (ds.data || []).map((_, i) => palette[i % palette.length]) : palette[idx % palette.length] + (cfg.type === 'bar' ? '80' : '30'),
         borderColor: isPie ? 'rgba(0,0,0,0.2)' : palette[idx % palette.length],
-        borderWidth: isPie ? 1 : 2,
-        borderRadius: cfg.type === 'bar' ? 4 : 0,
-        fill: cfg.type === 'area',
-        tension: 0.3,
-        pointRadius: cfg.type === 'scatter' ? 5 : 2,
+        borderWidth: isPie ? 1 : 2, borderRadius: cfg.type === 'bar' ? 4 : 0, fill: cfg.type === 'area', tension: 0.3, pointRadius: cfg.type === 'scatter' ? 5 : 2,
     }));
-
-    let labels = cfg.labels;
-    let finalDatasets = datasets;
-
-    if (cfg.type === 'scatter') {
-        finalDatasets = datasets.map(ds => ({
-            ...ds,
-            data: (ds.data || []).map((v, i) => ({ x: cfg.labels[i], y: v }))
-        }));
-        labels = undefined;
-    }
-
+    let labels = cfg.labels; let finalDatasets = datasets;
+    if (cfg.type === 'scatter') { finalDatasets = datasets.map(ds => ({ ...ds, data: (ds.data || []).map((v, i) => ({ x: cfg.labels[i], y: v })) })); labels = undefined; }
     currentChart = new Chart(ctx, {
-        type: chartType,
-        data: { labels, datasets: finalDatasets },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                title: { display: true, text: cfg.title || '', color: '#e4e4e7', font: { size: 14, family: 'Inter' } },
-                legend: { position: 'bottom', labels: { color: '#a1a1aa', padding: 16, usePointStyle: true, font: { size: 11 } } }
-            },
-            scales: isPie ? {} : {
-                y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#71717a', font: { size: 11 } } },
-                x: { grid: { display: false }, ticks: { color: '#71717a', font: { size: 11 }, maxRotation: 45 } }
-            }
-        }
+        type: chartType, data: { labels, datasets: finalDatasets },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { title: { display: true, text: cfg.title || '', color: '#e4e4e7', font: { size: 14, family: 'Inter' } }, legend: { position: 'bottom', labels: { color: '#a1a1aa', padding: 16, usePointStyle: true, font: { size: 11 } } } }, scales: isPie ? {} : { y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#71717a', font: { size: 11 } } }, x: { grid: { display: false }, ticks: { color: '#71717a', font: { size: 11 }, maxRotation: 45 } } } }
     });
 }
 
-// Init
 loadTables();
-</script>
 
-</body>
-</html>
+(function resumeIfNeeded() {
+    const jobId = sessionStorage.getItem('fullAnalysisJobId');
+    if (jobId) { switchTab('fulldb'); document.getElementById('btn-analyze').disabled = true; document.getElementById('full-progress').style.display = 'block'; pollJobStatus(jobId); }
+})();
+</script>
+{% endblock %}

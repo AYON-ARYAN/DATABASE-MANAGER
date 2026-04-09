@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+
+{% block body %}
+<div class="shell">
+    <!-- SIDEBAR TOGGLE (mobile) -->
+    <button class="sidebar-toggle" id="sidebar-toggle" onclick="toggleSidebar()">&#9776;</button>
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar" id="sidebar">
+        {% block sidebar %}{% endblock %}
+    </aside>
+    <div class="sidebar-overlay" onclick="toggleSidebar()"></div>
+
+    <!-- MAIN -->
+    <div class="main-area">
+        <div class="content">
+            {% block content %}{% endblock %}
+        </div>
+
+        {% block bottom_bar %}{% endblock %}
+    </div>
+</div>
+
+<script>
+function toggleSidebar() {
+    document.getElementById('sidebar').classList.toggle('open');
+}
+</script>
+{% endblock %}

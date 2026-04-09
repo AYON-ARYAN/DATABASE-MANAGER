@@ -1,0 +1,184 @@
+/* Overview page */
+.overview-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-bottom: 30px;
+}
+.stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--r-lg);
+    padding: 24px;
+    text-align: center;
+    backdrop-filter: blur(24px);
+    transition: border-color 0.2s;
+}
+.stat-card:hover { border-color: var(--border-hover); }
+.stat-label {
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 8px;
+}
+.stat-value {
+    font-size: 2rem;
+    font-weight: 700;
+    background: linear-gradient(135deg, var(--blue), var(--purple));
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+.charts-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    margin-bottom: 30px;
+}
+.rel-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+}
+.rel-table th, .rel-table td {
+    padding: 12px 16px;
+    text-align: left;
+    border-bottom: 1px solid var(--border);
+}
+.rel-table th {
+    color: var(--text-dim);
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.7rem;
+    letter-spacing: 0.05em;
+}
+.suggested-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    gap: 16px;
+}
+.suggestion-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--r-lg);
+    padding: 20px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+.suggestion-card:hover {
+    border-color: var(--blue-dim);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+.suggestion-title { font-weight: 600; margin-bottom: 8px; color: var(--text); }
+.suggestion-sql {
+    font-family: ui-monospace, SFMono-Regular, monospace;
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    background: rgba(0, 0, 0, 0.3);
+    padding: 8px 12px;
+    border-radius: var(--r-sm);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.suggestion-type {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: var(--r-full);
+    font-size: 0.65rem;
+    font-weight: 600;
+    background: var(--blue-dim);
+    color: var(--blue);
+    margin-left: 8px;
+}
+.ask-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--r-lg);
+    padding: 20px;
+    margin-bottom: 30px;
+    backdrop-filter: blur(24px);
+}
+.ask-row { display: flex; gap: 12px; }
+.ask-input { flex: 1; }
+.ask-result {
+    margin-top: 20px;
+    padding: 20px;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: var(--r-md);
+    border: 1px solid var(--border);
+}
+.query-result-modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.85);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+}
+.query-result-content {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--r-lg);
+    padding: 30px;
+    max-width: 1000px;
+    width: 100%;
+    max-height: 80vh;
+    overflow: auto;
+    backdrop-filter: blur(24px);
+}
+
+/* Skeleton stat cards */
+.stat-card.skeleton-card {
+    min-height: 100px;
+}
+.stat-card.skeleton-card .stat-label,
+.stat-card.skeleton-card .stat-value {
+    background: linear-gradient(90deg, var(--surface) 25%, var(--surface-2) 50%, var(--surface) 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+    border-radius: 4px;
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+}
+
+/* ER Diagram */
+#er-container {
+    scrollbar-width: thin;
+    scrollbar-color: var(--surface-2) transparent;
+}
+#er-container svg {
+    max-width: 100%;
+    height: auto;
+}
+#er-container .entityBox {
+    fill: var(--surface) !important;
+    stroke: var(--border) !important;
+}
+#er-container .entityLabel {
+    fill: var(--text) !important;
+}
+#er-container .relationshipLabelBox {
+    fill: var(--bg) !important;
+}
+#er-container .relationshipLabel {
+    fill: var(--text-sec) !important;
+}
+#er-fullscreen-container {
+    scrollbar-width: thin;
+    scrollbar-color: var(--surface-2) transparent;
+}
+
+@media (max-width: 1024px) {
+    .overview-grid { grid-template-columns: repeat(2, 1fr); }
+    .charts-row { grid-template-columns: 1fr; }
+    .suggested-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 600px) {
+    .ask-row { flex-direction: column; }
+    .query-result-modal { padding: 16px; }
+}

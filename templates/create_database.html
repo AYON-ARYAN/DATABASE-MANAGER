@@ -1,0 +1,205 @@
+{% extends "layouts/page.html" %}
+
+{% block title %}Create Database{% endblock %}
+{% block nav_createdb %}active{% endblock %}
+{% block page_class %}db-page{% endblock %}
+
+{% block content %}
+<header>
+    <h1>Create a New Database</h1>
+    <p>Create a fresh database of any supported type and automatically register it as a connection</p>
+</header>
+
+{% if message %}
+<section class="success-card">{{ message }}</section>
+{% endif %}
+{% if error %}
+<section class="error-card">{{ error }}</section>
+{% endif %}
+
+<div class="add-conn-form">
+    <h3>Database Details</h3>
+    <form id="create-db-form" method="POST" action="/create-database">
+        <div class="form-row">
+            <div class="form-group">
+                <label>Database Name</label>
+                <input type="text" name="db_name" id="db-name" placeholder="e.g. my_app_db" required>
+                <small style="color:var(--text-dim); font-size:0.7rem;">
+                    This will be used as the database name and connection name
+                </small>
+            </div>
+            <div class="form-group">
+                <label>Database Type</label>
+                <select name="db_type" id="db-type-select" class="db-select" onchange="updateCreateFields()">
+                    {% for dtype in db_types %}
+                    <option value="{{ dtype }}">{{ db_display_names.get(dtype, dtype) }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        <div id="create-info" style="background:var(--surface-2); border:1px solid var(--border); border-radius:8px; padding:14px; margin-bottom:20px; font-size:0.82rem; color:var(--text-sec);"></div>
+
+        <div id="server-fields" style="display:none;">
+            <h4 style="margin:0 0 12px 0; font-size:0.85rem; color:var(--text-sec);">Server Connection</h4>
+            <div id="dynamic-fields" class="dynamic-fields"></div>
+        </div>
+
+        <div id="sqlite-options">
+            <div class="form-row">
+                <div class="form-group">
+                    <label>File Location (optional)</label>
+                    <input type="text" name="sqlite_path" id="sqlite-path" placeholder="db/">
+                    <small style="color:var(--text-dim); font-size:0.7rem;">
+                        Defaults to <code>db/</code> directory. The file will be named after your database.
+                    </small>
+                </div>
+            </div>
+        </div>
+
+        <div id="tables-section" style="margin-top:10px;">
+            <h4 style="margin:0 0 12px 0; font-size:0.85rem; color:var(--text-sec);">Initial Tables (optional)</h4>
+            <div id="tables-container"></div>
+            <input type="hidden" name="table_indices" id="table-indices" value="">
+            <button type="button" class="btn" onclick="addTable()" style="margin-top:8px; font-size:0.8rem;">+ Add Table</button>
+        </div>
+
+        <div id="create-result" class="test-result" style="display:none;"></div>
+
+        <div class="form-buttons" style="margin-top:24px;">
+            <button type="submit" class="btn-primary" id="create-btn">Create Database</button>
+        </div>
+    </form>
+</div>
+
+<div style="text-align:center; margin-top:30px;">
+    <a href="/databases" class="manage-link" style="padding:10px 20px;">Manage Connections</a>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const DB_FIELDS = {{ db_fields | tojson }};
+const DB_DISPLAY = {{ db_display_names | tojson }};
+
+const CREATE_INFO = {
+    "sqlite":     "A new SQLite database file will be created on this server. No external server needed.",
+    "mysql":      "A new MySQL database will be created on the specified server using <code>CREATE DATABASE</code>.",
+    "postgresql": "A new PostgreSQL database will be created on the specified server using <code>CREATE DATABASE</code>.",
+    "mssql":      "A new SQL Server database will be created on the specified server using <code>CREATE DATABASE</code>.",
+    "oracle":     "A new Oracle tablespace/user schema will be set up on the specified server.",
+    "mongodb":    "A new MongoDB database will be created on the specified server. It will be initialized with your first collection.",
+    "cassandra":  "A new Cassandra keyspace will be created on the specified cluster using <code>CREATE KEYSPACE</code>.",
+    "redis":      "Redis uses numbered databases (0-15). A connection to the specified DB number will be registered.",
+};
+
+let tableCount = 0;
+
+function updateCreateFields() {
+    const dbType = document.getElementById('db-type-select').value;
+    const serverFieldsDiv = document.getElementById('server-fields');
+    const sqliteOptions = document.getElementById('sqlite-options');
+    const container = document.getElementById('dynamic-fields');
+    const infoBox = document.getElementById('create-info');
+    infoBox.innerHTML = CREATE_INFO[dbType] || '';
+    if (dbType === 'sqlite') {
+        serverFieldsDiv.style.display = 'none';
+        sqliteOptions.style.display = 'block';
+    } else {
+        serverFieldsDiv.style.display = 'block';
+        sqliteOptions.style.display = 'none';
+        const skipFields = ['database', 'keyspace', 'db_number', 'db_path'];
+        const fields = (DB_FIELDS[dbType] || []).filter(f => !skipFields.includes(f.name));
+        let html = '<div class="form-row">';
+        fields.forEach((field, i) => {
+            html += `<div class="form-group"><label>${field.label}</label><input type="${field.type}" name="${field.name}" placeholder="${field.placeholder || ''}"></div>`;
+            if ((i + 1) % 2 === 0 && i < fields.length - 1) html += '</div><div class="form-row">';
+        });
+        html += '</div>';
+        container.innerHTML = html;
+    }
+    document.getElementById('tables-section').style.display = (dbType === 'redis') ? 'none' : 'block';
+}
+
+function addTable() {
+    const container = document.getElementById('tables-container');
+    const idx = tableCount++;
+    const dbType = document.getElementById('db-type-select').value;
+    const tableLabel = (dbType === 'mongodb') ? 'Collection' : 'Table';
+    const div = document.createElement('div');
+    div.className = 'table-def';
+    div.style.cssText = 'background:var(--surface-2); border:1px solid var(--border); border-radius:8px; padding:14px; margin-bottom:12px;';
+    div.id = `table-${idx}`;
+    div.innerHTML = `
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+            <strong style="font-size:0.85rem; color:var(--text);">${tableLabel} #${idx + 1}</strong>
+            <button type="button" class="btn btn-danger" style="font-size:0.7rem; padding:4px 10px;" onclick="removeTable(${idx})">Remove</button>
+        </div>
+        <div class="form-row"><div class="form-group"><label>${tableLabel} Name</label><input type="text" name="table_name_${idx}" placeholder="e.g. users"></div></div>
+        <div id="columns-${idx}">
+            <div class="form-row" id="col-${idx}-0">
+                <div class="form-group" style="flex:2;"><label>Column Name</label><input type="text" name="col_name_${idx}_0" placeholder="e.g. id"></div>
+                <div class="form-group" style="flex:2;"><label>Data Type</label><select name="col_type_${idx}_0" class="db-select">${getDataTypeOptions(dbType)}</select></div>
+                <div class="form-group" style="flex:1;"><label>Primary Key</label><select name="col_pk_${idx}_0" class="db-select"><option value="no">No</option><option value="yes">Yes</option></select></div>
+                <div class="form-group" style="flex:1;"><label>Not Null</label><select name="col_nn_${idx}_0" class="db-select"><option value="no">No</option><option value="yes">Yes</option></select></div>
+            </div>
+        </div>
+        <button type="button" class="btn" style="font-size:0.75rem; margin-top:6px;" onclick="addColumn(${idx})">+ Add Column</button>
+        <input type="hidden" name="table_col_count_${idx}" id="table-col-count-${idx}" value="1">
+    `;
+    container.appendChild(div);
+    updateTableIndices();
+}
+
+function removeTable(idx) {
+    const el = document.getElementById(`table-${idx}`);
+    if (el) el.remove();
+    updateTableIndices();
+}
+
+function updateTableIndices() {
+    const container = document.getElementById('tables-container');
+    const tables = container.querySelectorAll('.table-def');
+    const indices = [];
+    tables.forEach(t => indices.push(t.id.replace('table-', '')));
+    document.getElementById('table-indices').value = indices.join(',');
+}
+
+let colCounters = {};
+
+function addColumn(tableIdx) {
+    if (!colCounters[tableIdx]) colCounters[tableIdx] = 1;
+    const colIdx = colCounters[tableIdx]++;
+    const dbType = document.getElementById('db-type-select').value;
+    const container = document.getElementById(`columns-${tableIdx}`);
+    const div = document.createElement('div');
+    div.className = 'form-row';
+    div.id = `col-${tableIdx}-${colIdx}`;
+    div.innerHTML = `
+        <div class="form-group" style="flex:2;"><label>Column Name</label><input type="text" name="col_name_${tableIdx}_${colIdx}" placeholder="e.g. name"></div>
+        <div class="form-group" style="flex:2;"><label>Data Type</label><select name="col_type_${tableIdx}_${colIdx}" class="db-select">${getDataTypeOptions(dbType)}</select></div>
+        <div class="form-group" style="flex:1;"><label>Primary Key</label><select name="col_pk_${tableIdx}_${colIdx}" class="db-select"><option value="no">No</option><option value="yes">Yes</option></select></div>
+        <div class="form-group" style="flex:1;"><label>Not Null</label><select name="col_nn_${tableIdx}_${colIdx}" class="db-select"><option value="no">No</option><option value="yes">Yes</option></select></div>
+    `;
+    container.appendChild(div);
+    document.getElementById(`table-col-count-${tableIdx}`).value = colIdx + 1;
+}
+
+function getDataTypeOptions(dbType) {
+    const types = {
+        sqlite: ['INTEGER', 'TEXT', 'REAL', 'BLOB', 'NUMERIC'],
+        mysql: ['INT', 'BIGINT', 'VARCHAR(255)', 'TEXT', 'FLOAT', 'DOUBLE', 'DECIMAL(10,2)', 'DATE', 'DATETIME', 'TIMESTAMP', 'BOOLEAN', 'BLOB'],
+        postgresql: ['INTEGER', 'BIGINT', 'SERIAL', 'VARCHAR(255)', 'TEXT', 'FLOAT', 'NUMERIC(10,2)', 'DATE', 'TIMESTAMP', 'BOOLEAN', 'JSON', 'JSONB', 'UUID', 'BYTEA'],
+        mssql: ['INT', 'BIGINT', 'NVARCHAR(255)', 'NTEXT', 'FLOAT', 'DECIMAL(10,2)', 'DATE', 'DATETIME', 'BIT', 'VARBINARY(MAX)', 'UNIQUEIDENTIFIER'],
+        oracle: ['NUMBER', 'VARCHAR2(255)', 'CLOB', 'DATE', 'TIMESTAMP', 'FLOAT', 'BLOB', 'RAW(16)'],
+        mongodb: ['String', 'Number', 'Boolean', 'Date', 'ObjectId', 'Array', 'Object'],
+        cassandra: ['text', 'int', 'bigint', 'float', 'double', 'boolean', 'timestamp', 'uuid', 'blob', 'list<text>', 'map<text,text>', 'set<text>'],
+        redis: [],
+    };
+    const list = types[dbType] || types.sqlite;
+    return list.map(t => `<option value="${t}">${t}</option>`).join('');
+}
+
+updateCreateFields();
+</script>
+{% endblock %}

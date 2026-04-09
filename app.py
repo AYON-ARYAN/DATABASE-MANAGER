@@ -252,7 +252,7 @@ def index():
                 describe_match = user_cmd[len(prefix):].strip().strip(";").strip('"').strip("'")
                 break
 
-        if describe_match and dialect == "sqlite":
+        if describe_match and hasattr(adapter, 'describe_table'):
             table_name = describe_match
             try:
                 info = adapter.describe_table(table_name)
@@ -278,7 +278,7 @@ def index():
                         rows.append([idx["name"], ", ".join(idx["columns"]),
                                      "UNIQUE" if idx["unique"] else "", "", ""])
 
-                session["last_read_sql"] = f'PRAGMA table_info("{table_name}")'
+                session["last_read_sql"] = f'DESCRIBE "{table_name}"'
                 session["last_query"] = user_cmd
                 session["last_explanation"] = f"Detailed structure of table '{table_name}' including columns, foreign keys, and indexes."
                 session["last_read_columns"] = columns
@@ -287,7 +287,7 @@ def index():
                 return render_template(
                     "index.html", task="SYSTEM", columns=columns, results=rows,
                     page=1, page_size=len(rows), total_rows=len(rows),
-                    sql=f'PRAGMA table_info("{table_name}")',
+                    sql=f'DESCRIBE "{table_name}"',
                     explanation=f"Table '{table_name}': {info['row_count']} rows, {len(info['columns'])} columns, {len(info['foreign_keys'])} foreign keys, {len(info['indexes'])} indexes.",
                     history=session.get("history", []), db_info=db_info,
                     connections=connections, llm_provider=llm_provider,
@@ -304,7 +304,7 @@ def index():
         # --- SHOW FOREIGN KEYS ---
         if cmd_lower in ("show foreign keys", "list foreign keys", "show fk", "show fks",
                           "show relationships", "list relationships", "show refs", "show references"):
-            if dialect == "sqlite" and hasattr(adapter, 'get_foreign_keys'):
+            if hasattr(adapter, 'get_foreign_keys'):
                 fks = adapter.get_foreign_keys()
                 columns = ["From Table", "From Column", "To Table", "To Column"]
                 rows = [[fk["from_table"], fk["from_column"], fk["to_table"], fk["to_column"]] for fk in fks]
@@ -334,20 +334,16 @@ def index():
                 fk_table_match = user_cmd[len(prefix):].strip().strip(";").strip('"').strip("'")
                 break
 
-        if fk_table_match and dialect == "sqlite":
+        if fk_table_match and hasattr(adapter, 'describe_table'):
             table_name = fk_table_match
             try:
-                conn = adapter.get_connection()
-                cur = conn.cursor()
-                cur.execute(f'PRAGMA foreign_key_list("{table_name}");')
-                fk_rows = cur.fetchall()
+                info = adapter.describe_table(table_name)
                 columns = ["From Column", "References Table", "References Column"]
-                rows = [[fk[3], fk[2], fk[4]] for fk in fk_rows]
+                rows = [[fk["from"], fk["to_table"], fk["to_column"]] for fk in info["foreign_keys"]]
                 if not rows:
                     rows = [["No foreign keys found for this table", "", ""]]
-                adapter.disconnect()
 
-                session["last_read_sql"] = f'PRAGMA foreign_key_list("{table_name}")'
+                session["last_read_sql"] = f'-- Foreign keys for {table_name}'
                 session["last_query"] = user_cmd
                 session["last_read_columns"] = columns
                 add_to_history(user_cmd, f"SHOW FK FOR {table_name}", "SYSTEM", "EXECUTED")
@@ -370,7 +366,7 @@ def index():
 
         # --- SHOW INDEXES ---
         if cmd_lower in ("show indexes", "list indexes", "show index", "show indices"):
-            if dialect == "sqlite" and hasattr(adapter, 'get_indexes'):
+            if hasattr(adapter, 'get_indexes'):
                 indexes = adapter.get_indexes()
                 columns = ["Table", "Index Name", "Unique", "Columns"]
                 rows = [[idx["table"], idx["index_name"],
@@ -429,36 +425,11 @@ def index():
 
         # --- SHOW CONSTRAINTS ---
         if cmd_lower in ("show constraints", "list constraints", "show all constraints"):
-            if dialect == "sqlite":
+            if hasattr(adapter, 'get_constraints'):
                 try:
-                    tables = adapter.list_tables()
+                    constraint_list = adapter.get_constraints()
                     columns = ["Table", "Constraint Type", "Details"]
-                    rows = []
-                    conn = adapter.get_connection()
-                    cur = conn.cursor()
-                    for t in tables:
-                        # Primary keys
-                        cur.execute(f'PRAGMA table_info("{t}");')
-                        for col in cur.fetchall():
-                            if col[5]:
-                                rows.append([t, "PRIMARY KEY", col[1]])
-                        # Foreign keys
-                        cur.execute(f'PRAGMA foreign_key_list("{t}");')
-                        for fk in cur.fetchall():
-                            rows.append([t, "FOREIGN KEY", f"{fk[3]} -> {fk[2]}.{fk[4]}"])
-                        # NOT NULL
-                        cur.execute(f'PRAGMA table_info("{t}");')
-                        for col in cur.fetchall():
-                            if col[3]:
-                                rows.append([t, "NOT NULL", col[1]])
-                        # Unique indexes
-                        cur.execute(f'PRAGMA index_list("{t}");')
-                        for idx in cur.fetchall():
-                            if idx[2]:
-                                cur.execute(f'PRAGMA index_info("{idx[1]}");')
-                                idx_cols = [ic[2] for ic in cur.fetchall()]
-                                rows.append([t, "UNIQUE", f"{idx[1]} ({', '.join(idx_cols)})"])
-                    adapter.disconnect()
+                    rows = [[c["table"], c["type"], c["details"]] for c in constraint_list]
 
                     if not rows:
                         rows = [["No constraints found", "", ""]]
@@ -491,16 +462,14 @@ def index():
                 create_table_match = user_cmd[len(prefix):].strip().strip(";").strip('"').strip("'")
                 break
 
-        if create_table_match and dialect == "sqlite":
+        if create_table_match and hasattr(adapter, 'get_create_table'):
             table_name = create_table_match
             try:
-                _, ddl_rows = adapter.execute(
-                    f"SELECT sql FROM sqlite_master WHERE type='table' AND name='{table_name}'"
-                )
+                ddl = adapter.get_create_table(table_name)
                 columns = ["CREATE TABLE Statement"]
-                rows = [[ddl_rows[0][0]]] if ddl_rows and ddl_rows[0][0] else [["Table not found"]]
+                rows = [[ddl]] if ddl else [["Table not found"]]
 
-                session["last_read_sql"] = f"SELECT sql FROM sqlite_master WHERE name='{table_name}'"
+                session["last_read_sql"] = f"-- DDL for {table_name}"
                 session["last_query"] = user_cmd
                 session["last_read_columns"] = columns
                 add_to_history(user_cmd, f"SHOW CREATE TABLE {table_name}", "SYSTEM", "EXECUTED")
@@ -642,7 +611,7 @@ def index():
                             from core.analyzer import ai_ask
                             schema = adapter.get_schema()
                             db_name = session.get("active_db", "Unknown DB")
-                            ai_result = ai_ask(user_cmd, schema, db_name)
+                            ai_result = ai_ask(user_cmd, schema, db_name, dialect=dialect)
                             if "error" not in ai_result:
                                 columns = ["AI Response"]
                                 rows = [[ai_result.get("answer", query)]]
@@ -685,7 +654,7 @@ def index():
                             from core.analyzer import ai_ask
                             schema = adapter.get_schema()
                             db_name = session.get("active_db", "Unknown DB")
-                            ai_result = ai_ask(user_cmd, schema, db_name)
+                            ai_result = ai_ask(user_cmd, schema, db_name, dialect=dialect)
                             if "error" not in ai_result:
                                 add_to_history(user_cmd, "AI_ASK (fallback)", "READ", "EXECUTED")
                                 return render_template(
@@ -848,8 +817,8 @@ def export_csv():
 # ---------------------------------------------------
 @app.route("/dry-run", methods=["POST"])
 def dry_run_route():
-    data = request.json or {}
-    query = data.get("sql") or session.get("last_sql")
+    data = request.json if request.is_json else {}
+    query = data.get("sql") or request.form.get("sql") or session.get("last_sql")
     
     if not query:
         return jsonify({"success": False, "status": "No query provided"})
@@ -1169,7 +1138,6 @@ RULES:
 
     # Create dashboard and add widgets
     dash = create_dashboard(dash_name)
-    added = 0
     for w in widgets:
         if w.get("query"):
             add_widget(
@@ -1179,9 +1147,9 @@ RULES:
                 w.get("chart_type", "table"),
                 active_db
             )
-            added += 1
 
-    dash["widget_count"] = added
+    # Re-fetch dashboard to include all added widgets
+    dash = get_dashboard(dash["id"])
     return jsonify(dash)
 
 
@@ -1491,6 +1459,342 @@ def select_db():
 
 
 # ---------------------------------------------------
+# Create Database
+# ---------------------------------------------------
+
+@app.route("/create-database")
+def create_database_page():
+    if not session.get("username"):
+        return redirect(url_for("login"))
+    return render_template(
+        "create_database.html",
+        db_types=DB_TYPES,
+        db_display_names=DB_DISPLAY_NAMES,
+        db_fields=DB_CONNECTION_FIELDS,
+        message=session.pop("message", None),
+        error=session.pop("error", None),
+    )
+
+
+@app.route("/create-database", methods=["POST"])
+def create_database():
+    if not session.get("username"):
+        return redirect(url_for("login"))
+
+    db_name = request.form.get("db_name", "").strip()
+    db_type = request.form.get("db_type", "sqlite")
+
+    if not db_name:
+        session["error"] = "Database name is required."
+        return redirect(url_for("create_database_page"))
+
+    # ---- Parse tables from form ----
+    table_indices_str = request.form.get("table_indices", "")
+    table_indices = [i.strip() for i in table_indices_str.split(",") if i.strip()]
+
+    tables = []
+    for idx in table_indices:
+        tname = request.form.get(f"table_name_{idx}", "").strip()
+        if not tname:
+            continue
+        col_count = int(request.form.get(f"table_col_count_{idx}", "1"))
+        columns = []
+        for c in range(col_count):
+            col_name = request.form.get(f"col_name_{idx}_{c}", "").strip()
+            col_type = request.form.get(f"col_type_{idx}_{c}", "TEXT")
+            col_pk = request.form.get(f"col_pk_{idx}_{c}", "no") == "yes"
+            col_nn = request.form.get(f"col_nn_{idx}_{c}", "no") == "yes"
+            if col_name:
+                columns.append({
+                    "name": col_name,
+                    "type": col_type,
+                    "pk": col_pk,
+                    "not_null": col_nn,
+                })
+        tables.append({"name": tname, "columns": columns})
+
+    try:
+        if db_type == "sqlite":
+            _create_sqlite_db(db_name, request.form.get("sqlite_path", "db/"), tables)
+        elif db_type == "mysql":
+            _create_mysql_db(db_name, request.form, tables)
+        elif db_type == "postgresql":
+            _create_postgres_db(db_name, request.form, tables)
+        elif db_type == "mssql":
+            _create_mssql_db(db_name, request.form, tables)
+        elif db_type == "oracle":
+            _create_oracle_db(db_name, request.form, tables)
+        elif db_type == "mongodb":
+            _create_mongo_db(db_name, request.form, tables)
+        elif db_type == "cassandra":
+            _create_cassandra_db(db_name, request.form, tables)
+        elif db_type == "redis":
+            _create_redis_db(db_name, request.form)
+        else:
+            session["error"] = f"Unsupported database type: {db_type}"
+            return redirect(url_for("create_database_page"))
+
+        session["message"] = f"Database '{db_name}' created and registered as a connection!"
+        session["active_db"] = db_name
+    except Exception as e:
+        session["error"] = f"Failed to create database: {str(e)}"
+
+    return redirect(url_for("create_database_page"))
+
+
+# ---- Database creation helpers ----
+
+def _build_sql_columns(columns, dialect="sqlite"):
+    """Build column definitions for CREATE TABLE."""
+    parts = []
+    pks = []
+    for col in columns:
+        defn = f'"{col["name"]}" {col["type"]}'
+        if col.get("not_null"):
+            defn += " NOT NULL"
+        if col.get("pk"):
+            pks.append(col["name"])
+        parts.append(defn)
+    if pks:
+        pk_names = ", ".join(f'"{p}"' for p in pks)
+        parts.append(f"PRIMARY KEY ({pk_names})")
+    return ", ".join(parts)
+
+
+def _create_sqlite_db(db_name, path_prefix, tables):
+    import sqlite3 as _sqlite3
+    path_prefix = path_prefix.strip() if path_prefix else "db/"
+    if not path_prefix.endswith("/"):
+        path_prefix += "/"
+    os.makedirs(path_prefix, exist_ok=True)
+    db_path = f"{path_prefix}{db_name}.db"
+
+    conn = _sqlite3.connect(db_path)
+    try:
+        for tbl in tables:
+            if tbl["columns"]:
+                cols = _build_sql_columns(tbl["columns"], "sqlite")
+                conn.execute(f'CREATE TABLE IF NOT EXISTS "{tbl["name"]}" ({cols})')
+        conn.commit()
+    finally:
+        conn.close()
+
+    # Register as connection
+    add_connection(db_name, "sqlite", {"db_path": db_path})
+
+
+def _create_mysql_db(db_name, form, tables):
+    import pymysql
+    host = form.get("host", "localhost")
+    port = int(form.get("port", 3306) or 3306)
+    user = form.get("username", "root")
+    pwd = form.get("password", "")
+
+    conn = pymysql.connect(host=host, port=port, user=user, password=pwd)
+    try:
+        with conn.cursor() as cur:
+            cur.execute(f"CREATE DATABASE IF NOT EXISTS `{db_name}`")
+            cur.execute(f"USE `{db_name}`")
+            for tbl in tables:
+                if tbl["columns"]:
+                    cols = _build_sql_columns(tbl["columns"], "mysql")
+                    cur.execute(f'CREATE TABLE IF NOT EXISTS `{tbl["name"]}` ({cols})')
+        conn.commit()
+    finally:
+        conn.close()
+
+    add_connection(db_name, "mysql", {
+        "host": host, "port": str(port), "username": user,
+        "password": pwd, "database": db_name,
+    })
+
+
+def _create_postgres_db(db_name, form, tables):
+    import psycopg2
+    from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
+    host = form.get("host", "localhost")
+    port = int(form.get("port", 5432) or 5432)
+    user = form.get("username", "postgres")
+    pwd = form.get("password", "")
+
+    # Create the database (requires autocommit)
+    conn = psycopg2.connect(host=host, port=port, user=user, password=pwd, dbname="postgres")
+    conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
+    try:
+        with conn.cursor() as cur:
+            cur.execute(f'SELECT 1 FROM pg_database WHERE datname = %s', (db_name,))
+            if not cur.fetchone():
+                cur.execute(f'CREATE DATABASE "{db_name}"')
+    finally:
+        conn.close()
+
+    # Create tables in the new database
+    if tables:
+        conn = psycopg2.connect(host=host, port=port, user=user, password=pwd, dbname=db_name)
+        try:
+            with conn.cursor() as cur:
+                for tbl in tables:
+                    if tbl["columns"]:
+                        cols = _build_sql_columns(tbl["columns"], "postgresql")
+                        cur.execute(f'CREATE TABLE IF NOT EXISTS "{tbl["name"]}" ({cols})')
+            conn.commit()
+        finally:
+            conn.close()
+
+    add_connection(db_name, "postgresql", {
+        "host": host, "port": str(port), "username": user,
+        "password": pwd, "database": db_name,
+    })
+
+
+def _create_mssql_db(db_name, form, tables):
+    import pymssql
+    host = form.get("host", "localhost")
+    port = form.get("port", "1433")
+    user = form.get("username", "sa")
+    pwd = form.get("password", "")
+
+    conn = pymssql.connect(server=host, port=port, user=user, password=pwd)
+    try:
+        conn.autocommit(True)
+        with conn.cursor() as cur:
+            cur.execute(f"IF DB_ID('{db_name}') IS NULL CREATE DATABASE [{db_name}]")
+        conn.autocommit(False)
+    finally:
+        conn.close()
+
+    if tables:
+        conn = pymssql.connect(server=host, port=port, user=user, password=pwd, database=db_name)
+        try:
+            with conn.cursor() as cur:
+                for tbl in tables:
+                    if tbl["columns"]:
+                        cols = _build_sql_columns(tbl["columns"], "mssql")
+                        cur.execute(f'IF OBJECT_ID(\'{tbl["name"]}\', \'U\') IS NULL CREATE TABLE [{tbl["name"]}] ({cols})')
+            conn.commit()
+        finally:
+            conn.close()
+
+    add_connection(db_name, "mssql", {
+        "host": host, "port": port, "username": user,
+        "password": pwd, "database": db_name,
+    })
+
+
+def _create_oracle_db(db_name, form, tables):
+    import cx_Oracle
+    host = form.get("host", "localhost")
+    port = form.get("port", "1521")
+    user = form.get("username", "system")
+    pwd = form.get("password", "")
+    service = form.get("service_name", "XEPDB1")
+
+    dsn = cx_Oracle.makedsn(host, int(port), service_name=service)
+    conn = cx_Oracle.connect(user=user, password=pwd, dsn=dsn)
+    try:
+        with conn.cursor() as cur:
+            for tbl in tables:
+                if tbl["columns"]:
+                    cols = _build_sql_columns(tbl["columns"], "oracle")
+                    cur.execute(f'CREATE TABLE "{tbl["name"]}" ({cols})')
+        conn.commit()
+    finally:
+        conn.close()
+
+    add_connection(db_name, "oracle", {
+        "host": host, "port": port, "username": user,
+        "password": pwd, "service_name": service,
+    })
+
+
+def _create_mongo_db(db_name, form, tables):
+    from pymongo import MongoClient
+    host = form.get("host", "localhost")
+    port = int(form.get("port", 27017) or 27017)
+    user = form.get("username", "")
+    pwd = form.get("password", "")
+
+    if user and pwd:
+        client = MongoClient(host=host, port=port, username=user, password=pwd)
+    else:
+        client = MongoClient(host=host, port=port)
+
+    try:
+        db = client[db_name]
+        if tables:
+            for tbl in tables:
+                # MongoDB creates collections on first insert
+                # Insert a schema-hint document then remove it, or just create the collection
+                db.create_collection(tbl["name"])
+        else:
+            # Create at least one collection so the DB actually persists
+            db.create_collection("_init")
+    finally:
+        client.close()
+
+    config = {"host": host, "port": str(port), "database": db_name,
+              "username": user, "password": pwd}
+    add_connection(db_name, "mongodb", config)
+
+
+def _create_cassandra_db(db_name, form, tables):
+    from cassandra.cluster import Cluster
+    from cassandra.auth import PlainTextAuthProvider
+    host = form.get("host", "127.0.0.1")
+    port = int(form.get("port", 9042) or 9042)
+    user = form.get("username", "")
+    pwd = form.get("password", "")
+
+    auth = PlainTextAuthProvider(username=user, password=pwd) if user else None
+    cluster = Cluster([host], port=port, auth_provider=auth)
+    sess = cluster.connect()
+
+    try:
+        sess.execute(
+            f"CREATE KEYSPACE IF NOT EXISTS {db_name} "
+            f"WITH replication = {{'class': 'SimpleStrategy', 'replication_factor': 1}}"
+        )
+        sess.set_keyspace(db_name)
+        for tbl in tables:
+            if tbl["columns"]:
+                col_parts = []
+                pks = []
+                for col in tbl["columns"]:
+                    col_parts.append(f'"{col["name"]}" {col["type"]}')
+                    if col.get("pk"):
+                        pks.append(f'"{col["name"]}"')
+                cols_str = ", ".join(col_parts)
+                pk_str = ", ".join(pks) if pks else f'"{tbl["columns"][0]["name"]}"'
+                sess.execute(
+                    f'CREATE TABLE IF NOT EXISTS "{tbl["name"]}" ({cols_str}, PRIMARY KEY ({pk_str}))'
+                )
+    finally:
+        cluster.shutdown()
+
+    config = {"host": host, "port": str(port), "keyspace": db_name,
+              "username": user, "password": pwd}
+    add_connection(db_name, "cassandra", config)
+
+
+def _create_redis_db(db_name, form):
+    import redis as _redis
+    host = form.get("host", "localhost")
+    port = int(form.get("port", 6379) or 6379)
+    pwd = form.get("password", "")
+    db_number = form.get("db_number", "0") or "0"
+
+    # Test connectivity
+    r = _redis.Redis(host=host, port=port, password=pwd or None, db=int(db_number))
+    r.ping()
+    r.close()
+
+    add_connection(db_name, "redis", {
+        "host": host, "port": str(port),
+        "password": pwd, "db_number": db_number,
+    })
+
+
+# ---------------------------------------------------
 # Data Analysis & Chart Generation (Groq)
 # ---------------------------------------------------
 
@@ -1673,6 +1977,40 @@ def api_table_preview():
 
 
 # ---------------------------------------------------
+# Full Database Analysis (Background Job)
+# ---------------------------------------------------
+@app.route("/api/analyze-full", methods=["POST"])
+def analyze_full():
+    """Start a full database analysis pipeline in the background."""
+    if not analysis_enabled:
+        return jsonify({"error": "Groq API not configured. Set GROQ_API_KEY in .env."})
+
+    connection_name = session.get("active_db", "Default SQLite")
+    try:
+        adapter = get_active_adapter()
+        dialect = getattr(adapter, "dialect", "sqlite")
+    except Exception as e:
+        return jsonify({"error": f"Cannot connect to database: {str(e)}"})
+
+    from core.analyzer import start_full_analysis
+    job_id = start_full_analysis(connection_name, dialect)
+    return jsonify({"job_id": job_id})
+
+
+@app.route("/api/analyze-full/status/<job_id>", methods=["GET"])
+def analyze_full_status(job_id):
+    """Poll the status of a full analysis job."""
+    from core.analyzer import get_job_status
+    status = get_job_status(job_id)
+
+    # If complete, store in session for PPT export
+    if status.get("status") == "complete" and status.get("result"):
+        session["last_analysis"] = status["result"]
+
+    return jsonify(status)
+
+
+# ---------------------------------------------------
 # AI Ask (General Q&A with full DB context)
 # ---------------------------------------------------
 @app.route("/api/ask", methods=["POST"])
@@ -1687,6 +2025,7 @@ def ai_ask_endpoint():
     try:
         adapter = get_active_adapter()
         schema = adapter.get_schema()
+        dialect = adapter.dialect
         db_name = session.get("active_db", "Unknown DB")
 
         # Get table stats for context
@@ -1702,8 +2041,17 @@ def ai_ask_endpoint():
         except Exception:
             pass
 
+        # Get FK relationships for context
+        fk_info = []
+        if hasattr(adapter, 'get_foreign_keys'):
+            try:
+                fk_info = adapter.get_foreign_keys()
+            except Exception:
+                pass
+
         from core.analyzer import ai_ask
-        result = ai_ask(question, schema, db_name, table_stats)
+        result = ai_ask(question, schema, db_name, table_stats,
+                        dialect=dialect, fk_info=fk_info)
         return jsonify(result)
     except Exception as e:
         return jsonify({"error": str(e)})
@@ -1724,10 +2072,46 @@ def overview_page():
     )
 
 
+@app.route("/api/er-diagram", methods=["POST"])
+def api_er_diagram():
+    """Returns table structures and foreign key relationships for ER diagram rendering."""
+    adapter = get_active_adapter()
+    tables_data = []
+    try:
+        tables = adapter.list_tables()
+        for t in tables:
+            try:
+                info = adapter.describe_table(t)
+                columns = []
+                for c in info.get("columns", []):
+                    columns.append({
+                        "name": c["name"],
+                        "type": c.get("type", ""),
+                        "pk": c.get("primary_key", False),
+                        "not_null": c.get("not_null", False),
+                    })
+                tables_data.append({
+                    "name": t,
+                    "columns": columns,
+                    "row_count": info.get("row_count", 0),
+                })
+            except Exception:
+                tables_data.append({"name": t, "columns": [], "row_count": 0})
+
+        fks = []
+        if hasattr(adapter, 'get_foreign_keys'):
+            fks = adapter.get_foreign_keys()
+
+        return jsonify({"success": True, "tables": tables_data, "foreign_keys": fks})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 @app.route("/api/overview", methods=["POST"])
 def api_overview():
     """Generates a full database overview with AI-powered analysis."""
     adapter = get_active_adapter()
+    dialect = adapter.dialect
     db_name = session.get("active_db", "Unknown DB")
 
     # Collect table stats
@@ -1751,20 +2135,31 @@ def api_overview():
         except Exception:
             pass
 
+    # Build FK relationship map for the response
+    fk_relationship_map = [
+        {"from": fk["from_table"], "to": fk["to_table"], "via": fk["from_column"]}
+        for fk in fk_list
+    ]
+
     # If Groq is available, get AI analysis
     if analysis_enabled:
         try:
             schema = adapter.get_schema()
             from core.analyzer import get_table_overview
-            ai_result = get_table_overview(schema, db_name, table_stats)
+            ai_result = get_table_overview(schema, db_name, table_stats, dialect=dialect)
             if "error" not in ai_result:
-                # Merge FK data in case AI didn't capture all
-                if not ai_result.get("relationship_map") and fk_list:
-                    ai_result["relationship_map"] = [
-                        {"from": fk["from_table"], "to": fk["to_table"], "via": fk["from_column"]}
-                        for fk in fk_list
-                    ]
+                # Always merge real FK data — AI may miss some
+                if fk_relationship_map:
+                    ai_fks = ai_result.get("relationship_map", [])
+                    # Use real FK data as the source of truth, keep any AI extras
+                    existing = {(r["from"], r["to"], r["via"]) for r in fk_relationship_map}
+                    for ai_fk in ai_fks:
+                        key = (ai_fk.get("from", ""), ai_fk.get("to", ""), ai_fk.get("via", ""))
+                        if key not in existing:
+                            fk_relationship_map.append(ai_fk)
+                    ai_result["relationship_map"] = fk_relationship_map
                 return jsonify(ai_result)
+            # AI returned an error — fall through to raw stats
         except Exception:
             pass
 
@@ -1782,10 +2177,7 @@ def api_overview():
             "labels": [ts["table"] for ts in sorted(table_stats, key=lambda x: x["rows"] if isinstance(x["rows"], int) else 0, reverse=True)],
             "data": [ts["rows"] for ts in sorted(table_stats, key=lambda x: x["rows"] if isinstance(x["rows"], int) else 0, reverse=True)],
         },
-        "relationship_map": [
-            {"from": fk["from_table"], "to": fk["to_table"], "via": fk["from_column"]}
-            for fk in fk_list
-        ],
+        "relationship_map": fk_relationship_map,
         "suggested_queries": [],
     })
 

@@ -41,6 +41,7 @@ IMPORTANT RULES:
 - For "show indexes", use PRAGMA index_list
 - When asked to join tables, ALWAYS use the correct FK relationships shown in the schema
 - Support common DBMS teaching queries: aggregates (COUNT, SUM, AVG, MIN, MAX), GROUP BY, HAVING, DISTINCT, subqueries, UNION, CASE WHEN, window functions, CTEs
+- When a column value is empty or blank in user input, use IS NULL in WHERE clauses (not = '')
 """,
 
     "mysql": """
@@ -59,6 +60,7 @@ IMPORTANT RULES:
 - No markdown, no explanation, no code fences
 - Pay close attention to FOREIGN KEYS to write accurate JOINs
 - Support common DBMS teaching queries: aggregates, GROUP BY, HAVING, DISTINCT, subqueries, UNION, CASE WHEN, window functions, CTEs
+- When a column value is empty or blank in user input, use IS NULL in WHERE clauses (not = '')
 """,
 
     "postgresql": """
@@ -77,6 +79,7 @@ IMPORTANT RULES:
 - No markdown, no explanation, no code fences
 - Pay close attention to FOREIGN KEYS to write accurate JOINs
 - Support common DBMS teaching queries: aggregates, GROUP BY, HAVING, DISTINCT, subqueries, UNION, CASE WHEN, window functions, CTEs
+- When a column value is empty or blank in user input, use IS NULL in WHERE clauses (not = '')
 """,
 
     "mssql": """
@@ -91,6 +94,7 @@ IMPORTANT RULES:
 - Use [] for identifiers with spaces
 - DO NOT generate sp_tables or sys.tables queries
 - For SELECT queries: always include TOP 50 unless user specifies otherwise
+- When a column value is empty or blank in user input, use IS NULL in WHERE clauses (not = '')
 - No markdown, no explanation, no code fences
 """,
 
@@ -105,6 +109,7 @@ IMPORTANT RULES:
 - Use FETCH FIRST N ROWS ONLY for limiting (Oracle 12c+)
 - DO NOT generate USER_TABLES or ALL_TABLES queries
 - For SELECT queries: always include FETCH FIRST 50 ROWS ONLY unless user specifies otherwise
+- When a column value is empty or blank in user input, use IS NULL in WHERE clauses (not = '')
 - No markdown, no explanation, no code fences
 """,
 

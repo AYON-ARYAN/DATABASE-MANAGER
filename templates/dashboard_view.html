@@ -1,128 +1,56 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>{{ dashboard.name }} - Meridian</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <style>
-        .dv-page { max-width: 1400px; margin: 0 auto; padding: calc(var(--nav-h) + 24px) 24px 60px; }
-        .dv-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; gap: 16px; flex-wrap: wrap; }
-        .dv-header h1 { font-size: 1.3rem; margin-top: 4px; }
-        .dv-back { font-size: 0.78rem; color: var(--text-dim); }
-        .dv-back:hover { color: var(--blue); }
-        .dv-actions { display: flex; gap: 8px; flex-shrink: 0; flex-wrap: wrap; }
-        .dv-actions button, .dv-actions a { margin: 0; padding: 7px 14px; font-size: 0.78rem; white-space: nowrap; }
+{% extends "layouts/page.html" %}
 
-        .widget-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap: 16px; }
-        @media (max-width: 500px) { .widget-grid { grid-template-columns: 1fr; } }
+{% block title %}{{ dashboard.name }} - Meridian{% endblock %}
+{% block nav_dashboards %}active{% endblock %}
+{% block page_class %}page--wide{% endblock %}
 
-        .widget { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg); padding: 16px; min-height: 340px; display: flex; flex-direction: column; transition: border-color var(--transition); }
-        .widget:hover { border-color: var(--border-hover); }
-        .widget-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-        .widget-head h3 { font-size: 0.85rem; margin: 0; }
-        .widget-head small { font-size: 0.65rem; color: var(--text-dim); }
-        .widget-del { background: none; border: none; color: var(--text-dim); cursor: pointer; padding: 4px 8px; border-radius: var(--r-sm); font-size: 0.85rem; }
-        .widget-del:hover { color: var(--red); background: var(--red-dim); }
-        .widget-body { flex: 1; background: rgba(0,0,0,0.12); border-radius: var(--r-md); overflow: auto; position: relative; min-height: 240px; }
-        .widget-body canvas { padding: 8px; }
-        .widget-loading { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--text-dim); font-size: 0.8rem; }
-        .widget-error { padding: 20px; color: var(--red); font-size: 0.8rem; }
+{% block head_extra %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{% endblock %}
 
-        .widget-table { width: 100%; border-collapse: collapse; font-size: 0.75rem; }
-        .widget-table th { text-align: left; padding: 8px 10px; font-size: 0.6rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-dim); background: var(--surface); border-bottom: 1px solid var(--border); position: sticky; top: 0; }
-        .widget-table td { padding: 7px 10px; border-bottom: 1px solid var(--border); color: var(--text-sec); }
-        .widget-table tbody tr:hover { background: var(--surface); }
-
-        .empty-state { text-align: center; padding: 80px 20px; border: 2px dashed var(--border); border-radius: var(--r-lg); color: var(--text-dim); }
-
-        .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 200; align-items: center; justify-content: center; padding: 20px; }
-        .modal-box { background: var(--bg-subtle); border: 1px solid var(--border); border-radius: var(--r-xl); padding: 28px; width: 100%; max-width: 520px; max-height: 90vh; overflow-y: auto; }
-        .modal-box h2 { font-size: 1.1rem; margin-bottom: 16px; }
-        .modal-label { display: block; margin-bottom: 5px; margin-top: 14px; font-size: 0.68rem; color: var(--text-dim); text-transform: uppercase; font-weight: 600; letter-spacing: 0.05em; }
-        .modal-btns { display: flex; gap: 10px; margin-top: 20px; }
-        .modal-btns button { flex: 1; margin: 0; }
-
-        .table-pick-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 6px; margin-top: 8px; max-height: 160px; overflow-y: auto; }
-        .table-pick { padding: 8px 10px; border-radius: var(--r-sm); background: var(--surface); border: 1px solid var(--border); cursor: pointer; font-size: 0.75rem; transition: all var(--transition); }
-        .table-pick:hover { border-color: var(--border-hover); background: var(--surface-2); }
-        .table-pick.selected { border-color: rgba(59,130,246,0.4); background: var(--blue-dim); color: var(--blue); }
-        .table-pick .tp-name { font-weight: 600; }
-        .table-pick .tp-rows { font-size: 0.6rem; color: var(--text-dim); }
-
-        .or-divider { text-align: center; color: var(--text-dim); font-size: 0.7rem; margin: 12px 0; position: relative; }
-        .or-divider::before, .or-divider::after { content: ''; position: absolute; top: 50%; width: calc(50% - 20px); height: 1px; background: var(--border); }
-        .or-divider::before { left: 0; }
-        .or-divider::after { right: 0; }
-    </style>
-</head>
-<body>
-
-<nav class="global-nav">
-    <div class="nav-brand">Meridian</div>
-    <div class="nav-links">
-        <a href="/" class="nav-link">Query</a>
-        <a href="/overview" class="nav-link">Overview</a>
-        <a href="/analysis" class="nav-link">Analysis</a>
-        <a href="/databases" class="nav-link">Databases</a>
-        <a href="/dashboards" class="nav-link active">Dashboards</a>
-        <a href="/command-guide" class="nav-link">Guide</a>
-        {% if session.role == 'ADMIN' %}
-        <a href="/admin" class="nav-link">Admin</a>
-        {% endif %}
+{% block content %}
+<div class="dv-header">
+    <div>
+        <a href="/dashboards" class="dv-back">&larr; All Dashboards</a>
+        <h1>{{ dashboard.name }}</h1>
     </div>
-    <div class="user-info">
-        <span class="user-name">{{ session.username }}</span>
-        <span class="role-badge">{{ session.role }}</span>
-        <a href="/logout" class="logout-link">Logout</a>
+    <div class="dv-actions">
+        <a href="/export/ppt" class="secondary link-btn">Export PPT</a>
+        <button onclick="showAddModal()" class="btn-primary">+ Add Widget</button>
     </div>
-</nav>
-
-<div class="dv-page">
-    <div class="dv-header">
-        <div>
-            <a href="/dashboards" class="dv-back">&larr; All Dashboards</a>
-            <h1>{{ dashboard.name }}</h1>
-        </div>
-        <div class="dv-actions">
-            <a href="/export/ppt" class="secondary link-btn">Export PPT</a>
-            <button onclick="showAddModal()" class="btn-primary">+ Add Widget</button>
-        </div>
-    </div>
-
-    <script>const dashboardId = {{ dashboard.id|tojson|safe }};</script>
-
-    {% if not dashboard.widgets %}
-    <div class="empty-state">
-        <div style="font-size:1.2rem; font-weight:600; margin-bottom:8px;">No widgets yet</div>
-        <p style="margin-bottom:16px;">Add your first chart or table to this dashboard.</p>
-        <button onclick="showAddModal()" class="btn-primary" style="margin:0; width:auto; padding:10px 24px;">+ Add Widget</button>
-    </div>
-    {% else %}
-    <div class="widget-grid">
-        {% for w in dashboard.widgets %}
-        <div class="widget" id="widget-{{ w.id }}">
-            <div class="widget-head">
-                <div>
-                    <h3>{{ w.title }}</h3>
-                    <small>{{ w.db_name }} &middot; {{ w.chart_type }}</small>
-                </div>
-                <button class="widget-del" onclick="removeWidget('{{ w.id }}')" title="Remove">&times;</button>
-            </div>
-            <div class="widget-body" id="body-{{ w.id }}">
-                <div class="widget-loading">Loading...</div>
-            </div>
-        </div>
-        {% endfor %}
-    </div>
-    {% endif %}
 </div>
 
-<!-- ADD WIDGET MODAL -->
+<script>const dashboardId = {{ dashboard.id|tojson|safe }};</script>
+
+{% if not dashboard.widgets %}
+<div class="empty-state">
+    <div style="font-size:1.2rem; font-weight:600; margin-bottom:8px;">No widgets yet</div>
+    <p style="margin-bottom:16px;">Add your first chart or table to this dashboard.</p>
+    <button onclick="showAddModal()" class="btn-primary" style="margin:0; width:auto; padding:10px 24px;">+ Add Widget</button>
+</div>
+{% else %}
+<div class="widget-grid">
+    {% for w in dashboard.widgets %}
+    <div class="widget" id="widget-{{ w.id }}">
+        <div class="widget-head">
+            <div>
+                <h3>{{ w.title }}</h3>
+                <small>{{ w.db_name }} &middot; {{ w.chart_type }}</small>
+            </div>
+            <button class="widget-del" onclick="removeWidget('{{ w.id }}')" title="Remove">&times;</button>
+        </div>
+        <div class="widget-body" id="body-{{ w.id }}">
+            <div class="widget-loading">Loading...</div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<!-- Add Widget Modal -->
 <div class="modal-overlay" id="add-modal">
-    <div class="modal-box">
-        <h2>Add Widget</h2>
+    <div class="modal-box" style="max-width:520px; max-height:90vh; overflow-y:auto;">
+        <h2 style="font-size:1.1rem; margin-bottom:16px;">Add Widget</h2>
 
         <label class="modal-label">Widget Title</label>
         <input type="text" id="w-title" placeholder="e.g. Revenue by Category">
@@ -151,13 +79,21 @@
         </div>
     </div>
 </div>
+{% endblock %}
 
+{% block scripts %}
 <script>
 function showAddModal() {
-    document.getElementById('add-modal').style.display = 'flex';
+    const m = document.getElementById('add-modal');
+    m.style.display = 'flex';
+    requestAnimationFrame(() => m.classList.add('visible'));
     loadTablePicks();
 }
-function hideAddModal() { document.getElementById('add-modal').style.display = 'none'; }
+function hideAddModal() {
+    const m = document.getElementById('add-modal');
+    m.classList.remove('visible');
+    setTimeout(() => m.style.display = 'none', 200);
+}
 
 let selectedPickTable = null;
 
@@ -180,15 +116,8 @@ function pickTable(name, el) {
     document.querySelectorAll('.table-pick').forEach(p => p.classList.remove('selected'));
     el.classList.add('selected');
     selectedPickTable = name;
-
-    // Auto-fill query based on chart type
     const chartType = document.getElementById('w-type').value;
-    if (chartType === 'table') {
-        document.getElementById('w-query').value = `SELECT * FROM "${name}" LIMIT 50`;
-    } else {
-        // Try to generate a useful aggregation query
-        document.getElementById('w-query').value = `SELECT * FROM "${name}" LIMIT 50`;
-    }
+    document.getElementById('w-query').value = `SELECT * FROM "${name}" LIMIT 50`;
     if (!document.getElementById('w-title').value) {
         document.getElementById('w-title').value = name;
     }
@@ -198,12 +127,7 @@ async function saveWidget() {
     const title = document.getElementById('w-title').value.trim();
     const query = document.getElementById('w-query').value.trim();
     const chartType = document.getElementById('w-type').value;
-
-    if (!title || !query) {
-        alert('Title and query are required.');
-        return;
-    }
-
+    if (!title || !query) { alert('Title and query are required.'); return; }
     const res = await fetch(`/api/dashboards/${dashboardId}/widgets`, {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
@@ -219,14 +143,13 @@ async function removeWidget(id) {
     if (res.ok) document.getElementById('widget-' + id).remove();
 }
 
-// --- Load all widgets ---
+// Load all widgets
 {% for w in dashboard.widgets %}
 (async function() {
     const target = document.getElementById('body-{{ w.id }}');
     const chartType = "{{ w.chart_type }}";
     const query = {{ w.query|tojson|safe }};
     const dbName = "{{ w.db_name }}";
-
     try {
         const res = await fetch('/api/query', {
             method: 'POST',
@@ -234,24 +157,11 @@ async function removeWidget(id) {
             body: JSON.stringify({ query, db_name: dbName })
         });
         const data = await res.json();
-
-        if (!data.success) {
-            target.innerHTML = '<div class="widget-error">Error: ' + data.error + '</div>';
-            return;
-        }
-        if (!data.rows || data.rows.length === 0) {
-            target.innerHTML = '<div class="widget-loading">No data returned</div>';
-            return;
-        }
-
-        if (chartType === 'table') {
-            renderTable(target, data.columns, data.rows);
-        } else {
-            renderChart(target, "{{ w.id }}", chartType, data.columns, data.rows, "{{ w.title }}");
-        }
-    } catch(e) {
-        target.innerHTML = '<div class="widget-error">Request failed</div>';
-    }
+        if (!data.success) { target.innerHTML = '<div class="widget-error">Error: ' + data.error + '</div>'; return; }
+        if (!data.rows || data.rows.length === 0) { target.innerHTML = '<div class="widget-loading">No data returned</div>'; return; }
+        if (chartType === 'table') renderTable(target, data.columns, data.rows);
+        else renderChart(target, "{{ w.id }}", chartType, data.columns, data.rows, "{{ w.title }}");
+    } catch(e) { target.innerHTML = '<div class="widget-error">Request failed</div>'; }
 })();
 {% endfor %}
 
@@ -259,48 +169,30 @@ function renderTable(el, cols, rows) {
     let h = '<table class="widget-table"><thead><tr>';
     cols.forEach(c => h += '<th>' + c + '</th>');
     h += '</tr></thead><tbody>';
-    rows.forEach(r => {
-        h += '<tr>';
-        r.forEach(c => h += '<td>' + (c !== null ? c : '') + '</td>');
-        h += '</tr>';
-    });
+    rows.forEach(r => { h += '<tr>'; r.forEach(c => h += '<td>' + (c !== null ? c : '') + '</td>'); h += '</tr>'; });
     h += '</tbody></table>';
     el.innerHTML = h;
 }
 
 function renderChart(el, id, type, cols, rows, title) {
     const labels = rows.map(r => String(r[0]));
-    const values = rows.map(r => {
-        const v = parseFloat(r[1]);
-        return isNaN(v) ? 0 : v;
-    });
-
+    const values = rows.map(r => { const v = parseFloat(r[1]); return isNaN(v) ? 0 : v; });
     el.innerHTML = '<canvas id="c-' + id + '"></canvas>';
     const ctx = document.getElementById('c-' + id).getContext('2d');
     const palette = ['#3b82f6','#8b5cf6','#22c55e','#f59e0b','#ef4444','#06b6d4','#ec4899','#14b8a6','#f97316','#6366f1'];
     const isPie = type === 'pie' || type === 'doughnut';
-
     new Chart(ctx, {
         type: type,
         data: {
             labels: labels,
-            datasets: [{
-                label: title,
-                data: values,
+            datasets: [{ label: title, data: values,
                 backgroundColor: isPie ? labels.map((_, i) => palette[i % palette.length]) : palette[0] + '60',
                 borderColor: isPie ? 'rgba(0,0,0,0.15)' : palette[0],
-                borderWidth: isPie ? 1 : 2,
-                borderRadius: type === 'bar' ? 4 : 0,
-                tension: 0.3
-            }]
+                borderWidth: isPie ? 1 : 2, borderRadius: type === 'bar' ? 4 : 0, tension: 0.3 }]
         },
         options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: { display: isPie, position: 'bottom', labels: { color: '#a1a1aa', font: { size: 10 }, padding: 12, usePointStyle: true } },
-                title: { display: false }
-            },
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { display: isPie, position: 'bottom', labels: { color: '#a1a1aa', font: { size: 10 }, padding: 12, usePointStyle: true } }, title: { display: false } },
             scales: isPie ? {} : {
                 y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#71717a', font: { size: 10 } } },
                 x: { grid: { display: false }, ticks: { color: '#71717a', font: { size: 10 }, maxRotation: 45 } }
@@ -309,9 +201,6 @@ function renderChart(el, id, type, cols, rows, title) {
     });
 }
 
-// Close modal on escape
 document.addEventListener('keydown', e => { if (e.key === 'Escape') hideAddModal(); });
 </script>
-
-</body>
-</html>
+{% endblock %}

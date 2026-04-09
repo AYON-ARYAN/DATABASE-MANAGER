@@ -529,5 +529,185 @@
     "prompt_tokens": 302,
     "completion_tokens": 3,
     "total_tokens": 305
+  },
+  {
+    "timestamp": "2026-04-07T10:43:35.664111",
+    "provider": "groq",
+    "model": "llama-3.3-70b-versatile",
+    "latency": 1.077,
+    "prompt_tokens": 2822,
+    "completion_tokens": 149,
+    "total_tokens": 2971
+  },
+  {
+    "timestamp": "2026-04-07T10:44:44.231460",
+    "provider": "groq",
+    "model": "llama-3.3-70b-versatile",
+    "latency": 0.883,
+    "prompt_tokens": 2961,
+    "completion_tokens": 116,
+    "total_tokens": 3077
+  },
+  {
+    "timestamp": "2026-04-07T10:51:51.032546",
+    "provider": "groq",
+    "model": "llama-3.3-70b-versatile",
+    "latency": 1.089,
+    "prompt_tokens": 3100,
+    "completion_tokens": 153,
+    "total_tokens": 3253
+  },
+  {
+    "timestamp": "2026-04-07T10:52:10.108094",
+    "provider": "groq",
+    "model": "llama-3.3-70b-versatile",
+    "latency": 1.211,
+    "prompt_tokens": 3239,
+    "completion_tokens": 200,
+    "total_tokens": 3439
+  },
+  {
+    "timestamp": "2026-04-07T10:54:16.546674",
+    "provider": "groq",
+    "model": "llama-3.3-70b-versatile",
+    "latency": 1.085,
+    "prompt_tokens": 3402,
+    "completion_tokens": 124,
+    "total_tokens": 3526
+  },
+  {
+    "timestamp": "2026-04-07T11:01:59.633973",
+    "provider": "mistral",
+    "model": "qwen2.5-coder:3b",
+    "latency": 23.671,
+    "prompt_tokens": 2048,
+    "completion_tokens": 512,
+    "total_tokens": 2560
+  },
+  {
+    "timestamp": "2026-04-07T11:03:02.619890",
+    "provider": "mistral",
+    "model": "qwen2.5-coder:3b",
+    "latency": 6.926,
+    "prompt_tokens": 1144,
+    "completion_tokens": 136,
+    "total_tokens": 1280
+  },
+  {
+    "timestamp": "2026-04-08T10:25:01.307034",
+    "provider": "groq",
+    "model": "llama-3.3-70b-versatile",
+    "latency": 0.945,
+    "prompt_tokens": 2274,
+    "completion_tokens": 97,
+    "total_tokens": 2371
+  },
+  {
+    "timestamp": "2026-04-08T10:25:34.517843",
+    "provider": "groq",
+    "model": "llama-3.3-70b-versatile",
+    "latency": 0.556,
+    "prompt_tokens": 2219,
+    "completion_tokens": 100,
+    "total_tokens": 2319
+  },
+  {
+    "timestamp": "2026-04-09T11:03:22.719912",
+    "provider": "mistral",
+    "model": "qwen2.5-coder:3b",
+    "latency": 11.933,
+    "prompt_tokens": 2048,
+    "completion_tokens": 23,
+    "total_tokens": 2071
+  },
+  {
+    "timestamp": "2026-04-09T11:03:29.695630",
+    "provider": "mistral",
+    "model": "qwen2.5-coder:3b",
+    "latency": 6.87,
+    "prompt_tokens": 2048,
+    "completion_tokens": 28,
+    "total_tokens": 2076
+  },
+  {
+    "timestamp": "2026-04-09T11:03:36.566102",
+    "provider": "mistral",
+    "model": "qwen2.5-coder:3b",
+    "latency": 6.46,
+    "prompt_tokens": 2048,
+    "completion_tokens": 32,
+    "total_tokens": 2080
+  },
+  {
+    "timestamp": "2026-04-09T11:04:54.055031",
+    "provider": "groq",
+    "model": "llama-3.3-70b-versatile",
+    "latency": 0.798,
+    "prompt_tokens": 2807,
+    "completion_tokens": 111,
+    "total_tokens": 2918
+  },
+  {
+    "timestamp": "2026-04-09T11:05:03.992945",
+    "provider": "mistral",
+    "model": "qwen2.5-coder:3b",
+    "latency": 9.932,
+    "prompt_tokens": 2048,
+    "completion_tokens": 106,
+    "total_tokens": 2154
+  },
+  {
+    "timestamp": "2026-04-09T11:07:09.836895",
+    "provider": "mistral",
+    "model": "qwen2.5-coder:3b",
+    "latency": 10.336,
+    "prompt_tokens": 2048,
+    "completion_tokens": 104,
+    "total_tokens": 2152
+  },
+  {
+    "timestamp": "2026-04-09T11:07:16.943797",
+    "provider": "mistral",
+    "model": "qwen2.5-coder:3b",
+    "latency": 7.064,
+    "prompt_tokens": 2048,
+    "completion_tokens": 51,
+    "total_tokens": 2099
+  },
+  {
+    "timestamp": "2026-04-09T11:07:25.596975",
+    "provider": "mistral",
+    "model": "qwen2.5-coder:3b",
+    "latency": 8.416,
+    "prompt_tokens": 2048,
+    "completion_tokens": 114,
+    "total_tokens": 2162
+  },
+  {
+    "timestamp": "2026-04-09T11:11:53.301920",
+    "provider": "mistral",
+    "model": "qwen2.5-coder:3b",
+    "latency": 20.894,
+    "prompt_tokens": 2048,
+    "completion_tokens": 32,
+    "total_tokens": 2080
+  },
+  {
+    "timestamp": "2026-04-09T11:15:21.458299",
+    "provider": "mistral",
+    "model": "qwen2.5-coder:3b",
+    "latency": 10.847,
+    "prompt_tokens": 175,
+    "completion_tokens": 45,
+    "total_tokens": 220
+  },
+  {
+    "timestamp": "2026-04-09T11:37:00.550991",
+    "provider": "mistral",
+    "model": "qwen2.5-coder:3b",
+    "latency": 37.81,
+    "prompt_tokens": 2048,
+    "completion_tokens": 116,
+    "total_tokens": 2164
   }
 ]

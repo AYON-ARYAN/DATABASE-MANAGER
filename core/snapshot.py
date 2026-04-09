@@ -66,19 +66,20 @@ def delete_snapshot(snap_id: str) -> bool:
     return False
 
 
-def take_snapshot(adapter, connection_name: str) -> bool:
+def take_snapshot(adapter, connection_name: str):
     """
     Take a database snapshot using the adapter.
+    Returns the snapshot metadata dict on success, or None on failure.
     """
     if not adapter or not adapter.supports_snapshot:
-        return False
+        return None
 
     registry = _load_registry()
 
     # Enforce limit per connection
     conn_snaps = [s for s in registry if s.get("connection_name") == connection_name]
     conn_snaps = sorted(conn_snaps, key=lambda x: x["timestamp"]) # oldest first
-    
+
     if len(conn_snaps) >= MAX_SNAPS_PER_DB:
         # Delete oldest
         delete_snapshot(conn_snaps[0]["id"])
@@ -89,7 +90,7 @@ def take_snapshot(adapter, connection_name: str) -> bool:
     ext = "db" if adapter.dialect == "sqlite" else "dump"
     if adapter.dialect == "mongodb":
         ext = "gz"
-    
+
     filename = f"{connection_name}_{timestamp}_{snap_id}.{ext}"
     # Sanitizing filename just in case
     filename = filename.replace(" ", "_").replace("/", "-")
@@ -97,17 +98,18 @@ def take_snapshot(adapter, connection_name: str) -> bool:
 
     success = adapter.take_snapshot(filepath)
     if success:
-        registry.append({
+        snap = {
             "id": snap_id,
             "connection_name": connection_name,
             "db_type": adapter.dialect,
             "timestamp": datetime.now().isoformat(),
             "formatted_time": datetime.now().strftime("%b %d, %Y - %H:%M:%S"),
             "file_path": filepath
-        })
+        }
+        registry.append(snap)
         _save_registry(registry)
-        return True
-    return False
+        return snap
+    return None
 
 
 def restore_snapshot(snap_id: str, adapter) -> bool:

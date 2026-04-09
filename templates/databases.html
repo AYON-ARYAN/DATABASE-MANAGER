@@ -1,221 +1,163 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Manage Databases</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-</head>
-<body>
+{% extends "layouts/page.html" %}
 
-<!-- ================= GLOBAL NAVIGATION ================= -->
-<nav class="global-nav">
-    <div class="nav-brand">Meridian Data</div>
-    <div class="nav-links">
-        <a href="/" class="nav-link">Query</a>
-        <a href="/overview" class="nav-link">Overview</a>
-        <a href="/analysis" class="nav-link">Analysis</a>
-        <a href="/databases" class="nav-link active">Databases</a>
-        <a href="/dashboards" class="nav-link">Dashboards</a>
-        <a href="/command-guide" class="nav-link">Guide</a>
-        {% if session.role == 'ADMIN' %}
-        <a href="/admin" class="nav-link">Admin</a>
-        {% endif %}
-    </div>
-    <div class="user-info">
-        <span class="user-name">{{ session.username }}</span>
-        <span class="role-badge {{ session.role }}">{{ session.role }}</span>
-        <a href="/logout" class="logout-link">Logout</a>
-    </div>
-</nav>
+{% block title %}Manage Databases{% endblock %}
+{% block nav_databases %}active{% endblock %}
+{% block page_class %}db-page{% endblock %}
 
-<div class="db-page">
+{% block content %}
+<header>
+    <h1>Database Connections</h1>
+    <p>Add, test, and switch between your database connections</p>
+</header>
 
-    <header>
-        <h1>Database Connections</h1>
-        <p>Add, test, and switch between your database connections</p>
-    </header>
+{% if message %}
+<section class="success-card">{{ message }}</section>
+{% endif %}
+{% if error %}
+<section class="error-card">{{ error }}</section>
+{% endif %}
 
-    <!-- Flash messages -->
-    {% if message %}
-    <section class="success-card" style="margin-bottom:20px;">{{ message }}</section>
-    {% endif %}
-    {% if error %}
-    <section class="error-card" style="margin-bottom:20px;">{{ error }}</section>
-    {% endif %}
+<!-- Saved Connections -->
+<h2>Saved Connections</h2>
 
-    <!-- ================= SAVED CONNECTIONS ================= -->
-    <h2>Saved Connections</h2>
-
-    <div class="conn-list">
-        {% for conn in connections %}
-        <div class="conn-card {% if conn.name == active_db %}active{% endif %}">
-            <div class="conn-info">
-                <div>
-                    <div class="conn-name">
-                        {{ conn.name }}
-                        <span class="db-type-badge">{{ db_display_names.get(conn.db_type, conn.db_type) }}</span>
-                        {% if conn.name == active_db %}
-                        <span style="color: var(--green); font-size:0.75rem; margin-left:6px;">Active</span>
-                        {% endif %}
-                    </div>
-                    <div class="conn-details">
-                        {% for key, val in conn.config.items() %}
-                            {% if key != 'password' %}
-                                {{ key }}: {{ val }}{% if not loop.last %} · {% endif %}
-                            {% endif %}
-                        {% endfor %}
-                    </div>
+<div class="conn-list">
+    {% for conn in connections %}
+    <div class="conn-card {% if conn.name == active_db %}active{% endif %}">
+        <div class="conn-info">
+            <div>
+                <div class="conn-name">
+                    {{ conn.name }}
+                    <span class="db-type-badge">{{ db_display_names.get(conn.db_type, conn.db_type) }}</span>
+                    {% if conn.name == active_db %}
+                    <span style="color: var(--green); font-size:0.75rem; margin-left:6px;">Active</span>
+                    {% endif %}
                 </div>
-            </div>
-            <div class="conn-actions">
-                <!-- Test -->
-                <button type="button" onclick="testConnection('{{ conn.name }}', this)" class="btn">Test</button>
-
-                <!-- Select as active -->
-                {% if conn.name != active_db %}
-                <form method="POST" action="/databases/select" style="margin:0;">
-                    <input type="hidden" name="conn_name" value="{{ conn.name }}">
-                    <button type="submit" class="btn btn-active">Use</button>
-                </form>
-                {% endif %}
-
-                <!-- Delete (not default) -->
-                {% if conn.name != 'Default SQLite' %}
-                <form method="POST" action="/databases/delete" style="margin:0;"
-                      onsubmit="return confirm('Delete connection \'{{ conn.name }}\'?')">
-                    <input type="hidden" name="conn_name" value="{{ conn.name }}">
-                    <button type="submit" class="btn btn-danger">Delete</button>
-                </form>
-                {% endif %}
+                <div class="conn-details">
+                    {% for key, val in conn.config.items() %}
+                        {% if key != 'password' %}
+                            {{ key }}: {{ val }}{% if not loop.last %} · {% endif %}
+                        {% endif %}
+                    {% endfor %}
+                </div>
             </div>
         </div>
-        {% endfor %}
+        <div class="conn-actions">
+            <button type="button" onclick="testConnection('{{ conn.name }}', this)" class="btn">Test</button>
+            {% if conn.name != active_db %}
+            <form method="POST" action="/databases/select" style="margin:0;">
+                <input type="hidden" name="conn_name" value="{{ conn.name }}">
+                <button type="submit" class="btn btn-active">Use</button>
+            </form>
+            {% endif %}
+            {% if conn.name != 'Default SQLite' %}
+            <form method="POST" action="/databases/delete" style="margin:0;"
+                  onsubmit="return confirm('Delete connection \'{{ conn.name }}\'?')">
+                <input type="hidden" name="conn_name" value="{{ conn.name }}">
+                <button type="submit" class="btn btn-danger">Delete</button>
+            </form>
+            {% endif %}
+        </div>
     </div>
-
-    <!-- ================= ADD NEW CONNECTION ================= -->
-    <div class="add-conn-form">
-        <h3>Add New Connection</h3>
-
-        <form id="add-conn-form" method="POST" action="/databases/add">
-
-            <div class="form-row">
-                <div class="form-group">
-                    <label>Connection Name</label>
-                    <input type="text" name="conn_name" placeholder="My Production DB" required>
-                </div>
-                <div class="form-group">
-                    <label>Database Type</label>
-                    <select name="db_type" id="db-type-select" class="db-select" onchange="updateFields()">
-                        {% for dtype in db_types %}
-                        <option value="{{ dtype }}">{{ db_display_names.get(dtype, dtype) }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-            </div>
-
-            <!-- Dynamic fields rendered per DB type -->
-            <div id="dynamic-fields" class="dynamic-fields"></div>
-
-            <div id="test-result" class="test-result"></div>
-
-            <div class="form-buttons">
-                <button type="button" class="btn-test" onclick="testNewConnection()">Test Connection</button>
-                <button type="submit" class="btn-primary">Save Connection</button>
-            </div>
-
-        </form>
-    </div>
-
-    <div style="text-align:center; margin-top:30px;">
-        <a href="/" class="manage-link" style="padding:10px 20px;">Back to Query Agent</a>
-    </div>
+    {% endfor %}
 </div>
 
+<!-- Add New Connection -->
+<div class="add-conn-form">
+    <h3>Add New Connection</h3>
+    <form id="add-conn-form" method="POST" action="/databases/add">
+        <div class="form-row">
+            <div class="form-group">
+                <label>Connection Name</label>
+                <input type="text" name="conn_name" placeholder="My Production DB" required>
+            </div>
+            <div class="form-group">
+                <label>Database Type</label>
+                <select name="db_type" id="db-type-select" class="db-select" onchange="updateFields()">
+                    {% for dtype in db_types %}
+                    <option value="{{ dtype }}">{{ db_display_names.get(dtype, dtype) }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        <div id="dynamic-fields" class="dynamic-fields"></div>
+        <div id="test-result" class="test-result"></div>
+        <div class="form-buttons">
+            <button type="button" class="btn-test" onclick="testNewConnection()">Test Connection</button>
+            <button type="submit" class="btn-primary">Save Connection</button>
+        </div>
+    </form>
+</div>
+
+<div style="text-align:center; margin-top:30px;">
+    <a href="/" class="manage-link" style="padding:10px 20px;">Back to Query</a>
+</div>
+{% endblock %}
+
+{% block scripts %}
 <script>
-    // Field definitions passed from backend
-    const DB_FIELDS = {{ db_fields | tojson }};
+const DB_FIELDS = {{ db_fields | tojson }};
 
-    function updateFields() {
-        const dbType = document.getElementById('db-type-select').value;
-        const container = document.getElementById('dynamic-fields');
-        const fields = DB_FIELDS[dbType] || [];
+function updateFields() {
+    const dbType = document.getElementById('db-type-select').value;
+    const container = document.getElementById('dynamic-fields');
+    const fields = DB_FIELDS[dbType] || [];
 
-        let html = '<div class="form-row">';
-        fields.forEach((field, i) => {
-            html += `
-                <div class="form-group">
-                    <label>${field.label}</label>
-                    <input type="${field.type}" name="${field.name}"
-                           placeholder="${field.placeholder || ''}">
-                </div>
-            `;
-            // Break into rows of 2
-            if ((i + 1) % 2 === 0 && i < fields.length - 1) {
-                html += '</div><div class="form-row">';
-            }
-        });
-        html += '</div>';
+    let html = '<div class="form-row">';
+    fields.forEach((field, i) => {
+        html += `
+            <div class="form-group">
+                <label>${field.label}</label>
+                <input type="${field.type}" name="${field.name}" placeholder="${field.placeholder || ''}">
+            </div>
+        `;
+        if ((i + 1) % 2 === 0 && i < fields.length - 1) {
+            html += '</div><div class="form-row">';
+        }
+    });
+    html += '</div>';
+    container.innerHTML = html;
+    document.getElementById('test-result').className = 'test-result';
+    document.getElementById('test-result').textContent = '';
+}
 
-        container.innerHTML = html;
-        // Clear test result
-        document.getElementById('test-result').className = 'test-result';
-        document.getElementById('test-result').textContent = '';
-    }
+function testConnection(name, btn) {
+    btn.textContent = 'Testing...';
+    btn.disabled = true;
+    fetch('/databases/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: 'conn_name=' + encodeURIComponent(name)
+    })
+    .then(r => r.json())
+    .then(data => {
+        btn.textContent = data.success ? 'OK' : 'Failed';
+        setTimeout(() => { btn.textContent = 'Test'; btn.disabled = false; }, 2500);
+    })
+    .catch(() => {
+        btn.textContent = 'Error';
+        setTimeout(() => { btn.textContent = 'Test'; btn.disabled = false; }, 2000);
+    });
+}
 
-    function testConnection(name, btn) {
-        btn.textContent = 'Testing...';
-        btn.disabled = true;
+function testNewConnection() {
+    const form = document.getElementById('add-conn-form');
+    const formData = new FormData(form);
+    const resultEl = document.getElementById('test-result');
+    resultEl.className = 'test-result';
+    resultEl.textContent = 'Testing connection...';
+    resultEl.style.display = 'block';
+    fetch('/databases/test-new', { method: 'POST', body: formData })
+    .then(r => r.json())
+    .then(data => {
+        resultEl.className = 'test-result ' + (data.success ? 'success' : 'error');
+        resultEl.textContent = data.message;
+    })
+    .catch(() => {
+        resultEl.className = 'test-result error';
+        resultEl.textContent = 'Network error — could not test.';
+    });
+}
 
-        fetch('/databases/test', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: 'conn_name=' + encodeURIComponent(name)
-        })
-        .then(r => r.json())
-        .then(data => {
-            btn.textContent = data.success ? 'OK' : 'Failed';
-            setTimeout(() => {
-                btn.textContent = 'Test';
-                btn.disabled = false;
-            }, 2500);
-        })
-        .catch(() => {
-            btn.textContent = 'Error';
-            setTimeout(() => {
-                btn.textContent = 'Test';
-                btn.disabled = false;
-            }, 2000);
-        });
-    }
-
-    function testNewConnection() {
-        const form = document.getElementById('add-conn-form');
-        const formData = new FormData(form);
-        const resultEl = document.getElementById('test-result');
-
-        resultEl.className = 'test-result';
-        resultEl.textContent = 'Testing connection...';
-        resultEl.style.display = 'block';
-
-        fetch('/databases/test-new', {
-            method: 'POST',
-            body: formData
-        })
-        .then(r => r.json())
-        .then(data => {
-            resultEl.className = 'test-result ' + (data.success ? 'success' : 'error');
-            resultEl.textContent = data.message;
-        })
-        .catch(() => {
-            resultEl.className = 'test-result error';
-            resultEl.textContent = 'Network error — could not test.';
-        });
-    }
-
-    // Initialize fields on page load
-    updateFields();
+updateFields();
 </script>
-
-</body>
-</html>
+{% endblock %}

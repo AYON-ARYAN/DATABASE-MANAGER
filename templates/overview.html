@@ -1,284 +1,118 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Database Overview - Meridian Data</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <style>
-        .overview-container {
-            max-width: 1400px;
-            margin: 0 auto;
-            padding: calc(var(--nav-h) + 28px) 40px 40px;
-        }
-        .overview-grid {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 16px;
-            margin-bottom: 30px;
-        }
-        .stat-card {
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: var(--r-lg);
-            padding: 24px;
-            text-align: center;
-            backdrop-filter: blur(24px);
-            transition: border-color 0.2s;
-        }
-        .stat-card:hover {
-            border-color: var(--border-hover);
-        }
-        .stat-label {
-            font-size: 0.8rem;
-            color: var(--text-dim);
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            margin-bottom: 8px;
-        }
-        .stat-value {
-            font-size: 2rem;
-            font-weight: 700;
-            background: linear-gradient(135deg, var(--blue), var(--purple));
-            -webkit-background-clip: text;
-            background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-        .charts-row {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 24px;
-            margin-bottom: 30px;
-        }
-        .rel-table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 0.85rem;
-        }
-        .rel-table th, .rel-table td {
-            padding: 12px 16px;
-            text-align: left;
-            border-bottom: 1px solid var(--border);
-        }
-        .rel-table th {
-            color: var(--text-dim);
-            font-weight: 600;
-            text-transform: uppercase;
-            font-size: 0.7rem;
-            letter-spacing: 0.05em;
-        }
-        .suggested-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-            gap: 16px;
-        }
-        .suggestion-card {
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: var(--r-lg);
-            padding: 20px;
-            cursor: pointer;
-            transition: all 0.2s ease;
-        }
-        .suggestion-card:hover {
-            border-color: var(--blue-dim);
-            transform: translateY(-2px);
-            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
-        }
-        .suggestion-title {
-            font-weight: 600;
-            margin-bottom: 8px;
-            color: var(--text);
-        }
-        .suggestion-sql {
-            font-family: ui-monospace, SFMono-Regular, monospace;
-            font-size: 0.75rem;
-            color: var(--text-dim);
-            background: rgba(0, 0, 0, 0.3);
-            padding: 8px 12px;
-            border-radius: var(--r-sm);
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-        }
-        .suggestion-type {
-            display: inline-block;
-            padding: 2px 8px;
-            border-radius: var(--r-full);
-            font-size: 0.65rem;
-            font-weight: 600;
-            background: var(--blue-dim);
-            color: var(--blue);
-            margin-left: 8px;
-        }
-        .ask-box {
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: var(--r-lg);
-            padding: 20px;
-            margin-bottom: 30px;
-            backdrop-filter: blur(24px);
-        }
-        .ask-row {
-            display: flex;
-            gap: 12px;
-        }
-        .ask-input {
-            flex: 1;
-        }
-        .ask-result {
-            margin-top: 20px;
-            padding: 20px;
-            background: rgba(0, 0, 0, 0.3);
-            border-radius: var(--r-md);
-            border: 1px solid var(--border);
-        }
-        .query-result-modal {
-            display: none;
-            position: fixed;
-            inset: 0;
-            background: rgba(0, 0, 0, 0.85);
-            z-index: 1000;
-            align-items: center;
-            justify-content: center;
-            padding: 40px;
-        }
-        .query-result-content {
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: var(--r-lg);
-            padding: 30px;
-            max-width: 1000px;
-            width: 100%;
-            max-height: 80vh;
-            overflow: auto;
-            backdrop-filter: blur(24px);
-        }
-        @keyframes pulse {
-            0% { transform: scale(1); opacity: 1; }
-            50% { transform: scale(1.05); opacity: 0.7; }
-            100% { transform: scale(1); opacity: 1; }
-        }
-        @media (max-width: 1024px) {
-            .overview-container { padding-left: 20px; padding-right: 20px; }
-            .overview-grid { grid-template-columns: repeat(2, 1fr); }
-            .charts-row { grid-template-columns: 1fr; }
-            .suggested-grid { grid-template-columns: 1fr; }
-        }
-        @media (max-width: 600px) {
-            .overview-container { padding-left: 12px; padding-right: 12px; }
-            .ask-row { flex-direction: column; }
-            .query-result-modal { padding: 16px; }
-        }
-    </style>
-</head>
-<body>
+{% extends "layouts/page.html" %}
 
-<nav class="global-nav">
-    <div class="nav-brand">Meridian</div>
-    <div class="nav-links">
-        <a href="/" class="nav-link">Query</a>
-        <a href="/overview" class="nav-link active">Overview</a>
-        <a href="/analysis" class="nav-link">Analysis</a>
-        <a href="/databases" class="nav-link">Databases</a>
-        <a href="/dashboards" class="nav-link">Dashboards</a>
-        <a href="/command-guide" class="nav-link">Guide</a>
-        {% if session.role == 'ADMIN' %}
-        <a href="/admin" class="nav-link">Admin</a>
+{% block title %}Database Overview - Meridian Data{% endblock %}
+{% block nav_overview %}active{% endblock %}
+{% block page_class %}page--wide{% endblock %}
+
+{% block head_extra %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+{% endblock %}
+
+{% block content %}
+<header style="margin-bottom: 30px;">
+    <h1 style="color: var(--text);">Database Overview</h1>
+    <p style="color: var(--text-sec);">
+        Complete overview of <strong>{{ db_info.name }}</strong> ({{ db_info.display_type }})
+        {% if analysis_enabled %}
+        &mdash; AI-powered analysis enabled
         {% endif %}
+    </p>
+</header>
+
+<!-- AI Ask Box -->
+<div class="ask-box">
+    <div style="margin-bottom: 12px;">
+        <strong style="color: var(--text);">Ask anything about this database</strong>
+        <span style="color: var(--text-dim); font-size: 0.85rem; margin-left: 8px;">Powered by AI with full schema context</span>
     </div>
-    <div class="user-info">
-        <span class="user-name">{{ session.username }}</span>
-        <span class="role-badge">{{ session.role }}</span>
-        <a href="/logout" class="logout-link">Logout</a>
+    <div class="ask-row">
+        <input type="text" id="ask-input" class="ask-input"
+               placeholder="e.g. 'What relationships exist between tables?' or 'How do I write a JOIN for orders and customers?'"
+               onkeypress="if(event.key==='Enter') askAI()">
+        <button onclick="askAI()" id="ask-btn" class="btn-primary" style="margin-top: 0; width: auto; padding: 12px 24px;">Ask AI</button>
     </div>
-</nav>
-
-<div class="overview-container">
-    <header style="margin-bottom: 30px;">
-        <h1 style="color: var(--text);">Database Overview</h1>
-        <p style="color: var(--text-sec);">
-            Complete overview of <strong>{{ db_info.name }}</strong> ({{ db_info.display_type }})
-            {% if analysis_enabled %}
-            &mdash; AI-powered analysis enabled
-            {% endif %}
-        </p>
-    </header>
-
-    <!-- AI Ask Box -->
-    <div class="ask-box">
-        <div style="margin-bottom: 12px;">
-            <strong style="color: var(--text);">Ask anything about this database</strong>
-            <span style="color: var(--text-dim); font-size: 0.85rem; margin-left: 8px;">
-                Powered by AI with full schema context
-            </span>
-        </div>
-        <div class="ask-row">
-            <input type="text" id="ask-input" class="ask-input"
-                   placeholder="e.g. 'What relationships exist between tables?' or 'How do I write a JOIN for orders and customers?'"
-                   onkeypress="if(event.key==='Enter') askAI()">
-            <button onclick="askAI()" id="ask-btn" class="btn-primary" style="margin-top: 0; width: auto; padding: 12px 24px;">
-                Ask AI
-            </button>
-        </div>
-        <div style="margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap;">
-            <button class="quick-cmd-inline" onclick="askQuick('What is this database about?')">What is this DB?</button>
-            <button class="quick-cmd-inline" onclick="askQuick('Explain the relationships between all tables')">Explain relationships</button>
-            <button class="quick-cmd-inline" onclick="askQuick('What are the most useful JOINs I can write?')">Useful JOINs</button>
-            <button class="quick-cmd-inline" onclick="askQuick('Suggest 5 interesting analytical queries')">Suggest queries</button>
-            <button class="quick-cmd-inline" onclick="askQuick('Explain normalization in this database')">Normalization</button>
-        </div>
-        <div id="ask-result" class="ask-result markdown-body" style="display: none;"></div>
-        <div id="ask-suggestions" style="display: none; margin-top: 16px;"></div>
+    <div style="margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap;">
+        <button class="quick-cmd-inline" onclick="askQuick('What is this database about?')">What is this DB?</button>
+        <button class="quick-cmd-inline" onclick="askQuick('Explain the relationships between all tables')">Explain relationships</button>
+        <button class="quick-cmd-inline" onclick="askQuick('What are the most useful JOINs I can write?')">Useful JOINs</button>
+        <button class="quick-cmd-inline" onclick="askQuick('Suggest 5 interesting analytical queries')">Suggest queries</button>
+        <button class="quick-cmd-inline" onclick="askQuick('Explain normalization in this database')">Normalization</button>
     </div>
+    <div id="ask-result" class="ask-result markdown-body" style="display: none;"></div>
+    <div id="ask-suggestions" style="display: none; margin-top: 16px;"></div>
+</div>
 
-    <!-- Loading State -->
-    <div id="overview-loading" style="text-align: center; padding: 80px; color: var(--blue);">
-        <div style="font-size: 2.5rem; margin-bottom: 20px; animation: pulse 2s infinite;">DB</div>
-        <div style="font-weight: 600; font-size: 1.1rem; color: var(--text);">Analyzing Database Structure...</div>
-        <div style="color: var(--text-dim); font-size: 0.85rem; margin-top: 8px;">
-            Scanning tables, relationships, and generating insights
+<!-- Loading State (skeleton) -->
+<div id="overview-loading" style="text-align: center; padding: 60px;">
+    <div class="overview-grid" style="margin-bottom:24px;">
+        <div class="stat-card skeleton-card"><div class="stat-label skeleton" style="width:60%; height:14px; margin:0 auto 12px;"></div><div class="stat-value skeleton" style="width:40%; height:32px; margin:0 auto;"></div></div>
+        <div class="stat-card skeleton-card"><div class="stat-label skeleton" style="width:60%; height:14px; margin:0 auto 12px;"></div><div class="stat-value skeleton" style="width:40%; height:32px; margin:0 auto;"></div></div>
+        <div class="stat-card skeleton-card"><div class="stat-label skeleton" style="width:60%; height:14px; margin:0 auto 12px;"></div><div class="stat-value skeleton" style="width:40%; height:32px; margin:0 auto;"></div></div>
+        <div class="stat-card skeleton-card"><div class="stat-label skeleton" style="width:60%; height:14px; margin:0 auto 12px;"></div><div class="stat-value skeleton" style="width:40%; height:32px; margin:0 auto;"></div></div>
+    </div>
+    <div style="color:var(--text-dim); font-size:0.85rem;">Analyzing database structure...</div>
+</div>
+
+<!-- Error State -->
+<div id="overview-error" class="error-card" style="display: none;"></div>
+
+<!-- Main Content (hidden until loaded) -->
+<div id="overview-content" style="display: none;">
+    <div class="overview-grid" id="stat-cards"></div>
+    <div class="card" id="summary-card" style="margin-bottom: 30px;">
+        <h2 style="color: var(--text);">Executive Summary</h2>
+        <div id="summary-text" class="markdown-body" style="line-height: 1.7;"></div>
+    </div>
+    <div class="charts-row">
+        <div class="card">
+            <h2 style="color: var(--text);">Table Sizes</h2>
+            <div style="height: 350px; padding: 10px;"><canvas id="table-size-chart"></canvas></div>
+        </div>
+        <div class="card">
+            <h2 style="color: var(--text);">Relationships</h2>
+            <div id="relationship-container" style="max-height: 350px; overflow-y: auto;"></div>
         </div>
     </div>
-
-    <!-- Error State -->
-    <div id="overview-error" class="error-card" style="display: none;"></div>
-
-    <!-- Main Content (hidden until loaded) -->
-    <div id="overview-content" style="display: none;">
-
-        <!-- Stat Cards -->
-        <div class="overview-grid" id="stat-cards"></div>
-
-        <!-- Summary -->
-        <div class="card" id="summary-card" style="margin-bottom: 30px;">
-            <h2 style="color: var(--text);">Executive Summary</h2>
-            <div id="summary-text" class="markdown-body" style="line-height: 1.7;"></div>
-        </div>
-
-        <!-- Charts Row -->
-        <div class="charts-row">
-            <div class="card">
-                <h2 style="color: var(--text);">Table Sizes</h2>
-                <div style="height: 350px; padding: 10px;">
-                    <canvas id="table-size-chart"></canvas>
-                </div>
-            </div>
-            <div class="card">
-                <h2 style="color: var(--text);">Relationships</h2>
-                <div id="relationship-container" style="max-height: 350px; overflow-y: auto;"></div>
+    <!-- ER Diagram -->
+    <div id="er-section" class="card" style="margin-bottom: 30px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+            <h2 style="color: var(--text); margin:0;">Entity-Relationship Diagram</h2>
+            <div style="display:flex; gap:8px; align-items:center;">
+                <button onclick="toggleErFullscreen()" class="secondary" style="padding:5px 12px; font-size:0.72rem; margin:0;">Fullscreen</button>
+                <button onclick="loadErDiagram()" id="er-refresh-btn" class="secondary" style="padding:5px 12px; font-size:0.72rem; margin:0;">Refresh</button>
             </div>
         </div>
-
-        <!-- Suggested Queries -->
-        <div id="suggestions-section" style="display: none;">
-            <h2 style="margin-bottom: 16px; color: var(--text);">Suggested Analytical Queries</h2>
-            <p style="color: var(--text-dim); margin-bottom: 20px;">Click any card to run the query instantly</p>
-            <div class="suggested-grid" id="suggestions-grid"></div>
+        <div id="er-loading" style="text-align:center; padding:40px; color:var(--text-dim); font-size:0.85rem;">
+            <div class="spinner" style="margin:0 auto 12px; width:24px; height:24px; border-width:2px;"></div>
+            Loading ER diagram...
+        </div>
+        <div id="er-error" class="error-card" style="display:none;"></div>
+        <div id="er-container" style="display:none; overflow:auto; border:1px solid var(--border); border-radius:var(--r-md); background:rgba(0,0,0,0.2); padding:20px; min-height:300px; text-align:center;">
+            <div id="er-diagram"></div>
+        </div>
+        <div id="er-legend" style="display:none; margin-top:12px; display:flex; gap:16px; flex-wrap:wrap; font-size:0.7rem; color:var(--text-dim);">
+            <span><span style="display:inline-block; width:10px; height:10px; background:var(--blue); border-radius:2px; margin-right:4px; vertical-align:middle;"></span> Primary Key</span>
+            <span><span style="display:inline-block; width:10px; height:10px; background:var(--purple); border-radius:2px; margin-right:4px; vertical-align:middle;"></span> Foreign Key</span>
+            <span style="color:var(--text-dim);">Lines show FK relationships between tables</span>
         </div>
     </div>
+
+    <div id="suggestions-section" style="display: none;">
+        <h2 style="margin-bottom: 16px; color: var(--text);">Suggested Analytical Queries</h2>
+        <p style="color: var(--text-dim); margin-bottom: 20px;">Click any card to run the query instantly</p>
+        <div class="suggested-grid" id="suggestions-grid"></div>
+    </div>
+</div>
+
+<!-- ER Fullscreen Modal -->
+<div id="er-fullscreen-modal" style="display:none; position:fixed; inset:0; z-index:1000; background:rgba(0,0,0,0.9); padding:20px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+        <h2 style="color:var(--text); font-size:1.1rem; margin:0;">Entity-Relationship Diagram</h2>
+        <button onclick="toggleErFullscreen()" class="secondary" style="padding:8px 16px;">Close</button>
+    </div>
+    <div id="er-fullscreen-container" style="overflow:auto; height:calc(100vh - 80px); background:rgba(0,0,0,0.3); border-radius:var(--r-md); padding:24px; text-align:center;"></div>
 </div>
 
 <!-- Query Result Modal -->
@@ -295,299 +129,405 @@
         <div id="modal-table" style="max-height: 400px; overflow: auto;"></div>
     </div>
 </div>
+{% endblock %}
 
+{% block scripts %}
 <script>
 let tableSizeChart = null;
 let modalChart = null;
 
-// Load overview on page load
 window.addEventListener('DOMContentLoaded', loadOverview);
 
 async function loadOverview() {
     const loading = document.getElementById('overview-loading');
     const content = document.getElementById('overview-content');
     const errorDiv = document.getElementById('overview-error');
-
+    TopProgress.start();
     try {
-        const res = await fetch('/api/overview', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'}
-        });
+        const res = await fetch('/api/overview', { method: 'POST', headers: {'Content-Type': 'application/json'} });
         const data = await res.json();
-
         loading.style.display = 'none';
-
-        if (data.error) {
-            errorDiv.textContent = data.error;
-            errorDiv.style.display = 'block';
-            return;
-        }
-
+        TopProgress.stop();
+        if (data.error) { errorDiv.textContent = data.error; errorDiv.style.display = 'block'; return; }
         content.style.display = 'block';
-
-        // Render stat cards
         if (data.highlights) {
-            const grid = document.getElementById('stat-cards');
-            grid.innerHTML = data.highlights.map(h => `
-                <div class="stat-card">
-                    <div class="stat-label">${h.label}</div>
-                    <div class="stat-value">${h.value}</div>
-                </div>
+            document.getElementById('stat-cards').innerHTML = data.highlights.map(h => `
+                <div class="stat-card"><div class="stat-label">${h.label}</div><div class="stat-value">${h.value}</div></div>
             `).join('');
         }
-
-        // Render summary
-        if (data.summary) {
-            document.getElementById('summary-text').innerHTML = marked.parse(data.summary);
-        }
-
-        // Table size chart
-        if (data.table_size_chart && data.table_size_chart.labels) {
-            renderTableSizeChart(data.table_size_chart);
-        }
-
-        // Relationships
-        if (data.relationship_map && data.relationship_map.length > 0) {
-            renderRelationships(data.relationship_map);
-        } else {
-            document.getElementById('relationship-container').innerHTML =
-                '<p style="padding: 40px; text-align: center; color: var(--text-dim);">No foreign key relationships found.</p>';
-        }
-
-        // Suggested queries
-        if (data.suggested_queries && data.suggested_queries.length > 0) {
-            renderSuggestions(data.suggested_queries);
-        }
-
+        if (data.summary) document.getElementById('summary-text').innerHTML = marked.parse(data.summary);
+        if (data.table_size_chart && data.table_size_chart.labels) renderTableSizeChart(data.table_size_chart);
+        if (data.relationship_map && data.relationship_map.length > 0) renderRelationships(data.relationship_map);
+        else document.getElementById('relationship-container').innerHTML = '<p style="padding:40px; text-align:center; color:var(--text-dim);">No foreign key relationships found.</p>';
+        if (data.suggested_queries && data.suggested_queries.length > 0) renderSuggestions(data.suggested_queries);
     } catch (e) {
-        loading.style.display = 'none';
-        errorDiv.textContent = 'Failed to load overview: ' + e.message;
-        errorDiv.style.display = 'block';
+        loading.style.display = 'none'; TopProgress.stop();
+        errorDiv.textContent = 'Failed to load overview: ' + e.message; errorDiv.style.display = 'block';
     }
 }
 
 function renderTableSizeChart(chartData) {
     const ctx = document.getElementById('table-size-chart').getContext('2d');
-    const palette = ['#0A84FF', '#8b5cf6', '#10a37f', '#f59e0b', '#ef4444', '#22d3ee', '#ec4899', '#14b8a6', '#f97316', '#6366f1'];
-
+    const palette = ['#0A84FF','#8b5cf6','#10a37f','#f59e0b','#ef4444','#22d3ee','#ec4899','#14b8a6','#f97316','#6366f1'];
     if (tableSizeChart) tableSizeChart.destroy();
-
     tableSizeChart = new Chart(ctx, {
         type: 'bar',
-        data: {
-            labels: chartData.labels,
-            datasets: [{
-                label: 'Row Count',
-                data: chartData.data,
-                backgroundColor: chartData.labels.map((_, i) => palette[i % palette.length] + '40'),
-                borderColor: chartData.labels.map((_, i) => palette[i % palette.length]),
-                borderWidth: 2,
-                borderRadius: 6
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            indexAxis: chartData.labels.length > 8 ? 'y' : 'x',
-            plugins: {
-                legend: { display: false },
-                title: { display: false }
-            },
-            scales: {
-                y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94a3b8' } },
-                x: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94a3b8' } }
-            }
-        }
+        data: { labels: chartData.labels, datasets: [{ label: 'Row Count', data: chartData.data, backgroundColor: chartData.labels.map((_,i) => palette[i%palette.length]+'40'), borderColor: chartData.labels.map((_,i) => palette[i%palette.length]), borderWidth: 2, borderRadius: 6 }] },
+        options: { responsive: true, maintainAspectRatio: false, indexAxis: chartData.labels.length > 8 ? 'y' : 'x', plugins: { legend: { display: false } }, scales: { y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94a3b8' } }, x: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94a3b8' } } } }
     });
 }
 
 function renderRelationships(rels) {
     const container = document.getElementById('relationship-container');
     let html = '<table class="rel-table"><thead><tr><th>From Table</th><th></th><th>To Table</th><th>Via Column</th></tr></thead><tbody>';
-    rels.forEach(r => {
-        html += `<tr>
-            <td style="font-weight: 600; color: var(--blue);">${r.from}</td>
-            <td style="color: var(--text-dim);">&rarr;</td>
-            <td style="font-weight: 600; color: var(--purple);">${r.to}</td>
-            <td style="color: var(--text-sec); font-family: monospace;">${r.via}</td>
-        </tr>`;
-    });
+    rels.forEach(r => { html += `<tr><td style="font-weight:600; color:var(--blue);">${r.from}</td><td style="color:var(--text-dim);">&rarr;</td><td style="font-weight:600; color:var(--purple);">${r.to}</td><td style="color:var(--text-sec); font-family:monospace;">${r.via}</td></tr>`; });
     html += '</tbody></table>';
     container.innerHTML = html;
 }
 
 function renderSuggestions(queries) {
-    const section = document.getElementById('suggestions-section');
-    const grid = document.getElementById('suggestions-grid');
-    section.style.display = 'block';
-
-    grid.innerHTML = queries.map((q, i) => `
-        <div class="suggestion-card" onclick="runSuggestion(${i})">
-            <div class="suggestion-title">
-                ${q.title}
-                <span class="suggestion-type">${q.chart_type || 'table'}</span>
-            </div>
-            <div class="suggestion-sql">${q.query}</div>
-        </div>
+    document.getElementById('suggestions-section').style.display = 'block';
+    document.getElementById('suggestions-grid').innerHTML = queries.map((q,i) => `
+        <div class="suggestion-card" onclick="runSuggestion(${i})"><div class="suggestion-title">${q.title}<span class="suggestion-type">${q.chart_type||'table'}</span></div><div class="suggestion-sql">${q.query}</div></div>
     `).join('');
-
-    // Store for later use
     window._suggestions = queries;
 }
 
 async function runSuggestion(index) {
     const q = window._suggestions[index];
     if (!q) return;
-
     document.getElementById('modal-title').textContent = q.title;
     document.getElementById('modal-sql').textContent = q.query;
-    document.getElementById('modal-table').innerHTML = '<div style="text-align: center; padding: 40px; color: var(--blue);">Loading...</div>';
+    document.getElementById('modal-table').innerHTML = '<div style="text-align:center; padding:40px; color:var(--blue);">Loading...</div>';
     document.getElementById('modal-chart-container').style.display = 'none';
     document.getElementById('query-modal').style.display = 'flex';
-
     try {
-        const res = await fetch('/api/overview/query', {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ query: q.query })
-        });
+        const res = await fetch('/api/overview/query', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({query: q.query}) });
         const data = await res.json();
-
-        if (!data.success) {
-            document.getElementById('modal-table').innerHTML =
-                `<div class="error-card">${data.error}</div>`;
-            return;
-        }
-
-        // Render table
+        if (!data.success) { document.getElementById('modal-table').innerHTML = `<div class="error-card">${data.error}</div>`; return; }
         let tableHtml = '<table style="width:100%; border-collapse:collapse; font-size:0.85rem;"><thead><tr>';
         data.columns.forEach(c => tableHtml += `<th style="text-align:left; padding:10px; border-bottom:1px solid var(--border); color:var(--text-dim);">${c}</th>`);
         tableHtml += '</tr></thead><tbody>';
-        data.rows.forEach(row => {
-            tableHtml += '<tr>';
-            row.forEach(cell => tableHtml += `<td style="padding:10px; border-bottom:1px solid rgba(255,255,255,0.05);">${cell}</td>`);
-            tableHtml += '</tr>';
-        });
+        data.rows.forEach(row => { tableHtml += '<tr>'; row.forEach(cell => tableHtml += `<td style="padding:10px; border-bottom:1px solid rgba(255,255,255,0.05);">${cell}</td>`); tableHtml += '</tr>'; });
         tableHtml += '</tbody></table>';
         document.getElementById('modal-table').innerHTML = tableHtml;
-
-        // Render chart if applicable
         const chartType = q.chart_type || 'table';
         if (chartType !== 'table' && data.columns.length >= 2 && data.rows.length > 0) {
             const chartContainer = document.getElementById('modal-chart-container');
             chartContainer.style.display = 'block';
-
             if (modalChart) modalChart.destroy();
             const ctx = document.getElementById('modal-chart').getContext('2d');
-            const labels = data.rows.map(r => r[0]);
-            const values = data.rows.map(r => parseFloat(r[1]) || 0);
-            const palette = ['#0A84FF', '#8b5cf6', '#10a37f', '#f59e0b', '#ef4444', '#22d3ee', '#ec4899'];
-
+            const labels = data.rows.map(r => r[0]); const values = data.rows.map(r => parseFloat(r[1]) || 0);
+            const palette = ['#0A84FF','#8b5cf6','#10a37f','#f59e0b','#ef4444','#22d3ee','#ec4899'];
             modalChart = new Chart(ctx, {
                 type: chartType === 'area' ? 'line' : chartType,
-                data: {
-                    labels: labels,
-                    datasets: [{
-                        label: q.title,
-                        data: values,
-                        backgroundColor: chartType === 'pie' || chartType === 'doughnut'
-                            ? palette : 'rgba(10, 132, 255, 0.2)',
-                        borderColor: '#0A84FF',
-                        borderWidth: 2,
-                        borderRadius: chartType === 'bar' ? 6 : 0,
-                        fill: chartType === 'area'
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: { legend: { display: chartType === 'pie' || chartType === 'doughnut' } },
-                    scales: chartType === 'pie' || chartType === 'doughnut' ? {} : {
-                        y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94a3b8' } },
-                        x: { grid: { display: false }, ticks: { color: '#94a3b8' } }
-                    }
-                }
+                data: { labels, datasets: [{ label: q.title, data: values, backgroundColor: chartType==='pie'||chartType==='doughnut' ? palette : 'rgba(10,132,255,0.2)', borderColor: '#0A84FF', borderWidth: 2, borderRadius: chartType==='bar'?6:0, fill: chartType==='area' }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: chartType==='pie'||chartType==='doughnut' } }, scales: chartType==='pie'||chartType==='doughnut' ? {} : { y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94a3b8' } }, x: { grid: { display: false }, ticks: { color: '#94a3b8' } } } }
             });
         }
-
-    } catch (e) {
-        document.getElementById('modal-table').innerHTML =
-            `<div class="error-card">Request failed: ${e.message}</div>`;
-    }
+    } catch(e) { document.getElementById('modal-table').innerHTML = `<div class="error-card">Request failed: ${e.message}</div>`; }
 }
 
-function closeModal() {
-    document.getElementById('query-modal').style.display = 'none';
-}
-
-// Close modal on escape
+function closeModal() { document.getElementById('query-modal').style.display = 'none'; }
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
 
-// AI Ask
 async function askAI() {
     const input = document.getElementById('ask-input');
     const btn = document.getElementById('ask-btn');
     const resultDiv = document.getElementById('ask-result');
     const sugDiv = document.getElementById('ask-suggestions');
-
     const question = input.value.trim();
     if (!question) return;
-
-    btn.disabled = true;
-    btn.textContent = 'Thinking...';
+    btn.disabled = true; btn.textContent = 'Thinking...';
     resultDiv.style.display = 'block';
-    resultDiv.innerHTML = '<div style="color: var(--blue);">Analyzing your question with full database context...</div>';
+    resultDiv.innerHTML = '<div style="color:var(--blue);">Analyzing your question with full database context...</div>';
     sugDiv.style.display = 'none';
+    try {
+        const res = await fetch('/api/ask', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({question}) });
+        const data = await res.json();
+        if (data.error) resultDiv.innerHTML = `<div style="color:var(--red);">${data.error}</div>`;
+        else {
+            resultDiv.innerHTML = marked.parse(data.answer);
+            addRunButtonsToCodeBlocks(resultDiv);
+            if (data.suggested_queries && data.suggested_queries.length > 0) {
+                sugDiv.style.display = 'block';
+                sugDiv.innerHTML = '<div style="font-size:0.8rem; color:var(--text-dim); margin-bottom:8px; text-transform:uppercase; font-weight:600;">Run These Queries:</div>' +
+                    data.suggested_queries.map(q => {
+                        const display = q.length > 80 ? q.substring(0, 80) + '...' : q;
+                        return `<button class="quick-cmd" onclick="runQueryInModal('${q.replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/\n/g,' ')}')" style="margin:4px; font-size:0.8rem; padding:8px 12px;">${display}</button>`;
+                    }).join('');
+            }
+        }
+    } catch(e) { resultDiv.innerHTML = '<div style="color:var(--red);">Network error. Please try again.</div>'; }
+    finally { btn.disabled = false; btn.textContent = 'Ask AI'; }
+}
+
+function addRunButtonsToCodeBlocks(container) {
+    container.querySelectorAll('pre code').forEach(block => {
+        const sql = block.textContent.trim();
+        if (/^\s*(SELECT|INSERT|UPDATE|DELETE|WITH|SHOW|DESCRIBE|CREATE|ALTER|EXPLAIN)/i.test(sql)) {
+            const wrapper = block.closest('pre');
+            const btnContainer = document.createElement('div');
+            btnContainer.style.cssText = 'display:flex; gap:8px; margin-top:8px;';
+            const runBtn = document.createElement('button');
+            runBtn.textContent = 'Run Query'; runBtn.className = 'btn-primary'; runBtn.style.cssText = 'padding:6px 16px; font-size:0.78rem; width:auto; margin:0;';
+            runBtn.onclick = () => runQueryInModal(sql);
+            const copyBtn = document.createElement('button');
+            copyBtn.textContent = 'Copy to Query Page'; copyBtn.className = 'secondary'; copyBtn.style.cssText = 'padding:6px 16px; font-size:0.78rem;';
+            copyBtn.onclick = () => copyToQuery(sql);
+            btnContainer.appendChild(runBtn); btnContainer.appendChild(copyBtn);
+            wrapper.after(btnContainer);
+        }
+    });
+}
+
+async function runQueryInModal(sql) {
+    document.getElementById('modal-title').textContent = 'Query Result';
+    document.getElementById('modal-sql').textContent = sql;
+    document.getElementById('modal-table').innerHTML = '<div style="text-align:center; padding:40px; color:var(--blue);">Running query...</div>';
+    document.getElementById('modal-chart-container').style.display = 'none';
+    document.getElementById('query-modal').style.display = 'flex';
+    try {
+        const res = await fetch('/api/overview/query', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({query: sql}) });
+        const data = await res.json();
+        if (!data.success) { document.getElementById('modal-table').innerHTML = `<div class="error-card">${data.error}</div>`; return; }
+        let tableHtml = '<table style="width:100%; border-collapse:collapse; font-size:0.85rem;"><thead><tr>';
+        data.columns.forEach(c => tableHtml += `<th style="text-align:left; padding:10px; border-bottom:1px solid var(--border); color:var(--text-dim);">${c}</th>`);
+        tableHtml += '</tr></thead><tbody>';
+        data.rows.forEach(row => { tableHtml += '<tr>'; row.forEach(cell => tableHtml += `<td style="padding:10px; border-bottom:1px solid rgba(255,255,255,0.05);">${cell}</td>`); tableHtml += '</tr>'; });
+        tableHtml += '</tbody></table>';
+        document.getElementById('modal-table').innerHTML = tableHtml;
+        if (data.columns.length >= 2 && data.rows.length > 0 && data.rows.length <= 50) {
+            const values = data.rows.map(r => parseFloat(r[1]));
+            if (values.some(v => !isNaN(v))) {
+                const chartContainer = document.getElementById('modal-chart-container');
+                chartContainer.style.display = 'block';
+                if (modalChart) modalChart.destroy();
+                const ctx = document.getElementById('modal-chart').getContext('2d');
+                const labels = data.rows.map(r => r[0]);
+                const palette = ['#0A84FF','#8b5cf6','#10a37f','#f59e0b','#ef4444','#22d3ee','#ec4899'];
+                modalChart = new Chart(ctx, {
+                    type: 'bar',
+                    data: { labels, datasets: [{ label: data.columns[1], data: values, backgroundColor: palette.map(c => c+'40'), borderColor: palette, borderWidth: 2, borderRadius: 6 }] },
+                    options: { responsive: true, maintainAspectRatio: false, indexAxis: data.rows.length > 8 ? 'y' : 'x', plugins: { legend: { display: false } }, scales: { y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94a3b8' } }, x: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#94a3b8' } } } }
+                });
+            }
+        }
+    } catch(e) { document.getElementById('modal-table').innerHTML = `<div class="error-card">Request failed: ${e.message}</div>`; }
+}
+
+function askQuick(q) { document.getElementById('ask-input').value = q; askAI(); }
+
+function copyToQuery(sql) {
+    const form = document.createElement('form'); form.method = 'POST'; form.action = '/';
+    const input = document.createElement('input'); input.type = 'hidden'; input.name = 'command'; input.value = sql;
+    form.appendChild(input); document.body.appendChild(form); form.submit();
+}
+
+// =============================================
+// ER DIAGRAM
+// =============================================
+
+// Initialize mermaid with dark theme
+mermaid.initialize({
+    startOnLoad: false,
+    theme: 'dark',
+    themeVariables: {
+        darkMode: true,
+        background: '#09090b',
+        primaryColor: '#1e3a5f',
+        primaryBorderColor: '#3b82f6',
+        primaryTextColor: '#e4e4e7',
+        secondaryColor: '#1a1a2e',
+        secondaryBorderColor: '#8b5cf6',
+        secondaryTextColor: '#a1a1aa',
+        tertiaryColor: '#0f0f1a',
+        lineColor: '#52525b',
+        textColor: '#e4e4e7',
+        mainBkg: '#111118',
+        nodeBorder: '#3b82f6',
+        clusterBkg: '#0c0c0f',
+        titleColor: '#e4e4e7',
+        edgeLabelBackground: '#09090b',
+        fontSize: '13px',
+    },
+    er: {
+        diagramPadding: 20,
+        layoutDirection: 'TB',
+        minEntityWidth: 100,
+        minEntityHeight: 50,
+        entityPadding: 15,
+        useMaxWidth: true,
+    },
+    securityLevel: 'loose',
+});
+
+let erData = null;
+
+async function loadErDiagram() {
+    const loading = document.getElementById('er-loading');
+    const container = document.getElementById('er-container');
+    const errorDiv = document.getElementById('er-error');
+    const legend = document.getElementById('er-legend');
+
+    loading.style.display = 'block';
+    container.style.display = 'none';
+    errorDiv.style.display = 'none';
 
     try {
-        const res = await fetch('/api/ask', {
+        const res = await fetch('/api/er-diagram', {
             method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({ question: question })
+            headers: { 'Content-Type': 'application/json' }
         });
         const data = await res.json();
 
-        if (data.error) {
-            resultDiv.innerHTML = `<div style="color: var(--red);">${data.error}</div>`;
-        } else {
-            resultDiv.innerHTML = marked.parse(data.answer);
-
-            // Show suggested queries
-            if (data.suggested_queries && data.suggested_queries.length > 0) {
-                sugDiv.style.display = 'block';
-                sugDiv.innerHTML = '<div style="font-size: 0.8rem; color: var(--text-dim); margin-bottom: 8px; text-transform: uppercase; font-weight: 600;">Suggested Follow-up Queries:</div>' +
-                    data.suggested_queries.map(q =>
-                        `<button class="quick-cmd" onclick="copyToQuery('${q.replace(/'/g, "\\'")}')" style="margin: 4px; font-size: 0.8rem; padding: 8px 12px;">${q.length > 80 ? q.substring(0, 80) + '...' : q}</button>`
-                    ).join('');
-            }
+        if (!data.success) {
+            loading.style.display = 'none';
+            errorDiv.textContent = data.error || 'Failed to load ER diagram data.';
+            errorDiv.style.display = 'block';
+            return;
         }
+
+        erData = data;
+        const mermaidCode = generateMermaidER(data.tables, data.foreign_keys);
+
+        if (!mermaidCode) {
+            loading.style.display = 'none';
+            errorDiv.textContent = 'No tables found to generate ER diagram.';
+            errorDiv.style.display = 'block';
+            return;
+        }
+
+        // Render the diagram
+        const diagramEl = document.getElementById('er-diagram');
+        diagramEl.innerHTML = '';
+
+        const { svg } = await mermaid.render('er-svg-' + Date.now(), mermaidCode);
+        diagramEl.innerHTML = svg;
+
+        loading.style.display = 'none';
+        container.style.display = 'block';
+        legend.style.display = 'flex';
+
     } catch (e) {
-        resultDiv.innerHTML = '<div style="color: var(--red);">Network error. Please try again.</div>';
-    } finally {
-        btn.disabled = false;
-        btn.textContent = 'Ask AI';
+        loading.style.display = 'none';
+        errorDiv.textContent = 'Failed to render ER diagram: ' + e.message;
+        errorDiv.style.display = 'block';
     }
 }
 
-function askQuick(q) {
-    document.getElementById('ask-input').value = q;
-    askAI();
+function generateMermaidER(tables, foreignKeys) {
+    if (!tables || tables.length === 0) return null;
+
+    let code = 'erDiagram\n';
+
+    // Build a set of FK columns for marking
+    const fkColumns = new Set();
+    (foreignKeys || []).forEach(fk => {
+        fkColumns.add(fk.from_table + '.' + fk.from_column);
+    });
+
+    // Define entities
+    tables.forEach(table => {
+        const safeName = sanitizeErName(table.name);
+        if (table.columns && table.columns.length > 0) {
+            code += `    ${safeName} {\n`;
+            table.columns.forEach(col => {
+                const colType = sanitizeErType(col.type || 'unknown');
+                const colName = sanitizeErName(col.name);
+                let marker = '';
+                if (col.pk) marker = 'PK';
+                else if (fkColumns.has(table.name + '.' + col.name)) marker = 'FK';
+                code += `        ${colType} ${colName}${marker ? ' ' + marker : ''}\n`;
+            });
+            code += `    }\n`;
+        } else {
+            code += `    ${safeName} {\n        string id\n    }\n`;
+        }
+    });
+
+    // Define relationships
+    const tableNameSet = new Set(tables.map(t => t.name));
+    (foreignKeys || []).forEach(fk => {
+        if (tableNameSet.has(fk.from_table) && tableNameSet.has(fk.to_table)) {
+            const from = sanitizeErName(fk.from_table);
+            const to = sanitizeErName(fk.to_table);
+            const label = sanitizeErLabel(fk.from_column);
+            code += `    ${to} ||--o{ ${from} : "${label}"\n`;
+        }
+    });
+
+    return code;
 }
 
-function copyToQuery(sql) {
-    // Navigate to main page with the query
-    const form = document.createElement('form');
-    form.method = 'POST';
-    form.action = '/';
-    const input = document.createElement('input');
-    input.type = 'hidden';
-    input.name = 'command';
-    input.value = sql;
-    form.appendChild(input);
-    document.body.appendChild(form);
-    form.submit();
+function sanitizeErName(name) {
+    // Mermaid entity names: replace spaces and special chars with underscores
+    return name.replace(/[^a-zA-Z0-9_]/g, '_').replace(/^[0-9]/, '_$&');
 }
+
+function sanitizeErType(type) {
+    // Mermaid type field: simple word, no parens or special chars
+    return type.replace(/\(.*\)/, '').replace(/[^a-zA-Z0-9_]/g, '_').toLowerCase() || 'text';
+}
+
+function sanitizeErLabel(label) {
+    return label.replace(/"/g, "'");
+}
+
+function toggleErFullscreen() {
+    const modal = document.getElementById('er-fullscreen-modal');
+    if (modal.style.display === 'none' || !modal.style.display) {
+        modal.style.display = 'block';
+        const fsContainer = document.getElementById('er-fullscreen-container');
+        const srcSvg = document.querySelector('#er-diagram svg');
+        if (srcSvg) {
+            fsContainer.innerHTML = srcSvg.outerHTML;
+            // Make fullscreen SVG larger
+            const fsSvg = fsContainer.querySelector('svg');
+            if (fsSvg) {
+                fsSvg.style.maxWidth = '100%';
+                fsSvg.style.height = 'auto';
+                fsSvg.style.minHeight = '500px';
+            }
+        } else {
+            fsContainer.innerHTML = '<p style="color:var(--text-dim); padding:40px;">No diagram to display. Load the ER diagram first.</p>';
+        }
+        document.body.style.overflow = 'hidden';
+    } else {
+        modal.style.display = 'none';
+        document.body.style.overflow = '';
+    }
+}
+
+// Close fullscreen on Escape
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        const modal = document.getElementById('er-fullscreen-modal');
+        if (modal && modal.style.display === 'block') {
+            toggleErFullscreen();
+        }
+    }
+});
+
+// Load ER diagram when overview content becomes visible
+const erObserver = new MutationObserver(function() {
+    const content = document.getElementById('overview-content');
+    if (content && content.style.display !== 'none') {
+        loadErDiagram();
+        erObserver.disconnect();
+    }
+});
+erObserver.observe(document.getElementById('overview-content') || document.body, { attributes: true, attributeFilter: ['style'] });
+
+// Also try loading after a delay in case the observer misses it
+setTimeout(function() {
+    const content = document.getElementById('overview-content');
+    if (content && content.style.display !== 'none') {
+        const erContainer = document.getElementById('er-container');
+        if (erContainer && erContainer.style.display === 'none') {
+            loadErDiagram();
+        }
+    }
+}, 3000);
 </script>
-
-</body>
-</html>
+{% endblock %}

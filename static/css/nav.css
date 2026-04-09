@@ -1,0 +1,101 @@
+/* =========================================================================
+   NAVIGATION
+   ========================================================================= */
+
+.global-nav {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    height: var(--nav-h);
+    display: flex;
+    align-items: center;
+    padding: 0 20px;
+    background: rgba(9,9,11,0.82);
+    border-bottom: 1px solid var(--border);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    z-index: 100;
+    gap: 8px;
+}
+
+.nav-brand {
+    font-weight: 700;
+    font-size: 0.95rem;
+    background: linear-gradient(135deg, var(--blue), var(--purple));
+    -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent;
+    white-space: nowrap;
+    margin-right: 16px;
+}
+
+.nav-links {
+    display: flex;
+    gap: 2px;
+    flex: 1;
+    overflow-x: auto;
+    scrollbar-width: none;
+    align-items: center;
+}
+.nav-links::-webkit-scrollbar { display: none; }
+
+.nav-link {
+    color: var(--text-dim);
+    font-size: 0.8rem;
+    font-weight: 500;
+    padding: 6px 12px;
+    border-radius: var(--r-sm);
+    white-space: nowrap;
+    transition: all var(--transition);
+}
+.nav-link:hover { color: var(--text); background: var(--surface-2); }
+.nav-link.active {
+    color: var(--text);
+    background: var(--surface-2);
+}
+
+/* Nav group separators */
+.nav-sep {
+    width: 1px;
+    height: 16px;
+    background: var(--border);
+    margin: 0 6px;
+    flex-shrink: 0;
+}
+
+.user-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-left: auto;
+    flex-shrink: 0;
+}
+.user-name { font-weight: 600; font-size: 0.8rem; color: var(--text-sec); }
+.role-badge {
+    font-size: 0.6rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 2px 8px;
+    border-radius: var(--r-full);
+    background: var(--surface-2);
+    color: var(--text-sec);
+    border: 1px solid var(--border);
+}
+.logout-link {
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    padding: 4px 10px;
+    border-radius: var(--r-sm);
+}
+.logout-link:hover { color: var(--red); background: var(--red-dim); }
+
+/* Kbd shortcut hint */
+.nav-kbd {
+    font-size: 0.6rem;
+    padding: 1px 5px;
+    border-radius: 4px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    font-family: inherit;
+    margin-left: auto;
+}
