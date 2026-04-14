@@ -44,6 +44,7 @@
 
 <section class="action-bar">
     <form id="executeForm" method="POST" action="/execute">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="sql" id="hiddenSql">
         <button type="submit" class="btn-execute">Execute Changes</button>
     </form>
@@ -52,6 +53,7 @@
 
     {% if db_info.supports_snapshot %}
     <form method="POST" action="/undo">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button type="submit" class="secondary">Undo Snapshot</button>
     </form>
     {% endif %}

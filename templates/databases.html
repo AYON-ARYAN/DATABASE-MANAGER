@@ -45,6 +45,7 @@
             <button type="button" onclick="testConnection('{{ conn.name }}', this)" class="btn">Test</button>
             {% if conn.name != active_db %}
             <form method="POST" action="/databases/select" style="margin:0;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <input type="hidden" name="conn_name" value="{{ conn.name }}">
                 <button type="submit" class="btn btn-active">Use</button>
             </form>
@@ -52,6 +53,7 @@
             {% if conn.name != 'Default SQLite' %}
             <form method="POST" action="/databases/delete" style="margin:0;"
                   onsubmit="return confirm('Delete connection \'{{ conn.name }}\'?')">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <input type="hidden" name="conn_name" value="{{ conn.name }}">
                 <button type="submit" class="btn btn-danger">Delete</button>
             </form>
@@ -65,6 +67,7 @@
 <div class="add-conn-form">
     <h3>Add New Connection</h3>
     <form id="add-conn-form" method="POST" action="/databases/add">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="form-row">
             <div class="form-group">
                 <label>Connection Name</label>

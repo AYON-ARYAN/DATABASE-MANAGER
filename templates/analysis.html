@@ -308,16 +308,18 @@ function renderInsightChart(cfg, canvasId) {
     const canvas = document.getElementById(canvasId); if (!canvas) return;
     const ctx = canvas.getContext('2d');
     const palette = ['#3b82f6','#8b5cf6','#22c55e','#f59e0b','#ef4444','#06b6d4','#ec4899','#14b8a6','#f97316','#6366f1'];
-    const chartType = cfg.type === 'area' ? 'line' : cfg.type;
-    const isPie = cfg.type === 'pie' || cfg.type === 'doughnut';
+    // Remap unsupported types: histogram -> bar, area -> line
+    const rawType = cfg.type || 'bar';
+    const chartType = (rawType === 'area') ? 'line' : (rawType === 'histogram') ? 'bar' : rawType;
+    const isPie = chartType === 'pie' || chartType === 'doughnut';
     const datasets = (cfg.datasets || []).map((ds, didx) => ({
         ...ds,
-        backgroundColor: isPie ? (ds.data || []).map((_, i) => palette[i % palette.length]) : palette[didx % palette.length] + (cfg.type === 'bar' ? '80' : '30'),
+        backgroundColor: isPie ? (ds.data || []).map((_, i) => palette[i % palette.length]) : palette[didx % palette.length] + (chartType === 'bar' ? '80' : '30'),
         borderColor: isPie ? 'rgba(0,0,0,0.2)' : palette[didx % palette.length],
-        borderWidth: isPie ? 1 : 2, borderRadius: cfg.type === 'bar' ? 4 : 0, fill: cfg.type === 'area', tension: 0.3, pointRadius: cfg.type === 'scatter' ? 5 : 2,
+        borderWidth: isPie ? 1 : 2, borderRadius: chartType === 'bar' ? 4 : 0, fill: rawType === 'area', tension: 0.3, pointRadius: chartType === 'scatter' ? 5 : 2,
     }));
     let labels = cfg.labels; let finalDatasets = datasets;
-    if (cfg.type === 'scatter') { finalDatasets = datasets.map(ds => ({ ...ds, data: (ds.data || []).map((v, i) => ({ x: cfg.labels[i], y: v })) })); labels = undefined; }
+    if (chartType === 'scatter') { finalDatasets = datasets.map(ds => ({ ...ds, data: (ds.data || []).map((v, i) => ({ x: cfg.labels[i], y: v })) })); labels = undefined; }
     const chart = new Chart(ctx, {
         type: chartType, data: { labels, datasets: finalDatasets },
         options: { responsive: true, maintainAspectRatio: false, plugins: { title: { display: true, text: cfg.title || '', color: '#e4e4e7', font: { size: 13, family: 'Inter' } }, legend: { position: 'bottom', labels: { color: '#a1a1aa', padding: 12, usePointStyle: true, font: { size: 10 } } } }, scales: isPie ? {} : { y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#71717a', font: { size: 10 } } }, x: { grid: { display: false }, ticks: { color: '#71717a', font: { size: 10 }, maxRotation: 45 } } } }
@@ -329,16 +331,18 @@ function renderChart(cfg) {
     if (currentChart) currentChart.destroy();
     const ctx = document.getElementById('chart').getContext('2d');
     const palette = ['#3b82f6','#8b5cf6','#22c55e','#f59e0b','#ef4444','#06b6d4','#ec4899','#14b8a6','#f97316','#6366f1'];
-    const chartType = cfg.type === 'area' ? 'line' : cfg.type;
-    const isPie = cfg.type === 'pie' || cfg.type === 'doughnut';
+    // Remap unsupported types: histogram -> bar, area -> line
+    const rawType = cfg.type || 'bar';
+    const chartType = (rawType === 'area') ? 'line' : (rawType === 'histogram') ? 'bar' : rawType;
+    const isPie = chartType === 'pie' || chartType === 'doughnut';
     const datasets = (cfg.datasets || []).map((ds, idx) => ({
         ...ds,
-        backgroundColor: isPie ? (ds.data || []).map((_, i) => palette[i % palette.length]) : palette[idx % palette.length] + (cfg.type === 'bar' ? '80' : '30'),
+        backgroundColor: isPie ? (ds.data || []).map((_, i) => palette[i % palette.length]) : palette[idx % palette.length] + (chartType === 'bar' ? '80' : '30'),
         borderColor: isPie ? 'rgba(0,0,0,0.2)' : palette[idx % palette.length],
-        borderWidth: isPie ? 1 : 2, borderRadius: cfg.type === 'bar' ? 4 : 0, fill: cfg.type === 'area', tension: 0.3, pointRadius: cfg.type === 'scatter' ? 5 : 2,
+        borderWidth: isPie ? 1 : 2, borderRadius: chartType === 'bar' ? 4 : 0, fill: rawType === 'area', tension: 0.3, pointRadius: chartType === 'scatter' ? 5 : 2,
     }));
     let labels = cfg.labels; let finalDatasets = datasets;
-    if (cfg.type === 'scatter') { finalDatasets = datasets.map(ds => ({ ...ds, data: (ds.data || []).map((v, i) => ({ x: cfg.labels[i], y: v })) })); labels = undefined; }
+    if (chartType === 'scatter') { finalDatasets = datasets.map(ds => ({ ...ds, data: (ds.data || []).map((v, i) => ({ x: cfg.labels[i], y: v })) })); labels = undefined; }
     currentChart = new Chart(ctx, {
         type: chartType, data: { labels, datasets: finalDatasets },
         options: { responsive: true, maintainAspectRatio: false, plugins: { title: { display: true, text: cfg.title || '', color: '#e4e4e7', font: { size: 14, family: 'Inter' } }, legend: { position: 'bottom', labels: { color: '#a1a1aa', padding: 16, usePointStyle: true, font: { size: 11 } } } }, scales: isPie ? {} : { y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#71717a', font: { size: 11 } } }, x: { grid: { display: false }, ticks: { color: '#71717a', font: { size: 11 }, maxRotation: 45 } } } }

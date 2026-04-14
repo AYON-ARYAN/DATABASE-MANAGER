@@ -1,6 +1,6 @@
 # Secrets and Environment Variables
 .env
-.env.*
+
 
 # Python Virtual Environments
 venv/
@@ -41,3 +41,8 @@ Thumbs.db
 Screenshot *.png
 pass_test.txt
 db/llm_config.json
+
+# Internal development notes
+improvemts.md
+improvements.md
+test.md

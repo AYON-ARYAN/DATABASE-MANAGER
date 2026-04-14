@@ -6,6 +6,7 @@ from flask import (
     Flask, render_template, request,
     session, redirect, url_for, Response, jsonify, send_file
 )
+from flask_wtf.csrf import CSRFProtect
 import json
 
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -39,8 +40,11 @@ load_dotenv()
 # Flask App Setup
 # ---------------------------------------------------
 app = Flask(__name__)
-app.secret_key = "dev-secret-key"
+app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-key-CHANGE-IN-PRODUCTION")
 app.config["SESSION_PERMANENT"] = False
+app.config["WTF_CSRF_TIME_LIMIT"] = None  # tokens don't expire with the session
+
+csrf = CSRFProtect(app)
 
 # Groq Data Analysis config
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
@@ -2202,7 +2206,48 @@ def api_overview_query():
 
 
 # ---------------------------------------------------
+# CSRF Exemptions — AJAX / JSON API routes
+# These are called from JavaScript (fetch/XHR) with application/json or
+# multipart bodies; CSRF attacks can't forge those content-types cross-origin.
+# ---------------------------------------------------
+_csrf_exempt_views = [
+    # AJAX endpoints that use request.json
+    dry_run_route,
+    refine_query,
+    update_llm_config,
+    pull_model,
+    admin_test_llm,
+    # AJAX endpoints that use form data / file upload but are called from JS
+    test_db,
+    test_new_db,
+    analyze,
+    analyze_csv,
+    explain_command,
+    # All /api/* routes
+    api_create_dashboard,
+    api_delete_dashboard,
+    api_add_widget,
+    api_remove_widget,
+    api_query_data,
+    api_auto_generate_dashboard,
+    generate_insights,
+    analyze_direct,
+    api_table_preview,
+    analyze_full,
+    analyze_full_status,
+    ai_ask_endpoint,
+    api_er_diagram,
+    api_overview,
+    api_overview_query,
+    api_tables_list,
+]
+for _view in _csrf_exempt_views:
+    csrf.exempt(_view)
+
+
+# ---------------------------------------------------
 # Run
 # ---------------------------------------------------
 if __name__ == "__main__":
-    app.run(debug=True)
+    debug = os.getenv("FLASK_DEBUG", "false").lower() == "true"
+    app.run(debug=debug)

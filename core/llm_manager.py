@@ -8,7 +8,7 @@ DEFAULT_CONFIG = {
     "active_provider": "mistral", # mistral (ollama) or groq
     "providers": {
         "groq": {
-            "api_key": os.getenv("GROQ_API_KEY", ""),
+            "api_key": os.getenv("GROQ_API_KEY_1") or os.getenv("GROQ_API_KEY", ""),
             "model": "llama-3.3-70b-versatile",
             "url": "https://api.groq.com/openai/v1/chat/completions"
         },

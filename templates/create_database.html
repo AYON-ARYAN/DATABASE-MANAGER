@@ -20,6 +20,7 @@
 <div class="add-conn-form">
     <h3>Database Details</h3>
     <form id="create-db-form" method="POST" action="/create-database">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="form-row">
             <div class="form-group">
                 <label>Database Name</label>

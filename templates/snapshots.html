@@ -33,6 +33,7 @@
         </div>
         {% if db_info.supports_snapshot and session.role == 'ADMIN' %}
         <form method="POST" action="/snapshots/create" style="margin: 0;">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <button type="submit" class="btn-primary" style="margin: 0;">Create Snapshot</button>
         </form>
         {% elif not db_info.supports_snapshot %}
@@ -69,11 +70,13 @@
                     <div style="display: flex; justify-content: flex-end; gap: 8px;">
                         {% if session.role == 'ADMIN' %}
                         <form method="POST" action="/snapshots/restore" style="margin: 0;" onsubmit="return confirm('Restoring snapshot {{ snap.id }} will overwrite current data. Continue?');">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                             <input type="hidden" name="snap_id" value="{{ snap.id }}">
                             <input type="hidden" name="connection_name" value="{{ snap.connection_name }}">
                             <button type="submit" class="btn-primary" style="margin: 0; padding: 6px 12px; font-size: 0.85rem;">Restore</button>
                         </form>
                         <form method="POST" action="/snapshots/delete" style="margin: 0;" onsubmit="return confirm('Delete snapshot {{ snap.id }} permanently?');">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                             <input type="hidden" name="snap_id" value="{{ snap.id }}">
                             <button type="submit" class="btn-danger" style="margin: 0; padding: 6px 12px; font-size: 0.85rem;">Delete</button>
                         </form>

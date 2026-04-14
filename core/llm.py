@@ -238,42 +238,48 @@ def generate_query(user_command: str, dialect: str = "sqlite", schema: str = "",
     completion_tokens = 0
 
     if provider == "groq":
-        api_key = p_config.get("api_key")
+        from core.groq_keys import get_current_key, rotate, key_count, any_key_available
+
         model = p_config.get("model", "llama-3.3-70b-versatile")
         url = p_config.get("url", GROQ_API_URL)
 
-        if api_key:
+        if any_key_available():
             messages = [{"role": "system", "content": context}]
             for msg in history:
                 messages.append({"role": "user", "content": msg["user"]})
                 messages.append({"role": "assistant", "content": msg["assistant"]})
             messages.append({"role": "user", "content": f"USER COMMAND:\n{user_command}"})
-            
-            headers = {
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json"
-            }
-            payload = {
-                "model": model,
-                "messages": messages,
-                "temperature": 0.1
-            }
-            try:
-                res = requests.post(url, headers=headers, json=payload, timeout=60)
-                res.raise_for_status()
-                data = res.json()
-                latency = time.time() - start_time
-                
-                # Extract usage info
-                usage = data.get("usage", {})
-                prompt_tokens = usage.get("prompt_tokens", 0)
-                completion_tokens = usage.get("completion_tokens", 0)
-                
-                log_call("groq", data.get("model", model), latency, prompt_tokens, completion_tokens)
-                return clean_sql(data["choices"][0]["message"]["content"])
-            except Exception as e:
-                print(f"Groq API Error: {e}")
-                # Don't return yet, fall through to Ollama if this fails
+
+            payload = {"model": model, "messages": messages, "temperature": 0.1}
+
+            for attempt in range(key_count()):
+                api_key = get_current_key()
+                try:
+                    res = requests.post(
+                        url,
+                        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                        json=payload,
+                        timeout=60,
+                    )
+                    if res.status_code == 429:
+                        print(f"[Groq] Key exhausted (attempt {attempt + 1}/{key_count()}), rotating...")
+                        rotate()
+                        continue
+                    res.raise_for_status()
+                    data = res.json()
+                    latency = time.time() - start_time
+                    usage = data.get("usage", {})
+                    prompt_tokens = usage.get("prompt_tokens", 0)
+                    completion_tokens = usage.get("completion_tokens", 0)
+                    log_call("groq", data.get("model", model), latency, prompt_tokens, completion_tokens)
+                    return clean_sql(data["choices"][0]["message"]["content"])
+                except requests.HTTPError as e:
+                    print(f"Groq API Error: {e}")
+                    break
+                except Exception as e:
+                    print(f"Groq API Error: {e}")
+                    break
+            # All keys exhausted or non-recoverable error — fall through to Ollama
 
     # Default / Fallback: Ollama Local
     ollama_config = p_config if provider == "mistral" else llm_manager.load_config()["providers"]["mistral"]

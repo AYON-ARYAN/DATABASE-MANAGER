@@ -32,6 +32,7 @@
     <div class="context-pill">
         <span class="label">DB</span>
         <form method="POST" action="/databases/select" style="margin:0">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <select name="conn_name" onchange="this.form.submit()">
                 {% for conn in connections %}
                 <option value="{{ conn.name }}" {% if conn.name == db_info.name %}selected{% endif %}>{{ conn.name }}</option>
@@ -43,6 +44,7 @@
     <div class="context-pill" style="margin-left:auto;">
         <span class="label">LLM</span>
         <form method="POST" action="/set_llm_provider" style="margin:0">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <select name="provider" id="llm-sel" onchange="handleLlm(this)">
                 <option value="mistral" {% if llm_provider == 'mistral' %}selected{% endif %}>Mistral</option>
                 <option value="groq" {% if llm_provider == 'groq' %}selected{% endif %}>Groq</option>
@@ -168,6 +170,7 @@
 <!-- Chat Input -->
 <div class="chat-input-wrap">
     <form method="POST" action="/" id="qform">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="chat-input-box">
             <textarea id="qinput" name="command" placeholder="Ask anything about your database..." required rows="1"></textarea>
             <div class="chat-actions">

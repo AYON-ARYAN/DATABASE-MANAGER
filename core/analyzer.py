@@ -5,17 +5,32 @@ import time
 import uuid
 import threading
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
-from groq import Groq
+from groq import Groq, RateLimitError
 from dotenv import load_dotenv
+from core.groq_keys import get_current_key, rotate, key_count, any_key_available
 
 load_dotenv()
 
-# Initialize Groq client
-# This requires GROQ_API_KEY environment variable to be set
-try:
-    GROQ_CLIENT = Groq(api_key=os.environ.get("GROQ_API_KEY"))
-except Exception:
-    GROQ_CLIENT = None
+
+def _groq_create(messages: list, model: str = "llama-3.3-70b-versatile", **kwargs):
+    """
+    Call Groq chat completions with automatic round-robin key rotation on 429.
+    Tries every key in the pool once before raising.
+    """
+    max_attempts = max(key_count(), 1)
+    last_error = None
+    for attempt in range(max_attempts):
+        key = get_current_key()
+        if not key:
+            raise RuntimeError("No Groq API key configured")
+        client = Groq(api_key=key)
+        try:
+            return client.chat.completions.create(model=model, messages=messages, **kwargs)
+        except RateLimitError as e:
+            last_error = e
+            print(f"[Groq] Key exhausted (attempt {attempt + 1}/{max_attempts}), rotating...")
+            rotate()
+    raise last_error or RuntimeError("All Groq API keys exhausted")
 
 # ---------------------------------------------------
 # Full Database Analysis — Job Tracking
@@ -28,7 +43,7 @@ def analyze_data(columns: list, rows: list, user_hint: str = "") -> dict:
     """
     Sends tabular data to Groq and returns analysis + chart config.
     """
-    if not GROQ_CLIENT:
+    if not any_key_available():
         return {
             "error": "Groq API key not configured. Please set the GROQ_API_KEY environment variable."
         }
@@ -83,6 +98,7 @@ The JSON object must have this exact structure:
 
 RULES FOR CHART:
 - "type" MUST be one of: "pie", "bar", "line", "doughnut", "area", "scatter"
+- Do NOT use "histogram" — use "bar" instead for frequency/distribution data
 - "labels" should be an array of strings (e.g., categories, dates, or X-axis values)
 - "data" should be an array of numbers corresponding to the labels
 - For "scatter": "data" should be an array of numerical values, and "labels" should also contain numerical values representing the X-axis.
@@ -96,7 +112,7 @@ RULES FOR CHART:
 """
 
     try:
-        response = GROQ_CLIENT.chat.completions.create(
+        response = _groq_create(
             model="llama-3.3-70b-versatile",
             messages=[
                 {"role": "system", "content": "You are a data analysis engine that outputs strict JSON."},
@@ -127,7 +143,7 @@ def ai_ask(question: str, schema: str, db_name: str, table_stats: list = None,
     Answers any question about the database using Groq.
     Returns {"answer": "...", "suggested_queries": [...]}
     """
-    if not GROQ_CLIENT:
+    if not any_key_available():
         return {"error": "Groq API key not configured. Set GROQ_API_KEY in .env file."}
 
     stats_str = ""
@@ -184,7 +200,7 @@ Then at the very end, add this exact section:
 """
 
     try:
-        response = GROQ_CLIENT.chat.completions.create(
+        response = _groq_create(
             model="llama-3.3-70b-versatile",
             messages=[
                 {"role": "system", "content": f"You are a helpful DBMS teaching assistant specializing in {dialect_name}. You explain database concepts clearly and provide practical, executable SQL examples from the user's actual database schema and data."},
@@ -218,7 +234,7 @@ def get_table_overview(schema: str, db_name: str, table_stats: list,
     Generates a complete database overview with charts data for the overview dashboard.
     Returns {"summary": "...", "charts": [...]}
     """
-    if not GROQ_CLIENT:
+    if not any_key_available():
         return {"error": "Groq API key not configured."}
 
     dialect_map = {
@@ -274,7 +290,7 @@ CRITICAL RULES:
 """
 
     try:
-        response = GROQ_CLIENT.chat.completions.create(
+        response = _groq_create(
             model="llama-3.3-70b-versatile",
             messages=[
                 {"role": "system", "content": "You are a database analytics engine that outputs strict JSON."},
@@ -299,7 +315,7 @@ def analyze_schema(schema: str, db_name: str) -> dict:
     """
     Analyzes the raw schema of a database and returns high-level business intelligence insights.
     """
-    if not GROQ_CLIENT:
+    if not any_key_available():
         return {"error": "Groq API key not configured."}
 
     prompt = f"""You are an expert Data Architect and Business Intelligence Analyst.
@@ -318,7 +334,7 @@ Format the output strictly as Markdown text. Make it look highly professional an
 """
 
     try:
-        response = GROQ_CLIENT.chat.completions.create(
+        response = _groq_create(
             model="llama-3.3-70b-versatile",
             messages=[
                 {"role": "system", "content": "You provide extremely professional, deep-dive database schema analyses formatted in clean Markdown."},
@@ -340,7 +356,7 @@ def generate_analytical_queries(schema: str, db_name: str, table_stats: list,
     Given full DB context, asks the LLM to produce 6-10 analytical SELECT queries.
     Returns {"queries": [{"title": "...", "sql": "...", "chart_type": "bar"}, ...]}
     """
-    if not GROQ_CLIENT:
+    if not any_key_available():
         return {"error": "Groq API key not configured."}
 
     dialect_map = {
@@ -401,7 +417,7 @@ Return ONLY a raw JSON object:
 """
 
     try:
-        response = GROQ_CLIENT.chat.completions.create(
+        response = _groq_create(
             model="llama-3.3-70b-versatile",
             messages=[
                 {"role": "system", "content": "You are a data analysis query generator that outputs strict JSON."},
@@ -434,7 +450,7 @@ def generate_full_report(schema: str, db_name: str, table_stats: list,
     Given DB context and executed query results, generates a full analytical report.
     Returns {"executive_summary": "markdown", "insights": [{"title", "markdown", "chart", "sql"}, ...]}
     """
-    if not GROQ_CLIENT:
+    if not any_key_available():
         return {"error": "Groq API key not configured."}
 
     dialect_map = {
@@ -514,7 +530,7 @@ RULES:
 """
 
     try:
-        response = GROQ_CLIENT.chat.completions.create(
+        response = _groq_create(
             model="llama-3.3-70b-versatile",
             messages=[
                 {"role": "system", "content": "You are a database intelligence report generator that outputs strict JSON."},

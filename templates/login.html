@@ -5,6 +5,7 @@
 {% block content %}
 <div class="login-shell">
     <form method="POST" class="login-card">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="login-logo">M</div>
         <h2>Meridian Data</h2>
         <p class="sub">Sign in to your database workspace</p>
