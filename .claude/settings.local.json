@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(py -3 -m venv venv --clear)",
+      "Bash(venv/Scripts/pip.exe install:*)",
+      "Bash(.venv/Scripts/pip.exe install:*)"
+    ]
+  }
+}

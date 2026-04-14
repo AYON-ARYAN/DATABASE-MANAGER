@@ -709,5 +709,23 @@
     "prompt_tokens": 2048,
     "completion_tokens": 116,
     "total_tokens": 2164
+  },
+  {
+    "timestamp": "2026-04-09T23:51:56.417719",
+    "provider": "groq",
+    "model": "llama-3.3-70b-versatile",
+    "latency": 0.959,
+    "prompt_tokens": 328,
+    "completion_tokens": 13,
+    "total_tokens": 341
+  },
+  {
+    "timestamp": "2026-04-14T00:43:57.480687",
+    "provider": "groq",
+    "model": "llama-3.3-70b-versatile",
+    "latency": 0.5,
+    "prompt_tokens": 100,
+    "completion_tokens": 200,
+    "total_tokens": 300
   }
 ]

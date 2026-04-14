@@ -40,14 +40,6 @@
     "file_path": "db/snapshots/Northwind_20260316_190328_acde9ff6.db"
   },
   {
-    "id": "d177c31e",
-    "connection_name": "Default SQLite",
-    "db_type": "sqlite",
-    "timestamp": "2026-04-07T10:44:08.952932",
-    "formatted_time": "Apr 07, 2026 - 10:44:08",
-    "file_path": "db/snapshots/Default_SQLite_20260407_104408_d177c31e.db"
-  },
-  {
     "id": "f1e0248c",
     "connection_name": "Default SQLite",
     "db_type": "sqlite",
@@ -70,5 +62,13 @@
     "timestamp": "2026-04-09T10:57:23.639801",
     "formatted_time": "Apr 09, 2026 - 10:57:23",
     "file_path": "db/snapshots/Default_SQLite_20260409_105723_4a5f9fc7.db"
+  },
+  {
+    "id": "9ccc9db7",
+    "connection_name": "Default SQLite",
+    "db_type": "sqlite",
+    "timestamp": "2026-04-09T23:56:06.167078",
+    "formatted_time": "Apr 09, 2026 - 23:56:06",
+    "file_path": "db/snapshots\\Default_SQLite_20260409_235606_9ccc9db7.db"
   }
 ]

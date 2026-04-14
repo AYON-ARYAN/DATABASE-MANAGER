@@ -1,35 +1,294 @@
 {
   "dashboards": [
     {
-      "id": "cfbc8092-177e-4ab0-9d28-10b5b6286b8f",
-      "name": "AI: customer distribution by count...",
+      "id": "9a11244f-8129-4b95-84d0-245759d6f32f",
+      "name": "Complete Database Overview",
       "widgets": [
         {
-          "id": "05f466d7-51c8-4f6d-947f-1482f6b917bd",
-          "title": "Customer Distribution by Country",
-          "query": "SELECT Country, COUNT(CustomerId) AS CustomerCount FROM Customer GROUP BY Country",
+          "id": "2435ec73-e6a2-408b-8c09-0ea7804176f0",
+          "title": "Top 5 Genres by Track Count",
+          "query": "SELECT G.Name, COUNT(T.TrackId) FROM Genre G JOIN Track T ON G.GenreId = T.GenreId GROUP BY G.Name ORDER BY COUNT(T.TrackId) DESC LIMIT 5",
           "chart_type": "bar",
           "db_name": "Default SQLite",
-          "created_at": "2026-03-16T19:44:56.488985"
+          "created_at": "2026-04-10T10:53:39.396336"
         },
         {
-          "id": "5e28609f-4c99-4fbe-b81d-8c188945b3ee",
-          "title": "Top 10 Countries by Customer Count",
-          "query": "SELECT Country, COUNT(CustomerId) AS CustomerCount FROM Customer GROUP BY Country ORDER BY CustomerCount DESC LIMIT 10",
+          "id": "eb650052-6db5-4edf-ae81-ce3cfd30c4d8",
+          "title": "Artist Distribution",
+          "query": "SELECT A.Name, COUNT(Al.AlbumId) FROM Artist A JOIN Album Al ON A.ArtistId = Al.ArtistId GROUP BY A.Name ORDER BY COUNT(Al.AlbumId) DESC",
           "chart_type": "pie",
           "db_name": "Default SQLite",
-          "created_at": "2026-03-16T19:44:56.489390"
+          "created_at": "2026-04-10T10:53:39.423322"
         },
         {
-          "id": "e41d6015-4d7c-4a16-8b8e-03145621ba7c",
-          "title": "Customer Distribution by Country (Table)",
-          "query": "SELECT Country, COUNT(CustomerId) AS CustomerCount FROM Customer GROUP BY Country",
+          "id": "c543f9af-8ab3-47f3-891f-826db29d9be3",
+          "title": "Invoice Total by Country",
+          "query": "SELECT C.Country, SUM(I.Total) FROM Customer C JOIN Invoice I ON C.CustomerId = I.CustomerId GROUP BY C.Country ORDER BY SUM(I.Total) DESC",
+          "chart_type": "line",
+          "db_name": "Default SQLite",
+          "created_at": "2026-04-10T10:53:39.446051"
+        },
+        {
+          "id": "fc7aef02-50b0-41dd-a8c1-6daade56c551",
+          "title": "Top 5 Customers by Invoice Total",
+          "query": "SELECT C.FirstName, C.LastName, SUM(I.Total) FROM Customer C JOIN Invoice I ON C.CustomerId = I.CustomerId GROUP BY C.FirstName, C.LastName ORDER BY SUM(I.Total) DESC LIMIT 5",
+          "chart_type": "doughnut",
+          "db_name": "Default SQLite",
+          "created_at": "2026-04-10T10:53:39.471332"
+        },
+        {
+          "id": "3295fa5f-e922-45f6-88f6-672de2660648",
+          "title": "Recent Invoices",
+          "query": "SELECT I.InvoiceId, I.InvoiceDate, C.FirstName, C.LastName, I.Total FROM Invoice I JOIN Customer C ON I.CustomerId = C.CustomerId ORDER BY I.InvoiceDate DESC LIMIT 10",
           "chart_type": "table",
           "db_name": "Default SQLite",
-          "created_at": "2026-03-16T19:44:56.490593"
+          "created_at": "2026-04-10T10:53:39.494404"
+        },
+        {
+          "id": "2e0dcf41-5652-4812-bc96-1bed91ee9141",
+          "title": "Track Count by MediaType",
+          "query": "SELECT MT.Name, COUNT(T.TrackId) FROM MediaType MT JOIN Track T ON MT.MediaTypeId = T.MediaTypeId GROUP BY MT.Name ORDER BY COUNT(T.TrackId) DESC",
+          "chart_type": "bar",
+          "db_name": "Default SQLite",
+          "created_at": "2026-04-10T10:53:39.522212"
         }
       ],
-      "created_at": "2026-03-16T19:44:56.488369"
+      "created_at": "2026-04-10T10:53:39.354808"
+    },
+    {
+      "id": "ee5c641f-b340-4b66-84e5-8230e76ffb29",
+      "name": "Customer Insights and Order History",
+      "widgets": [
+        {
+          "id": "35c0a661-2bbd-49d4-866a-e893e5c67094",
+          "title": "Top 5 Countries by Total Orders",
+          "query": "SELECT BillingCountry, SUM(Total) AS TotalOrders FROM Invoice GROUP BY BillingCountry ORDER BY TotalOrders DESC LIMIT 5",
+          "chart_type": "bar",
+          "db_name": "Default SQLite",
+          "created_at": "2026-04-10T10:54:06.309998"
+        },
+        {
+          "id": "f9869490-40ef-454e-b2a1-80e9dc031518",
+          "title": "Customer Distribution by Genre",
+          "query": "SELECT G.Name, COUNT(DISTINCT C.CustomerId) AS CustomerCount FROM Customer C JOIN Invoice I ON C.CustomerId = I.CustomerId JOIN InvoiceLine IL ON I.InvoiceId = IL.InvoiceId JOIN Track T ON IL.TrackId = T.TrackId JOIN Genre G ON T.GenreId = G.GenreId GROUP BY G.Name ORDER BY CustomerCount DESC",
+          "chart_type": "pie",
+          "db_name": "Default SQLite",
+          "created_at": "2026-04-10T10:54:06.328605"
+        },
+        {
+          "id": "9dc39b54-10f1-43b4-b640-30b992979084",
+          "title": "Order History by Month",
+          "query": "SELECT STRFTIME('%Y-%m', InvoiceDate) AS Month, SUM(Total) AS TotalOrders FROM Invoice GROUP BY Month ORDER BY Month",
+          "chart_type": "line",
+          "db_name": "Default SQLite",
+          "created_at": "2026-04-10T10:54:06.345929"
+        },
+        {
+          "id": "7977f992-c1a5-4c4f-adcd-d7e463c43eae",
+          "title": "Recent Orders",
+          "query": "SELECT C.FirstName, C.LastName, I.InvoiceDate, I.Total FROM Customer C JOIN Invoice I ON C.CustomerId = I.CustomerId ORDER BY I.InvoiceDate DESC LIMIT 10",
+          "chart_type": "table",
+          "db_name": "Default SQLite",
+          "created_at": "2026-04-10T10:54:06.370017"
+        },
+        {
+          "id": "0649b8b8-77a0-4f92-8f67-c7428d1dcadb",
+          "title": "Top 5 Artists by Total Sales",
+          "query": "SELECT A.Name, SUM(IL.UnitPrice * IL.Quantity) AS TotalSales FROM Artist A JOIN Album Al ON A.ArtistId = Al.ArtistId JOIN Track T ON Al.AlbumId = T.AlbumId JOIN InvoiceLine IL ON T.TrackId = IL.TrackId JOIN Invoice I ON IL.InvoiceId = I.InvoiceId GROUP BY A.Name ORDER BY TotalSales DESC LIMIT 5",
+          "chart_type": "doughnut",
+          "db_name": "Default SQLite",
+          "created_at": "2026-04-10T10:54:06.390586"
+        }
+      ],
+      "created_at": "2026-04-10T10:54:06.281740"
+    },
+    {
+      "id": "a5f7c2a3-053c-4306-b9b0-2032439fad5a",
+      "name": "Genre Performance Dashboard",
+      "widgets": [
+        {
+          "id": "ac291b9f-ea83-412d-ac5a-4661c38c909e",
+          "title": "Top 5 Genres by Total Sales",
+          "query": "SELECT g.Name, SUM(i.Total) AS TotalSales FROM Invoice i JOIN InvoiceLine il ON i.InvoiceId = il.InvoiceId JOIN Track t ON il.TrackId = t.TrackId JOIN Genre g ON t.GenreId = g.GenreId GROUP BY g.Name ORDER BY TotalSales DESC LIMIT 5",
+          "chart_type": "bar",
+          "db_name": "Default SQLite",
+          "created_at": "2026-04-10T11:05:39.169892"
+        },
+        {
+          "id": "688931b4-cbff-41b7-b3f8-2bfe66f34fd1",
+          "title": "Genre Distribution",
+          "query": "SELECT g.Name, COUNT(t.TrackId) AS TrackCount FROM Genre g JOIN Track t ON g.GenreId = t.GenreId GROUP BY g.Name",
+          "chart_type": "pie",
+          "db_name": "Default SQLite",
+          "created_at": "2026-04-10T11:05:39.191856"
+        },
+        {
+          "id": "10bef2c8-8c64-4897-a7e6-97060e887259",
+          "title": "Genre Sales Over Time",
+          "query": "SELECT i.InvoiceDate, SUM(i.Total) AS TotalSales FROM Invoice i JOIN InvoiceLine il ON i.InvoiceId = il.InvoiceId JOIN Track t ON il.TrackId = t.TrackId JOIN Genre g ON t.GenreId = g.GenreId WHERE g.Name = 'Rock' GROUP BY i.InvoiceDate ORDER BY i.InvoiceDate",
+          "chart_type": "line",
+          "db_name": "Default SQLite",
+          "created_at": "2026-04-10T11:05:39.214772"
+        },
+        {
+          "id": "207fc892-a429-46b6-9a17-7ef50903a87f",
+          "title": "Top 10 Tracks by Genre",
+          "query": "SELECT t.Name, g.Name AS Genre, SUM(il.Quantity) AS TotalQuantity FROM Track t JOIN Genre g ON t.GenreId = g.GenreId JOIN InvoiceLine il ON t.TrackId = il.TrackId GROUP BY t.Name, g.Name ORDER BY TotalQuantity DESC LIMIT 10",
+          "chart_type": "table",
+          "db_name": "Default SQLite",
+          "created_at": "2026-04-10T11:05:39.240020"
+        },
+        {
+          "id": "8d4816aa-0c58-492e-9fe9-6ad3c4d08e2d",
+          "title": "Genre Sales by Country",
+          "query": "SELECT c.Country, SUM(i.Total) AS TotalSales FROM Invoice i JOIN Customer c ON i.CustomerId = c.CustomerId JOIN InvoiceLine il ON i.InvoiceId = il.InvoiceId JOIN Track t ON il.TrackId = t.TrackId JOIN Genre g ON t.GenreId = g.GenreId GROUP BY c.Country ORDER BY TotalSales DESC",
+          "chart_type": "doughnut",
+          "db_name": "Default SQLite",
+          "created_at": "2026-04-10T11:05:39.260536"
+        }
+      ],
+      "created_at": "2026-04-10T11:05:39.130545"
+    },
+    {
+      "id": "bb9706c0-29f4-4849-98f4-801229f4124f",
+      "name": "Revenue by Country",
+      "widgets": [
+        {
+          "id": "3912e4fc-1dc6-4283-be07-c330b04a5ae1",
+          "title": "Total Revenue by Country",
+          "query": "SELECT BillingCountry, SUM(Total) FROM Invoice GROUP BY BillingCountry ORDER BY SUM(Total) DESC",
+          "chart_type": "bar",
+          "db_name": "Default SQLite",
+          "created_at": "2026-04-10T11:06:01.787721"
+        },
+        {
+          "id": "12d477f8-5cd2-4cd1-87b6-44edb2b76133",
+          "title": "Revenue Distribution by Country",
+          "query": "SELECT BillingCountry, SUM(Total) FROM Invoice GROUP BY BillingCountry ORDER BY SUM(Total) DESC",
+          "chart_type": "pie",
+          "db_name": "Default SQLite",
+          "created_at": "2026-04-10T11:06:01.810143"
+        },
+        {
+          "id": "2dd66242-36a8-4f10-a4e8-42abbf80affb",
+          "title": "Revenue by Country and Customer",
+          "query": "SELECT c.Country, c.FirstName, c.LastName, SUM(i.Total) FROM Customer c JOIN Invoice i ON c.CustomerId = i.CustomerId GROUP BY c.Country, c.FirstName, c.LastName ORDER BY SUM(i.Total) DESC",
+          "chart_type": "table",
+          "db_name": "Default SQLite",
+          "created_at": "2026-04-10T11:06:01.831883"
+        },
+        {
+          "id": "4b55244a-27a6-4a6b-a9cc-172d5761d21e",
+          "title": "Revenue Trend by Country",
+          "query": "SELECT STRFTIME('%Y', InvoiceDate) AS Year, BillingCountry, SUM(Total) FROM Invoice GROUP BY STRFTIME('%Y', InvoiceDate), BillingCountry ORDER BY STRFTIME('%Y', InvoiceDate), SUM(Total) DESC",
+          "chart_type": "line",
+          "db_name": "Default SQLite",
+          "created_at": "2026-04-10T11:06:01.853998"
+        },
+        {
+          "id": "10ee2740-4562-4a45-9ccd-6dff9218f411",
+          "title": "Top 5 Countries by Revenue",
+          "query": "SELECT BillingCountry, SUM(Total) FROM Invoice GROUP BY BillingCountry ORDER BY SUM(Total) DESC LIMIT 5",
+          "chart_type": "doughnut",
+          "db_name": "Default SQLite",
+          "created_at": "2026-04-10T11:06:01.877036"
+        }
+      ],
+      "created_at": "2026-04-10T11:06:01.759808"
+    },
+    {
+      "id": "7274db08-604b-4a96-ac4b-33abb8ce262a",
+      "name": "Top Tracks and Albums",
+      "widgets": [
+        {
+          "id": "8d2fb479-3719-47f7-81fe-8d8bf2683eca",
+          "title": "Top 10 Tracks by Total Sales",
+          "query": "SELECT T.Name, SUM(IL.Quantity) AS TotalSales FROM Track T JOIN InvoiceLine IL ON T.TrackId = IL.TrackId GROUP BY T.Name ORDER BY TotalSales DESC LIMIT 10",
+          "chart_type": "bar",
+          "db_name": "Default SQLite",
+          "created_at": "2026-04-10T11:06:42.250968"
+        },
+        {
+          "id": "13ff45cf-d3fb-43a9-8964-c1ea37a8ad7d",
+          "title": "Top 5 Genres by Total Sales",
+          "query": "SELECT G.Name, SUM(IL.UnitPrice * IL.Quantity) AS TotalSales FROM Genre G JOIN Track T ON G.GenreId = T.GenreId JOIN InvoiceLine IL ON T.TrackId = IL.TrackId GROUP BY G.Name ORDER BY TotalSales DESC LIMIT 5",
+          "chart_type": "pie",
+          "db_name": "Default SQLite",
+          "created_at": "2026-04-10T11:06:42.277152"
+        },
+        {
+          "id": "ba2858c5-6815-4e78-8e9b-3319c36e1475",
+          "title": "Top 10 Albums by Total Sales",
+          "query": "SELECT A.Title, SUM(IL.Quantity) AS TotalSales FROM Album A JOIN Track T ON A.AlbumId = T.AlbumId JOIN InvoiceLine IL ON T.TrackId = IL.TrackId GROUP BY A.Title ORDER BY TotalSales DESC LIMIT 10",
+          "chart_type": "line",
+          "db_name": "Default SQLite",
+          "created_at": "2026-04-10T11:06:42.305795"
+        },
+        {
+          "id": "82eb58e3-784f-4259-bed2-9c7e3e1e50ca",
+          "title": "Top Artists by Total Album Sales",
+          "query": "SELECT AR.Name, SUM(IL.Quantity) AS TotalSales FROM Artist AR JOIN Album A ON AR.ArtistId = A.ArtistId JOIN Track T ON A.AlbumId = T.AlbumId JOIN InvoiceLine IL ON T.TrackId = IL.TrackId GROUP BY AR.Name ORDER BY TotalSales DESC LIMIT 10",
+          "chart_type": "doughnut",
+          "db_name": "Default SQLite",
+          "created_at": "2026-04-10T11:06:42.330709"
+        },
+        {
+          "id": "5b75d635-191f-4ed1-b8e3-fd146faea9a6",
+          "title": "Top 10 Tracks with Details",
+          "query": "SELECT T.Name, A.Title, G.Name, IL.UnitPrice, IL.Quantity FROM Track T JOIN Album A ON T.AlbumId = A.AlbumId JOIN Genre G ON T.GenreId = G.GenreId JOIN InvoiceLine IL ON T.TrackId = IL.TrackId ORDER BY IL.Quantity DESC LIMIT 10",
+          "chart_type": "table",
+          "db_name": "Default SQLite",
+          "created_at": "2026-04-10T11:06:42.354365"
+        }
+      ],
+      "created_at": "2026-04-10T11:06:42.210443"
+    },
+    {
+      "id": "b682f7db-5ca1-4559-8212-eadc887ca3a9",
+      "name": "Top Tracks in Last 4 Weeks",
+      "widgets": [
+        {
+          "id": "7931cb08-1aff-470f-8a93-790191a59d5f",
+          "title": "Top 10 Tracks by Sales",
+          "query": "SELECT T.Name, SUM(IL.Quantity) AS TotalSales FROM InvoiceLine IL JOIN Track T ON IL.TrackId = T.TrackId WHERE IL.InvoiceId IN (SELECT InvoiceId FROM Invoice WHERE InvoiceDate > DATE('now', '-4 weeks')) GROUP BY T.Name ORDER BY TotalSales DESC LIMIT 10",
+          "chart_type": "bar",
+          "db_name": "Default SQLite",
+          "created_at": "2026-04-10T11:46:44.669954"
+        },
+        {
+          "id": "6e791876-e39a-4156-8579-249cb5e7f3e8",
+          "title": "Top Genres by Sales",
+          "query": "SELECT G.Name, SUM(IL.Quantity) AS TotalSales FROM InvoiceLine IL JOIN Track T ON IL.TrackId = T.TrackId JOIN Genre G ON T.GenreId = G.GenreId WHERE IL.InvoiceId IN (SELECT InvoiceId FROM Invoice WHERE InvoiceDate > DATE('now', '-4 weeks')) GROUP BY G.Name ORDER BY TotalSales DESC LIMIT 5",
+          "chart_type": "pie",
+          "db_name": "Default SQLite",
+          "created_at": "2026-04-10T11:46:44.681936"
+        },
+        {
+          "id": "1ad257e7-4478-41b5-b56b-75f9328f63be",
+          "title": "Top Artists by Sales",
+          "query": "SELECT A.Name, SUM(IL.Quantity) AS TotalSales FROM InvoiceLine IL JOIN Track T ON IL.TrackId = T.TrackId JOIN Album Al ON T.AlbumId = Al.AlbumId JOIN Artist A ON Al.ArtistId = A.ArtistId WHERE IL.InvoiceId IN (SELECT InvoiceId FROM Invoice WHERE InvoiceDate > DATE('now', '-4 weeks')) GROUP BY A.Name ORDER BY TotalSales DESC LIMIT 5",
+          "chart_type": "doughnut",
+          "db_name": "Default SQLite",
+          "created_at": "2026-04-10T11:46:44.691965"
+        },
+        {
+          "id": "473fb52f-7b11-4a9e-a436-44979442a3a3",
+          "title": "Top Tracks by Revenue",
+          "query": "SELECT T.Name, SUM(IL.UnitPrice * IL.Quantity) AS TotalRevenue FROM InvoiceLine IL JOIN Track T ON IL.TrackId = T.TrackId WHERE IL.InvoiceId IN (SELECT InvoiceId FROM Invoice WHERE InvoiceDate > DATE('now', '-4 weeks')) GROUP BY T.Name ORDER BY TotalRevenue DESC LIMIT 10",
+          "chart_type": "line",
+          "db_name": "Default SQLite",
+          "created_at": "2026-04-10T11:46:44.700647"
+        },
+        {
+          "id": "8461020c-eacc-4436-9516-1151551271a4",
+          "title": "Top Tracks Data Table",
+          "query": "SELECT T.Name, IL.Quantity, IL.UnitPrice, I.InvoiceDate FROM InvoiceLine IL JOIN Track T ON IL.TrackId = T.TrackId JOIN Invoice I ON IL.InvoiceId = I.InvoiceId WHERE I.InvoiceDate > DATE('now', '-4 weeks') ORDER BY IL.Quantity DESC LIMIT 20",
+          "chart_type": "table",
+          "db_name": "Default SQLite",
+          "created_at": "2026-04-10T11:46:44.711922"
+        }
+      ],
+      "created_at": "2026-04-10T11:46:44.654051"
     }
   ]
 }
