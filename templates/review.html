@@ -1,0 +1,143 @@
+{% extends "layouts/page.html" %}
+
+{% block title %}Review Changes{% endblock %}
+{% block nav_query %}active{% endblock %}
+{% block page_class %}app-container{% endblock %}
+
+{% block content %}
+<header>
+    <h1>Review Database Changes</h1>
+    <p>Verify before execution · <strong>{{ db_info.display_type }}</strong> — {{ db_info.name }}</p>
+</header>
+
+{% if not db_info.supports_snapshot %}
+<div class="notice-box" style="max-width:1100px;">
+    <span><strong>No Undo available</strong> for {{ db_info.display_type }}. This operation cannot be reverted. Please double-check before executing.</span>
+</div>
+{% endif %}
+
+<section class="card">
+    <h2>SQL Statement (Editable)</h2>
+    <textarea id="editableSql" name="sql" style="width: 100%; height: 150px; font-family: monospace; padding: 10px; resize: vertical;">{{ sql }}</textarea>
+</section>
+
+{% if explanation %}
+<section class="card" id="explanationCard">
+    <h2>AI Logic Explanation</h2>
+    <div id="explanationText" style="white-space: pre-wrap; line-height: 1.5;">{{ explanation }}</div>
+</section>
+{% endif %}
+
+<section class="card refinement-loop">
+    <h2>Refine with AI</h2>
+    <p>Tell the AI what to change or fix:</p>
+    <div style="display: flex; gap: 10px;">
+        <input type="text" id="refinePrompt" placeholder="e.g. 'Sort by price descending' or 'Exclude inactive users'" style="flex-grow: 1;">
+        <button type="button" id="refineBtn" class="secondary">Refine Query</button>
+    </div>
+</section>
+
+<section class="card">
+    <h2>Impact Preview</h2>
+    <p>{{ preview }}</p>
+</section>
+
+<section class="action-bar">
+    <form id="executeForm" method="POST" action="/execute">
+        <input type="hidden" name="sql" id="hiddenSql">
+        <button type="submit" class="btn-execute">Execute Changes</button>
+    </form>
+
+    <button type="button" id="dryRunBtn" class="secondary">Dry Run</button>
+
+    {% if db_info.supports_snapshot %}
+    <form method="POST" action="/undo">
+        <button type="submit" class="secondary">Undo Snapshot</button>
+    </form>
+    {% endif %}
+
+    <a href="/" class="secondary link-btn">Back</a>
+</section>
+
+<div id="dryRunResult" class="card result-box" style="display: none; margin-top: 20px;">
+    <h3>Dry Run Result</h3>
+    <p id="dryRunMsg"></p>
+    <div id="dryRunStats" style="font-size: 1.1em; font-weight: bold; color: var(--blue);"></div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const editableSql = document.getElementById('editableSql');
+const hiddenSql = document.getElementById('hiddenSql');
+const executeForm = document.getElementById('executeForm');
+
+executeForm.addEventListener('submit', () => { hiddenSql.value = editableSql.value; });
+
+document.getElementById('dryRunBtn').addEventListener('click', async function() {
+    const btn = this;
+    const resultBox = document.getElementById('dryRunResult');
+    const msg = document.getElementById('dryRunMsg');
+    const stats = document.getElementById('dryRunStats');
+    btn.disabled = true;
+    btn.innerText = 'Processing...';
+    try {
+        const response = await fetch('/dry-run', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ sql: editableSql.value })
+        });
+        const data = await response.json();
+        resultBox.style.display = 'block';
+        if (data.success) {
+            msg.innerText = data.status;
+            stats.innerText = `Affected Rows: ${data.affected_rows}`;
+            resultBox.style.borderColor = 'var(--blue)';
+        } else {
+            msg.innerText = data.status;
+            stats.innerText = '';
+            resultBox.style.borderColor = 'var(--red)';
+        }
+    } catch (err) {
+        resultBox.style.display = 'block';
+        msg.innerText = 'Error connecting to server.';
+        resultBox.style.borderColor = 'var(--red)';
+    } finally {
+        btn.disabled = false;
+        btn.innerText = 'Dry Run';
+    }
+});
+
+document.getElementById('refineBtn').addEventListener('click', async function() {
+    const btn = this;
+    const promptInput = document.getElementById('refinePrompt');
+    const feedback = promptInput.value.trim();
+    if (!feedback) return;
+    btn.disabled = true;
+    btn.innerText = 'Refining...';
+    try {
+        const response = await fetch('/refine', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ feedback: feedback, current_sql: editableSql.value })
+        });
+        const data = await response.json();
+        if (data.success) {
+            editableSql.value = data.sql;
+            if (data.explanation) {
+                const expText = document.getElementById('explanationText');
+                if (expText) expText.innerText = data.explanation;
+            }
+            promptInput.value = '';
+        } else {
+            alert('Refinement failed: ' + data.error);
+        }
+    } catch (err) {
+        alert('Error connecting to refinement engine.');
+    } finally {
+        btn.disabled = false;
+        btn.innerText = 'Refine Query';
+    }
+});
+</script>
+{% endblock %}

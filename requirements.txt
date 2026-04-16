@@ -1,0 +1,22 @@
+# Web framework
+Flask==3.1.1
+flask-cors==5.0.1
+python-dotenv==1.0.0
+
+# Database adapters
+psycopg2-binary==2.9.11
+pymysql==1.1.1
+pymssql==2.3.4
+oracledb==3.1.0
+pymongo==4.13.0
+cassandra-driver==3.30.0
+redis==6.2.0
+
+# AI / LLM
+groq==0.25.0
+
+# Utilities
+requests==2.31.0
+cryptography==46.0.4
+python-pptx==1.0.2
+faker==40.13.0

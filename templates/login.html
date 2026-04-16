@@ -1,0 +1,28 @@
+{% extends "base_bare.html" %}
+
+{% block title %}Sign in - Meridian{% endblock %}
+
+{% block content %}
+<div class="login-shell">
+    <form method="POST" class="login-card">
+        <div class="login-logo">M</div>
+        <h2>Meridian Data</h2>
+        <p class="sub">Sign in to your database workspace</p>
+
+        <input name="username" placeholder="Username" required autocomplete="username">
+        <input name="password" type="password" placeholder="Password" required autocomplete="current-password">
+
+        <button type="submit" class="login-btn">Continue</button>
+
+        {% if error %}
+        <div class="error-card" style="margin-top:16px;">{{ error }}</div>
+        {% endif %}
+
+        <div class="login-hint">
+            Demo accounts: <code>admin1</code> / <code>admin123</code> &middot;
+            <code>editor1</code> / <code>editor123</code> &middot;
+            <code>viewer1</code> / <code>viewer123</code>
+        </div>
+    </form>
+</div>
+{% endblock %}

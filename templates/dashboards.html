@@ -1,0 +1,141 @@
+{% extends "layouts/page.html" %}
+
+{% block title %}Dashboards - Meridian{% endblock %}
+{% block nav_dashboards %}active{% endblock %}
+{% block page_class %}page--mid{% endblock %}
+
+{% block content %}
+<div class="dash-header">
+    <div>
+        <h1>Dashboards</h1>
+        <p>Create collections of live charts and tables from your database.</p>
+    </div>
+    <div class="header-actions">
+        <button onclick="showCreateModal()" class="btn-primary" style="margin:0; width:auto; padding:8px 18px;">+ New Dashboard</button>
+    </div>
+</div>
+
+<!-- AI Generate Box -->
+<div class="ai-gen-box">
+    <div style="font-size:0.85rem; font-weight:600; color:var(--text);">Generate a dashboard with AI</div>
+    <div style="font-size:0.75rem; color:var(--text-dim); margin-top:2px;">Describe what you want to see and AI will create charts and tables automatically.</div>
+    <div class="ai-gen-row">
+        <input type="text" id="ai-prompt" placeholder="e.g. Sales overview with revenue by category, top customers, order trends">
+        <button onclick="aiGenerate()" id="btn-gen" class="btn-primary" style="margin:0; width:auto; padding:8px 20px; white-space:nowrap;">Generate</button>
+    </div>
+    <div class="ai-gen-chips">
+        <button class="chip" onclick="quickGen('Complete database overview with charts for every table')">Full Overview</button>
+        <button class="chip" onclick="quickGen('Sales and revenue analysis dashboard')">Sales Analysis</button>
+        <button class="chip" onclick="quickGen('Customer insights and order history')">Customer Insights</button>
+        <button class="chip" onclick="quickGen('Inventory and product analysis')">Product Analysis</button>
+    </div>
+    <div class="gen-status" id="gen-status"><span class="spin"></span>Generating dashboard with AI... this takes 10-20s</div>
+</div>
+
+<!-- Dashboard Grid -->
+<div class="dash-grid">
+    {% for dash in dashboards %}
+    <div class="dash-card">
+        <div>
+            <h3>{{ dash.name }}</h3>
+            <div class="dash-meta">{{ dash.widgets|length }} widget{{ 's' if dash.widgets|length != 1 }} &middot; {{ dash.created_at[:10] }}</div>
+        </div>
+        <div class="dash-actions">
+            <a href="/dashboards/{{ dash.id }}" class="btn-primary" style="flex:1; text-align:center; margin:0; padding:7px 14px; font-size:0.8rem;">Open</a>
+            <button onclick="deleteDash('{{ dash.id }}')" class="secondary" style="padding:7px 14px; font-size:0.8rem; color:var(--red);">Delete</button>
+        </div>
+    </div>
+    {% endfor %}
+
+    {% if not dashboards %}
+    <div class="empty-state">
+        <div style="font-size:1.5rem; margin-bottom:12px;">No dashboards yet</div>
+        <p style="margin-bottom:16px;">Use the AI generator above or create one manually.</p>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Create Modal -->
+<div class="modal-overlay" id="create-modal">
+    <div class="modal-box">
+        <h2 style="font-size: 1.1rem; margin-bottom: 16px;">New Dashboard</h2>
+        <label class="modal-label">Name</label>
+        <input type="text" id="new-dash-name" placeholder="e.g. Q1 Sales Report">
+        <div class="modal-btns">
+            <button onclick="createDash()" class="btn-primary" style="margin:0;">Create</button>
+            <button onclick="hideCreateModal()" class="secondary">Cancel</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function showCreateModal() {
+    const m = document.getElementById('create-modal');
+    m.style.display = 'flex';
+    requestAnimationFrame(() => m.classList.add('visible'));
+}
+function hideCreateModal() {
+    const m = document.getElementById('create-modal');
+    m.classList.remove('visible');
+    setTimeout(() => m.style.display = 'none', 200);
+}
+
+document.getElementById('ai-prompt').addEventListener('keydown', e => { if (e.key === 'Enter') aiGenerate(); });
+
+async function createDash() {
+    const name = document.getElementById('new-dash-name').value.trim();
+    if (!name) return;
+    const res = await fetch('/api/dashboards', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({name})
+    });
+    if (res.ok) {
+        const dash = await res.json();
+        location.href = '/dashboards/' + dash.id;
+    }
+}
+
+async function deleteDash(id) {
+    if (!confirm("Delete this dashboard and all its widgets?")) return;
+    await fetch('/api/dashboards/' + id, { method: 'DELETE' });
+    location.reload();
+}
+
+function quickGen(prompt) {
+    document.getElementById('ai-prompt').value = prompt;
+    aiGenerate();
+}
+
+async function aiGenerate() {
+    const prompt = document.getElementById('ai-prompt').value.trim();
+    if (!prompt) return;
+    const btn = document.getElementById('btn-gen');
+    const status = document.getElementById('gen-status');
+    btn.disabled = true;
+    status.style.display = 'block';
+    TopProgress.start();
+    try {
+        const res = await fetch('/api/dashboards/auto-generate', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({prompt})
+        });
+        const data = await res.json();
+        if (data.error) alert('Generation failed: ' + data.error);
+        else if (data.id) location.href = '/dashboards/' + data.id;
+        else location.reload();
+    } catch(e) {
+        alert('Network error: ' + e.message);
+    } finally {
+        btn.disabled = false;
+        status.style.display = 'none';
+        TopProgress.stop();
+    }
+}
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape') hideCreateModal(); });
+</script>
+{% endblock %}

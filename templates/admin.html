@@ -1,0 +1,308 @@
+{% extends "layouts/page.html" %}
+
+{% block title %}LLM Administration{% endblock %}
+{% block nav_admin %}active{% endblock %}
+{% block page_class %}app-container{% endblock %}
+
+{% block head_extra %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{% endblock %}
+
+{% block content %}
+<header style="margin-bottom: 40px;">
+    <h1>LLM Administration</h1>
+    <p>Monitor AI performance, usage metrics, and test provider responsiveness.</p>
+</header>
+
+<!-- Admin Tabs -->
+<div class="admin-tabs">
+    <button class="admin-tab active" onclick="switchAdminTab('metrics')">Metrics</button>
+    <button class="admin-tab" onclick="switchAdminTab('providers')">Providers</button>
+    <button class="admin-tab" onclick="switchAdminTab('activity')">Activity</button>
+    <button class="admin-tab" onclick="switchAdminTab('console')">Console</button>
+</div>
+
+<!-- METRICS TAB -->
+<div class="admin-panel active" id="panel-metrics">
+    <div class="metric-grid">
+        <div class="metric-card">
+            <div class="metric-label">Total API Calls</div>
+            <div class="metric-value">{{ summary.total_calls }}</div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-label">Avg Latency</div>
+            <div class="metric-value">{{ summary.avg_latency }}s</div>
+        </div>
+        <div class="metric-card">
+            <div class="metric-label">Total Tokens</div>
+            <div class="metric-value">{{ summary.total_tokens }}</div>
+        </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 30px; margin-bottom: 40px;">
+        <div class="card">
+            <h3>Provider Distribution</h3>
+            <canvas id="providerChart" style="max-height: 200px;"></canvas>
+        </div>
+        <div class="card">
+            <h3>Token Usage Trend</h3>
+            <canvas id="tokenTrendChart" style="max-height: 200px;"></canvas>
+        </div>
+        <div class="card">
+            <h3>Latency Trend (s)</h3>
+            <canvas id="latencyTrendChart" style="max-height: 200px;"></canvas>
+        </div>
+    </div>
+</div>
+
+<!-- PROVIDERS TAB -->
+<div class="admin-panel" id="panel-providers">
+    <div style="display: grid; grid-template-columns: 1.2fr 0.8fr; gap: 30px; margin-bottom: 40px;">
+        <div class="card">
+            <h3>LLM Provider Settings</h3>
+            <p style="color:var(--text-dim); font-size: 0.9rem; margin-bottom: 20px;">Manage API keys and active models for cloud providers.</p>
+            <div style="margin-bottom: 20px;">
+                <label class="db-select-label">Active Provider</label>
+                <select id="active-provider" class="db-select" style="width: 100%;">
+                    <option value="mistral" {% if llm_config.active_provider == 'mistral' %}selected{% endif %}>Local Ollama (Mistral)</option>
+                    <option value="groq" {% if llm_config.active_provider == 'groq' %}selected{% endif %}>Groq (Cloud)</option>
+                </select>
+            </div>
+            <div id="groq-settings" class="test-console" style="margin-bottom: 20px;">
+                <h4 style="margin-top: 0;">Groq Configuration</h4>
+                <label class="db-select-label">API Key</label>
+                <input type="password" id="groq-key" class="db-select" style="width: 100%; margin-bottom: 10px;"
+                       value="{{ llm_config.providers.groq.api_key }}" placeholder="gsk_...">
+                <label class="db-select-label">Model Name</label>
+                <input type="text" id="groq-model" class="db-select" style="width: 100%;"
+                       value="{{ llm_config.providers.groq.model }}" placeholder="llama-3.3-70b-versatile">
+            </div>
+            <button onclick="saveLLMConfig()" class="btn-primary" style="width: 100%;">Save LLM Settings</button>
+        </div>
+
+        <div class="card">
+            <h3>Ollama Model Manager</h3>
+            <p style="color:var(--text-dim); font-size: 0.9rem; margin-bottom: 6px;">Click a model to set it as the active Ollama model.</p>
+            <p style="color:var(--text-dim); font-size: 0.75rem; margin-bottom: 15px;">
+                Current: <strong id="current-ollama-model" style="color:var(--blue);">{{ llm_config.providers.mistral.model }}</strong>
+            </p>
+            <div style="max-height: 240px; overflow-y: auto; background: rgba(0,0,0,0.2); border-radius: 8px; padding: 6px; margin-bottom: 20px;">
+                {% for model in ollama_models %}
+                <div onclick="selectOllamaModel('{{ model.name }}', this)"
+                     class="ollama-model-row {% if model.name == llm_config.providers.mistral.model %}active{% endif %}"
+                     style="display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; border-radius: 8px; cursor: pointer; margin-bottom: 2px; border: 1px solid transparent; transition: all 0.15s ease;">
+                    <div>
+                        <span style="font-family: monospace; font-size: 0.88rem; font-weight: 500;">{{ model.name }}</span>
+                        {% if model.name == llm_config.providers.mistral.model %}
+                        <span style="font-size: 0.6rem; background: var(--blue-dim); color: var(--blue); padding: 1px 7px; border-radius: 99px; margin-left: 8px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em;">Active</span>
+                        {% endif %}
+                    </div>
+                    <small style="color: var(--text-dim);">{{ (model.size / 1024 / 1024 / 1024) | round(2) }} GB</small>
+                </div>
+                {% endfor %}
+                {% if not ollama_models %}
+                <p style="text-align: center; color: var(--text-dim); padding: 20px;">No models found. Is Ollama running?</p>
+                {% endif %}
+            </div>
+            <label class="db-select-label">Pull New Model</label>
+            <div style="display: flex; gap: 10px;">
+                <input type="text" id="pull-model-name" class="db-select" style="flex: 1;" placeholder="e.g. llama3, codellama, phi3">
+                <button onclick="pullModel()" id="btn-pull" class="secondary">Pull</button>
+            </div>
+            <p id="pull-status" style="font-size: 0.8rem; margin-top: 10px; color: var(--blue); display: none;"></p>
+        </div>
+    </div>
+</div>
+
+<!-- ACTIVITY TAB -->
+<div class="admin-panel" id="panel-activity">
+    <div class="card">
+        <h3>Recent Activity</h3>
+        <div style="max-height: 400px; overflow-y: auto;">
+            <table style="width: 100%; font-size: 0.85rem;">
+                <thead>
+                    <tr><th>Time</th><th>Provider</th><th>Lat</th><th>Tokens</th></tr>
+                </thead>
+                <tbody>
+                    {% for log in summary.recent_history|reverse %}
+                    <tr>
+                        <td style="color:var(--text-dim)">{{ log.timestamp[11:19] }}</td>
+                        <td><span class="badge {{ 'READ' if log.provider == 'groq' else 'SYSTEM' }}">{{ log.provider }}</span></td>
+                        <td>{{ log.latency }}s</td>
+                        <td>{{ log.total_tokens }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- CONSOLE TAB -->
+<div class="admin-panel" id="panel-console">
+    <section class="card">
+        <h2>Admin Test Console</h2>
+        <p style="margin-bottom: 20px; color: var(--text-dim);">Send direct prompts to the LLM to test raw outputs.</p>
+        <div style="display: flex; gap: 20px;">
+            <div style="flex: 1;">
+                <label class="db-select-label">Provider</label>
+                <select id="test-provider" class="db-select" style="width: 100%; margin-bottom: 15px;">
+                    <option value="mistral">Mistral (Local)</option>
+                    <option value="groq">Groq (Cloud API)</option>
+                </select>
+                <label class="db-select-label">Prompt</label>
+                <textarea id="test-prompt" class="db-select" style="width: 100%; height: 100px; resize: none; padding: 10px;"
+                          placeholder="e.g. Say Hello World in SQL injection style..."></textarea>
+                <button onclick="runTest()" id="btn-run-test" class="btn-primary" style="width: 100%; margin-top:15px;">Run Test Prompt</button>
+            </div>
+            <div style="flex: 1;">
+                <label class="db-select-label">Raw Output</label>
+                <div id="test-output-loading" style="display:none; text-align: center; padding: 40px; color: var(--blue);">Testing Provider...</div>
+                <pre id="test-output" class="raw-json" style="height: 155px; margin-top: 5px;">Results will appear here...</pre>
+            </div>
+        </div>
+    </section>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Admin tab switching
+function switchAdminTab(tab) {
+    document.querySelectorAll('.admin-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.admin-panel').forEach(p => p.classList.remove('active'));
+    document.querySelector(`.admin-tab[onclick*="${tab}"]`).classList.add('active');
+    document.getElementById('panel-' + tab).classList.add('active');
+}
+
+// Analytics Data
+const trends = {{ summary.trends|tojson|safe }};
+const providerData = {{ summary.calls_by_provider|tojson|safe }};
+
+new Chart(document.getElementById('providerChart'), {
+    type: 'doughnut',
+    data: {
+        labels: Object.keys(providerData),
+        datasets: [{ data: Object.values(providerData), backgroundColor: ['#22d3ee', '#8b5cf6', '#3b82f6', '#ec4899'], borderWidth: 0 }]
+    },
+    options: { responsive: true, plugins: { legend: { position: 'bottom', labels: { color: '#94a3b8', boxWidth: 12 } } } }
+});
+
+const commonOptions = {
+    responsive: true,
+    scales: {
+        x: { ticks: { color: '#64748b', maxRotation: 45 }, grid: { display: false } },
+        y: { ticks: { color: '#64748b' }, grid: { color: 'rgba(255,255,255,0.05)' } }
+    },
+    plugins: { legend: { position: 'top', labels: { color: '#94a3b8', boxWidth: 12 } } }
+};
+
+new Chart(document.getElementById('tokenTrendChart'), {
+    type: 'line',
+    data: {
+        labels: trends.labels,
+        datasets: [
+            { label: 'Groq', data: trends.groq_tokens, borderColor: '#22d3ee', backgroundColor: 'rgba(34,211,238,0.1)', fill: true, tension: 0.4 },
+            { label: 'Mistral', data: trends.mistral_tokens, borderColor: '#8b5cf6', backgroundColor: 'rgba(139,92,246,0.1)', fill: true, tension: 0.4 }
+        ]
+    },
+    options: commonOptions
+});
+
+new Chart(document.getElementById('latencyTrendChart'), {
+    type: 'line',
+    data: {
+        labels: trends.labels,
+        datasets: [
+            { label: 'Groq', data: trends.groq_latency, borderColor: '#3b82f6', borderDash: [5, 5], tension: 0.3 },
+            { label: 'Mistral', data: trends.mistral_latency, borderColor: '#ec4899', borderDash: [5, 5], tension: 0.3 }
+        ]
+    },
+    options: commonOptions
+});
+
+// Test Console
+async function runTest() {
+    const prompt = document.getElementById('test-prompt').value;
+    const provider = document.getElementById('test-provider').value;
+    const output = document.getElementById('test-output');
+    const loading = document.getElementById('test-output-loading');
+    const btn = document.getElementById('btn-run-test');
+    if (!prompt) return alert("Enter a prompt");
+    output.style.display = 'none'; loading.style.display = 'block'; btn.disabled = true;
+    const formData = new FormData(); formData.append('prompt', prompt); formData.append('provider', provider);
+    try {
+        const res = await fetch('/admin/test_llm', { method: 'POST', body: formData });
+        const data = await res.json();
+        output.textContent = JSON.stringify(data, null, 2);
+    } catch (err) { output.textContent = "Error: " + err; }
+    finally { output.style.display = 'block'; loading.style.display = 'none'; btn.disabled = false; }
+}
+
+// Ollama model management
+let selectedOllamaModel = "{{ llm_config.providers.mistral.model }}";
+
+function selectOllamaModel(modelName, el) {
+    selectedOllamaModel = modelName;
+    document.querySelectorAll('.ollama-model-row').forEach(row => {
+        row.classList.remove('active');
+        const badge = row.querySelector('span[style*="uppercase"]');
+        if (badge) badge.remove();
+    });
+    el.classList.add('active');
+    const nameSpan = el.querySelector('span[style*="monospace"]');
+    if (nameSpan && !el.querySelector('span[style*="uppercase"]')) {
+        const badge = document.createElement('span');
+        badge.style.cssText = 'font-size:0.6rem; background:rgba(59,130,246,0.12); color:var(--blue); padding:1px 7px; border-radius:99px; margin-left:8px; font-weight:600; text-transform:uppercase; letter-spacing:0.04em;';
+        badge.textContent = 'Active';
+        nameSpan.after(badge);
+    }
+    document.getElementById('current-ollama-model').textContent = modelName;
+    saveOllamaModel(modelName);
+}
+
+async function saveOllamaModel(modelName) {
+    const res = await fetch('/admin/llm/config', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ providers: { mistral: { model: modelName } } })
+    });
+    if (!res.ok) alert("Failed to save model selection.");
+}
+
+async function saveLLMConfig() {
+    const payload = {
+        active_provider: document.getElementById('active-provider').value,
+        providers: {
+            groq: { api_key: document.getElementById('groq-key').value, model: document.getElementById('groq-model').value },
+            mistral: { model: selectedOllamaModel }
+        }
+    };
+    const res = await fetch('/admin/llm/config', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(payload)
+    });
+    if (res.ok) alert("Configuration saved successfully!");
+    else alert("Failed to save configuration.");
+}
+
+async function pullModel() {
+    const model = document.getElementById('pull-model-name').value;
+    if (!model) return alert("Enter a model name");
+    const btn = document.getElementById('btn-pull');
+    const status = document.getElementById('pull-status');
+    btn.disabled = true;
+    status.textContent = `Pulling ${model}... (this may take several minutes)`;
+    status.style.display = 'block';
+    try {
+        const res = await fetch('/admin/ollama/pull', {
+            method: 'POST', headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({model})
+        });
+        const data = await res.json();
+        if (data.success) { alert("Model pulled successfully!"); location.reload(); }
+        else alert("Failed to pull model. Ensure Ollama is running.");
+    } catch (e) { alert("Error: " + e); }
+    finally { btn.disabled = false; status.style.display = 'none'; }
+}
+</script>
+{% endblock %}

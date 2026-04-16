@@ -1,0 +1,84 @@
+# =========================================================
+#  Meridian Data — Git Ignore
+# =========================================================
+
+# -------- Secrets & credentials --------
+.env
+.env.*
+!.env.example
+db/llm_config.json
+db/.secret_key
+db/connections.json
+*secret*
+*credentials*
+
+# -------- Runtime state / local data --------
+db/*.db
+db/*.sqlite
+db/*.sqlite3
+db/samples/
+db/snapshots/
+db/snapshots.json
+db/dashboards.json
+db/usage_metrics.json
+
+# Any DB file anywhere
+*.db
+*.sqlite
+*.sqlite3
+
+# Generated reports
+*.pptx
+*.xlsx
+*.csv
+
+# -------- Python --------
+venv/
+.venv/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# -------- Node / Vite --------
+node_modules/
+**/node_modules/
+# NOTE: meridian-frontend/dist/ is intentionally committed on this branch
+# so the Flask backend can serve the React SPA without a separate build step.
+meridian-frontend/dist-ssr/
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+.pnpm-store/
+
+# -------- Flask --------
+instance/
+.webassets-cache/
+
+# -------- OS files --------
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# -------- IDEs --------
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# -------- Screenshots / scratch --------
+Screenshot *.png
+pass_test.txt
+
+# -------- Claude Code --------
+.claude/

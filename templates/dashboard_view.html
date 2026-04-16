@@ -1,0 +1,206 @@
+{% extends "layouts/page.html" %}
+
+{% block title %}{{ dashboard.name }} - Meridian{% endblock %}
+{% block nav_dashboards %}active{% endblock %}
+{% block page_class %}page--wide{% endblock %}
+
+{% block head_extra %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="dv-header">
+    <div>
+        <a href="/dashboards" class="dv-back">&larr; All Dashboards</a>
+        <h1>{{ dashboard.name }}</h1>
+    </div>
+    <div class="dv-actions">
+        <a href="/export/ppt" class="secondary link-btn">Export PPT</a>
+        <button onclick="showAddModal()" class="btn-primary">+ Add Widget</button>
+    </div>
+</div>
+
+<script>const dashboardId = {{ dashboard.id|tojson|safe }};</script>
+
+{% if not dashboard.widgets %}
+<div class="empty-state">
+    <div style="font-size:1.2rem; font-weight:600; margin-bottom:8px;">No widgets yet</div>
+    <p style="margin-bottom:16px;">Add your first chart or table to this dashboard.</p>
+    <button onclick="showAddModal()" class="btn-primary" style="margin:0; width:auto; padding:10px 24px;">+ Add Widget</button>
+</div>
+{% else %}
+<div class="widget-grid">
+    {% for w in dashboard.widgets %}
+    <div class="widget" id="widget-{{ w.id }}">
+        <div class="widget-head">
+            <div>
+                <h3>{{ w.title }}</h3>
+                <small>{{ w.db_name }} &middot; {{ w.chart_type }}</small>
+            </div>
+            <button class="widget-del" onclick="removeWidget('{{ w.id }}')" title="Remove">&times;</button>
+        </div>
+        <div class="widget-body" id="body-{{ w.id }}">
+            <div class="widget-loading">Loading...</div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<!-- Add Widget Modal -->
+<div class="modal-overlay" id="add-modal">
+    <div class="modal-box" style="max-width:520px; max-height:90vh; overflow-y:auto;">
+        <h2 style="font-size:1.1rem; margin-bottom:16px;">Add Widget</h2>
+
+        <label class="modal-label">Widget Title</label>
+        <input type="text" id="w-title" placeholder="e.g. Revenue by Category">
+
+        <label class="modal-label">Chart Type</label>
+        <select id="w-type" style="margin-bottom:4px;">
+            <option value="bar">Bar Chart</option>
+            <option value="line">Line Chart</option>
+            <option value="pie">Pie Chart</option>
+            <option value="doughnut">Doughnut Chart</option>
+            <option value="table">Data Table</option>
+        </select>
+
+        <label class="modal-label">Pick a table (quick select)</label>
+        <div class="table-pick-grid" id="table-picks">
+            <div style="color:var(--text-dim); font-size:0.75rem; padding:10px;">Loading tables...</div>
+        </div>
+
+        <div class="or-divider">or write custom SQL</div>
+
+        <textarea id="w-query" placeholder="SELECT CategoryName, COUNT(*) as Total FROM Products GROUP BY CategoryName" style="min-height:80px; font-size:0.8rem; font-family:'SF Mono',ui-monospace,monospace;"></textarea>
+
+        <div class="modal-btns">
+            <button onclick="saveWidget()" class="btn-primary">Add to Dashboard</button>
+            <button onclick="hideAddModal()" class="secondary">Cancel</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function showAddModal() {
+    const m = document.getElementById('add-modal');
+    m.style.display = 'flex';
+    requestAnimationFrame(() => m.classList.add('visible'));
+    loadTablePicks();
+}
+function hideAddModal() {
+    const m = document.getElementById('add-modal');
+    m.classList.remove('visible');
+    setTimeout(() => m.style.display = 'none', 200);
+}
+
+let selectedPickTable = null;
+
+async function loadTablePicks() {
+    try {
+        const res = await fetch('/api/tables-list');
+        const data = await res.json();
+        if (data.error) return;
+        const grid = document.getElementById('table-picks');
+        grid.innerHTML = data.tables.map(t => `
+            <div class="table-pick" onclick="pickTable('${t.name}', this)">
+                <div class="tp-name">${t.name}</div>
+                <div class="tp-rows">${t.rows.toLocaleString()} rows</div>
+            </div>
+        `).join('');
+    } catch(e) {}
+}
+
+function pickTable(name, el) {
+    document.querySelectorAll('.table-pick').forEach(p => p.classList.remove('selected'));
+    el.classList.add('selected');
+    selectedPickTable = name;
+    const chartType = document.getElementById('w-type').value;
+    document.getElementById('w-query').value = `SELECT * FROM "${name}" LIMIT 50`;
+    if (!document.getElementById('w-title').value) {
+        document.getElementById('w-title').value = name;
+    }
+}
+
+async function saveWidget() {
+    const title = document.getElementById('w-title').value.trim();
+    const query = document.getElementById('w-query').value.trim();
+    const chartType = document.getElementById('w-type').value;
+    if (!title || !query) { alert('Title and query are required.'); return; }
+    const res = await fetch(`/api/dashboards/${dashboardId}/widgets`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ title, query, chart_type: chartType, db_name: "{{ session.get('active_db', 'Default SQLite') }}" })
+    });
+    if (res.ok) location.reload();
+    else alert('Failed to add widget.');
+}
+
+async function removeWidget(id) {
+    if (!confirm("Remove this widget?")) return;
+    const res = await fetch(`/api/dashboards/${dashboardId}/widgets/${id}`, { method: 'DELETE' });
+    if (res.ok) document.getElementById('widget-' + id).remove();
+}
+
+// Load all widgets
+{% for w in dashboard.widgets %}
+(async function() {
+    const target = document.getElementById('body-{{ w.id }}');
+    const chartType = "{{ w.chart_type }}";
+    const query = {{ w.query|tojson|safe }};
+    const dbName = "{{ w.db_name }}";
+    try {
+        const res = await fetch('/api/query', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ query, db_name: dbName })
+        });
+        const data = await res.json();
+        if (!data.success) { target.innerHTML = '<div class="widget-error">Error: ' + data.error + '</div>'; return; }
+        if (!data.rows || data.rows.length === 0) { target.innerHTML = '<div class="widget-loading">No data returned</div>'; return; }
+        if (chartType === 'table') renderTable(target, data.columns, data.rows);
+        else renderChart(target, "{{ w.id }}", chartType, data.columns, data.rows, "{{ w.title }}");
+    } catch(e) { target.innerHTML = '<div class="widget-error">Request failed</div>'; }
+})();
+{% endfor %}
+
+function renderTable(el, cols, rows) {
+    let h = '<table class="widget-table"><thead><tr>';
+    cols.forEach(c => h += '<th>' + c + '</th>');
+    h += '</tr></thead><tbody>';
+    rows.forEach(r => { h += '<tr>'; r.forEach(c => h += '<td>' + (c !== null ? c : '') + '</td>'); h += '</tr>'; });
+    h += '</tbody></table>';
+    el.innerHTML = h;
+}
+
+function renderChart(el, id, type, cols, rows, title) {
+    const labels = rows.map(r => String(r[0]));
+    const values = rows.map(r => { const v = parseFloat(r[1]); return isNaN(v) ? 0 : v; });
+    el.innerHTML = '<canvas id="c-' + id + '"></canvas>';
+    const ctx = document.getElementById('c-' + id).getContext('2d');
+    const palette = ['#3b82f6','#8b5cf6','#22c55e','#f59e0b','#ef4444','#06b6d4','#ec4899','#14b8a6','#f97316','#6366f1'];
+    const isPie = type === 'pie' || type === 'doughnut';
+    new Chart(ctx, {
+        type: type,
+        data: {
+            labels: labels,
+            datasets: [{ label: title, data: values,
+                backgroundColor: isPie ? labels.map((_, i) => palette[i % palette.length]) : palette[0] + '60',
+                borderColor: isPie ? 'rgba(0,0,0,0.15)' : palette[0],
+                borderWidth: isPie ? 1 : 2, borderRadius: type === 'bar' ? 4 : 0, tension: 0.3 }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { display: isPie, position: 'bottom', labels: { color: '#a1a1aa', font: { size: 10 }, padding: 12, usePointStyle: true } }, title: { display: false } },
+            scales: isPie ? {} : {
+                y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#71717a', font: { size: 10 } } },
+                x: { grid: { display: false }, ticks: { color: '#71717a', font: { size: 10 }, maxRotation: 45 } }
+            }
+        }
+    });
+}
+
+document.addEventListener('keydown', e => { if (e.key === 'Escape') hideAddModal(); });
+</script>
+{% endblock %}
