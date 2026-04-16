@@ -1,0 +1,14 @@
+{
+  "active_provider": "groq",
+  "providers": {
+    "groq": {
+      "api_key": "",
+      "model": "llama-3.3-70b-versatile",
+      "url": "https://api.groq.com/openai/v1/chat/completions"
+    },
+    "mistral": {
+      "model": "mistral",
+      "url": "http://localhost:11434/api/generate"
+    }
+  }
+}

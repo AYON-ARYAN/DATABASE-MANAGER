@@ -152,11 +152,11 @@ def test_connection(name: str) -> dict:
         adapter = get_adapter_for_connection(name)
         ok = adapter.test_connection()
         if ok:
-            return {"success": True, "message": f"✅ Connection '{name}' is working."}
+            return {"success": True, "message": f"Connection '{name}' is working."}
         else:
-            return {"success": False, "message": f"❌ Connection '{name}' failed."}
+            return {"success": False, "message": f"Connection '{name}' failed."}
     except Exception as e:
-        return {"success": False, "message": f"❌ Error: {str(e)}"}
+        return {"success": False, "message": f"Error: {str(e)}"}
 
 
 def test_new_connection(db_type: str, config: dict) -> dict:
@@ -166,11 +166,11 @@ def test_new_connection(db_type: str, config: dict) -> dict:
         adapter = adapter_cls(config)
         ok = adapter.test_connection()
         if ok:
-            return {"success": True, "message": "✅ Connection successful!"}
+            return {"success": True, "message": "Connection successful!"}
         else:
-            return {"success": False, "message": "❌ Connection failed."}
+            return {"success": False, "message": "Connection failed."}
     except Exception as e:
-        return {"success": False, "message": f"❌ Error: {str(e)}"}
+        return {"success": False, "message": f"Error: {str(e)}"}
 
 
 def ensure_default_sqlite():

@@ -132,7 +132,7 @@ def preview_write(sql):
 
     conn.close()
 
-    # 🔑 SAFETY: if no rows, return 0 instead of crashing
+    # SAFETY: if no rows, return 0 instead of crashing
     if row is None:
         return 0
 

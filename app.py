@@ -1,6 +1,7 @@
 from datetime import datetime
 from io import StringIO
 import csv
+import re
 import time
 from flask import (
     Flask, render_template, request,
@@ -38,7 +39,11 @@ load_dotenv()
 # ---------------------------------------------------
 # Flask App Setup
 # ---------------------------------------------------
-app = Flask(__name__)
+app = Flask(
+    __name__,
+    static_folder='meridian-frontend/dist/assets',
+    static_url_path='/assets'
+)
 app.secret_key = "dev-secret-key"
 app.config["SESSION_PERMANENT"] = False
 
@@ -50,6 +55,17 @@ PAGE_SIZE = 50
 
 # Ensure default SQLite connection exists on startup
 ensure_default_sqlite()
+
+# Register React API Blueprint
+from api_routes import api as api_blueprint
+app.register_blueprint(api_blueprint)
+
+# CORS for dev mode (React on :5173, Flask on :5000)
+try:
+    from flask_cors import CORS
+    CORS(app, supports_credentials=True, origins=["http://localhost:5173"])
+except ImportError:
+    pass  # flask-cors optional, not needed when using Vite proxy
 
 
 # ---------------------------------------------------
@@ -177,9 +193,18 @@ def get_active_db_info():
 def require_login():
     if request.path.startswith("/login"):
         return
-    if request.path.startswith("/static") or request.path == "/favicon.ico":
+    if request.path.startswith("/static") or request.path.startswith("/assets") or request.path == "/favicon.ico":
+        return
+    # React SPA handles its own auth via /api/auth/session
+    if request.path == "/app" or request.path.startswith("/app/"):
+        return
+    # Allow auth endpoints without login
+    if request.path in ("/api/auth/login", "/api/auth/session"):
         return
     if not session.get("logged_in"):
+        # Return JSON 401 for API routes
+        if request.path.startswith("/api/") or request.path.startswith("/admin/"):
+            return jsonify({"error": "Unauthorized"}), 401
         return redirect(url_for("login"))
 
 
@@ -194,7 +219,7 @@ def login():
 
         user = USERS.get(username)
         if not user or not check_password_hash(user["password"], password):
-            return render_template("login.html", error="❌ Invalid credentials")
+            return render_template("login.html", error="Invalid credentials")
 
         session.clear()
         session["logged_in"] = True
@@ -229,7 +254,7 @@ def index():
         if not user_cmd:
             return render_template(
                 "index.html",
-                error="❌ Empty command.",
+                error="Empty command.",
                 history=session.get("history", []),
                 db_info=db_info,
                 connections=connections,
@@ -559,7 +584,7 @@ def index():
             add_to_history(user_cmd, query, task, "BLOCKED (ROLE)")
             return render_template(
                 "index.html",
-                error=f"❌ {role} not allowed to run {task}",
+                error=f"{role} not allowed to run {task}",
                 history=session.get("history", []),
                 db_info=db_info,
                 connections=connections,
@@ -573,7 +598,7 @@ def index():
                 add_to_history(user_cmd, query, "READ", "BLOCKED")
                 return render_template(
                     "index.html",
-                    error="❌ Unsafe query blocked.",
+                    error="Unsafe query blocked.",
                     history=session.get("history", []),
                     db_info=db_info,
                     connections=connections,
@@ -749,7 +774,7 @@ def index():
                 sql=sql,
                 explanation=explanation,
                 task=page_task,
-                error=f"❌ Execution failed: {str(e)}",
+                error=f"Execution failed: {str(e)}",
                 history=session.get("history", []),
                 db_info=db_info,
                 connections=connections,
@@ -893,7 +918,7 @@ def execute():
     dialect = adapter.dialect
 
     if not query or not is_allowed(role, task) or not is_safe(query, dialect):
-        session["error"] = "❌ Permission denied or unsafe query."
+        session["error"] = "Permission denied or unsafe query."
         return redirect(url_for("index"))
 
     if task in ("WRITE", "SCHEMA"):
@@ -904,9 +929,9 @@ def execute():
             adapter.preview_delete(query)
 
         adapter.execute(query)
-        session["message"] = "✅ Query executed successfully."
+        session["message"] = "Query executed successfully."
     except Exception as e:
-        session["error"] = f"❌ Execution failed: {str(e)}"
+        session["error"] = f"Execution failed: {str(e)}"
 
     session.pop("last_sql", None)
     session.pop("last_task", None)
@@ -934,7 +959,7 @@ def set_llm_provider():
 @app.route("/admin")
 def admin():
     if session.get("role") != "ADMIN" and session.get("role") != ROLE_ADMIN:
-        session["error"] = "❌ Access denied. Admin only."
+        session["error"] = "Access denied. Admin only."
         return redirect(url_for("index"))
     
     summary = get_summary()
@@ -1167,19 +1192,19 @@ def view_dashboard(dash_id):
 @app.route("/undo", methods=["POST"])
 def undo_last():
     if session.get("role") != ROLE_ADMIN:
-        session["error"] = "❌ Only ADMIN can undo."
+        session["error"] = "Only ADMIN can undo."
         return redirect(url_for("index"))
 
     adapter = get_active_adapter()
     if not adapter.supports_snapshot:
-        session["error"] = "❌ Undo is only available for supported databases."
+        session["error"] = "Undo is only available for supported databases."
         return redirect(url_for("index"))
 
     try:
         undo(1, adapter, session.get("active_db", "Default SQLite"))
-        session["message"] = "⏪ Undo successful."
+        session["message"] = "Undo successful."
     except Exception as e:
-        session["error"] = f"❌ {str(e)}"
+        session["error"] = f"{str(e)}"
 
     return redirect(url_for("index"))
 
@@ -1211,23 +1236,23 @@ def snapshots_page():
 @app.route("/snapshots/create", methods=["POST"])
 def create_snapshot():
     if session.get("role") != ROLE_ADMIN:
-        session["error"] = "❌ Only ADMIN can create snapshots."
+        session["error"] = "Only ADMIN can create snapshots."
         return redirect(url_for("snapshots_page"))
 
     active_db = session.get("active_db", "Default SQLite")
     adapter = get_active_adapter()
     
     if take_snapshot(adapter, active_db):
-        session["message"] = f"📸 Snapshot created for {active_db}."
+        session["message"] = f"Snapshot created for {active_db}."
     else:
-        session["error"] = f"❌ Failed to create snapshot for {active_db}. Not supported or CLI tool missing."
+        session["error"] = f"Failed to create snapshot for {active_db}. Not supported or CLI tool missing."
         
     return redirect(url_for("snapshots_page"))
 
 @app.route("/snapshots/restore", methods=["POST"])
 def apply_snapshot():
     if session.get("role") != ROLE_ADMIN:
-        session["error"] = "❌ Only ADMIN can restore snapshots."
+        session["error"] = "Only ADMIN can restore snapshots."
         return redirect(url_for("snapshots_page"))
 
     snap_id = request.form.get("snap_id")
@@ -1237,25 +1262,25 @@ def apply_snapshot():
     try:
         adapter = get_adapter_for_connection(connection_name)
         if restore_snapshot(snap_id, adapter):
-            session["message"] = f"⏪ Snapshot restored successfully."
+            session["message"] = f"Snapshot restored successfully."
         else:
-            session["error"] = f"❌ Failed to restore snapshot. CLI tool might be missing."
+            session["error"] = f"Failed to restore snapshot. CLI tool might be missing."
     except Exception as e:
-        session["error"] = f"❌ Error restoring snapshot: {str(e)}"
+        session["error"] = f"Error restoring snapshot: {str(e)}"
 
     return redirect(url_for("snapshots_page"))
 
 @app.route("/snapshots/delete", methods=["POST"])
 def remove_snapshot():
     if session.get("role") != ROLE_ADMIN:
-        session["error"] = "❌ Only ADMIN can delete snapshots."
+        session["error"] = "Only ADMIN can delete snapshots."
         return redirect(url_for("snapshots_page"))
 
     snap_id = request.form.get("snap_id")
     if delete_snapshot(snap_id):
-        session["message"] = "🗑️ Snapshot deleted."
+        session["message"] = "Snapshot deleted."
     else:
-        session["error"] = "❌ Failed to delete snapshot."
+        session["error"] = "Failed to delete snapshot."
         
     return redirect(url_for("snapshots_page"))
 
@@ -1402,7 +1427,7 @@ def delete_db():
     name = request.form.get("conn_name", "")
 
     if name == "Default SQLite":
-        session["error"] = "❌ Cannot delete the default SQLite connection."
+        session["error"] = "Cannot delete the default SQLite connection."
         return redirect(url_for("databases_page"))
 
     # If deleting the active connection, switch to default
@@ -1445,7 +1470,7 @@ def select_db():
 
     if name in names:
         session["active_db"] = name
-        session["message"] = f"🔄 Switched to database: {name}"
+        session["message"] = f"Switched to database: {name}"
         # Clear cached query state when switching DBs
         session.pop("last_read_sql", None)
         session.pop("last_read_columns", None)
@@ -1453,7 +1478,7 @@ def select_db():
         session.pop("last_task", None)
         session.pop("last_explanation", None)
     else:
-        session["error"] = f"❌ Connection '{name}' not found."
+        session["error"] = f"Connection '{name}' not found."
 
     return redirect(url_for("index"))
 
@@ -2201,8 +2226,560 @@ def api_overview_query():
         return jsonify({"success": False, "error": str(e)})
 
 
+# =========================================================
+# COMMAND CENTER — AI-Powered Brand Intelligence Suite
+# =========================================================
+# Everything below powers the new CommandCenter React page:
+#   - Deep Ask: full-DB-context Q&A that auto-runs SQL
+#   - Execute Anything: raw SQL power console (ADMIN only)
+#   - Auto-Insights: parallel AI-generated "surprise me" findings
+#   - Data Health: quality scan across every table
+#   - Smart PPT: topic-driven presentation generator
+#   - KPIs: instant business KPI extraction
+#   - Anomaly scan: numeric outlier detection
+# ---------------------------------------------------------
+
+def _get_full_db_context():
+    """Collect schema, table stats, and FK info for any AI call."""
+    adapter = get_active_adapter()
+    db_name = session.get("active_db", "Unknown DB")
+    schema = ""
+    try:
+        schema = adapter.get_schema()
+    except Exception:
+        pass
+
+    table_stats = []
+    try:
+        for t in adapter.list_tables():
+            try:
+                _, c_rows = adapter.execute(f'SELECT COUNT(*) FROM "{t}"')
+                table_stats.append({"table": t, "rows": c_rows[0][0] if c_rows else 0})
+            except Exception:
+                table_stats.append({"table": t, "rows": "?"})
+    except Exception:
+        pass
+
+    fk_info = []
+    if hasattr(adapter, "get_foreign_keys"):
+        try:
+            fk_info = adapter.get_foreign_keys()
+        except Exception:
+            pass
+
+    return adapter, db_name, schema, table_stats, fk_info
+
+
+@app.route("/api/command-center/deep-ask", methods=["POST"])
+def cc_deep_ask():
+    """
+    AI Q&A with FULL DB context. Optionally auto-executes the SQL it generates
+    so the user gets a real data-backed answer, not just a suggestion.
+    Body: { question: str, auto_run: bool, history: [{user, assistant}...] }
+    """
+    if not analysis_enabled:
+        return jsonify({"error": "Groq API not configured. Set GROQ_API_KEY in .env."})
+
+    data = request.json or {}
+    question = (data.get("question") or "").strip()
+    auto_run = bool(data.get("auto_run", True))
+    if not question:
+        return jsonify({"error": "Question is required."})
+
+    try:
+        adapter, db_name, schema, table_stats, fk_info = _get_full_db_context()
+        from core.analyzer import ai_ask
+        result = ai_ask(question, schema, db_name, table_stats,
+                        dialect=adapter.dialect, fk_info=fk_info)
+        if "error" in result:
+            return jsonify(result)
+
+        # Try to find SQL in the markdown answer and auto-run the first one
+        executed = None
+        if auto_run:
+            answer_md = result.get("answer", "") or ""
+            sql_blocks = re.findall(r"```(?:sql)?\s*([\s\S]*?)```", answer_md, flags=re.IGNORECASE)
+            candidate = None
+            for block in sql_blocks:
+                s = block.strip().rstrip(";")
+                if s.lower().startswith(("select", "with", "pragma", "show", "explain")):
+                    candidate = s
+                    break
+            if candidate:
+                try:
+                    cols, rows = adapter.execute(candidate)
+                    executed = {
+                        "sql": candidate,
+                        "columns": cols,
+                        "rows": rows_to_list(rows)[:100],
+                        "total": len(rows) if rows else 0,
+                    }
+                except Exception as e:
+                    executed = {"sql": candidate, "error": str(e)}
+
+        result["executed"] = executed
+        result["db"] = db_name
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)})
+
+
+@app.route("/api/command-center/execute-raw", methods=["POST"])
+def cc_execute_raw():
+    """
+    ADMIN-only raw SQL power console. Executes ANY SQL including DDL/DML.
+    Takes a snapshot before write/schema operations so undo is always available.
+    Body: { sql: str, take_snapshot: bool }
+    """
+    if session.get("role") != "ADMIN":
+        return jsonify({"error": "Admin role required for this endpoint."}), 403
+
+    data = request.json or {}
+    sql = (data.get("sql") or "").strip().rstrip(";")
+    snap = bool(data.get("take_snapshot", True))
+    if not sql:
+        return jsonify({"error": "SQL is required."})
+
+    adapter = get_active_adapter()
+    # Heuristic: snapshot if anything other than a pure read
+    low = sql.lower().lstrip()
+    is_read = low.startswith(("select", "with", "pragma", "show", "explain", "describe"))
+    if snap and not is_read:
+        try:
+            take_snapshot(adapter, session.get("active_db", "Default SQLite"))
+        except Exception:
+            pass
+
+    import re as _re
+    statements = [s.strip() for s in _re.split(r";\s*\n|;\s*$", sql) if s.strip()]
+    results = []
+    t0 = time.time()
+    for stmt in statements:
+        r = {"sql": stmt}
+        try:
+            cols, rows = adapter.execute(stmt)
+            r["columns"] = cols or []
+            r["rows"] = rows_to_list(rows)[:500] if rows else []
+            r["row_count"] = len(rows) if rows else 0
+        except Exception as e:
+            r["error"] = str(e)
+        results.append(r)
+    return jsonify({
+        "success": True,
+        "statements": results,
+        "elapsed_ms": int((time.time() - t0) * 1000),
+        "snapshot_taken": snap and not is_read,
+    })
+
+
+@app.route("/api/command-center/auto-insights", methods=["POST"])
+def cc_auto_insights():
+    """
+    "Surprise me" — generate multiple AI-driven insights in parallel.
+    Asks the LLM to pick interesting analytical questions, runs each,
+    and returns a list of insights with titles, findings, and sample data.
+    Body: { count: int (default 6), focus: str (optional) }
+    """
+    if not analysis_enabled:
+        return jsonify({"error": "Groq API not configured."})
+
+    data = request.json or {}
+    count = int(data.get("count") or 6)
+    count = max(3, min(10, count))
+    focus = (data.get("focus") or "").strip()
+
+    try:
+        from core.analyzer import GROQ_CLIENT, generate_analytical_queries
+        if not GROQ_CLIENT:
+            return jsonify({"error": "Groq client not initialized."})
+
+        adapter, db_name, schema, table_stats, fk_info = _get_full_db_context()
+
+        gen = generate_analytical_queries(
+            schema, db_name, table_stats, fk_info, dialect=adapter.dialect
+        ) or {}
+        if gen.get("error"):
+            return jsonify({"error": gen["error"]})
+        queries = (gen.get("queries") or [])[:count]
+
+        insights = []
+        for q in queries:
+            sql = (q.get("sql") or "").strip().rstrip(";")
+            title = q.get("title") or "Insight"
+            if not sql:
+                continue
+            try:
+                cols, rows = adapter.execute(sql)
+                insights.append({
+                    "title": title,
+                    "sql": sql,
+                    "columns": cols or [],
+                    "rows": rows_to_list(rows)[:20],
+                    "row_count": len(rows) if rows else 0,
+                    "rationale": q.get("rationale") or "",
+                })
+            except Exception as e:
+                insights.append({
+                    "title": title, "sql": sql, "error": str(e),
+                    "rationale": q.get("rationale") or "",
+                })
+
+        return jsonify({"success": True, "db": db_name, "focus": focus, "insights": insights})
+    except Exception as e:
+        return jsonify({"error": str(e)})
+
+
+@app.route("/api/command-center/data-health", methods=["POST"])
+def cc_data_health():
+    """
+    Scans every table for quality issues: null %, dup rows, empty strings,
+    single-distinct columns, tiny tables, and orphaned FK references.
+    """
+    try:
+        adapter = get_active_adapter()
+        tables = adapter.list_tables()
+        report = []
+        totals = {"null_warnings": 0, "dup_warnings": 0, "empty_tables": 0}
+
+        for t in tables:
+            issues = []
+            # row count
+            try:
+                _, c_rows = adapter.execute(f'SELECT COUNT(*) FROM "{t}"')
+                total = c_rows[0][0] if c_rows else 0
+            except Exception:
+                total = 0
+
+            if total == 0:
+                issues.append({"kind": "empty_table", "msg": "Table has no rows"})
+                totals["empty_tables"] += 1
+                report.append({"table": t, "rows": 0, "issues": issues})
+                continue
+
+            # columns
+            try:
+                info = adapter.describe_table(t)
+                cols = [c["name"] for c in info.get("columns", [])]
+            except Exception:
+                cols = []
+
+            # null ratio per column
+            for col in cols[:20]:
+                try:
+                    _, n_rows = adapter.execute(
+                        f'SELECT COUNT(*) FROM "{t}" WHERE "{col}" IS NULL'
+                    )
+                    nulls = n_rows[0][0] if n_rows else 0
+                    if total and nulls / total >= 0.5:
+                        pct = int(100 * nulls / total)
+                        issues.append({
+                            "kind": "high_null",
+                            "msg": f'Column "{col}" is {pct}% NULL ({nulls}/{total})',
+                            "column": col, "pct": pct,
+                        })
+                        totals["null_warnings"] += 1
+                except Exception:
+                    pass
+
+            # duplicate detection: if row_count > distinct count on all cols
+            try:
+                if cols:
+                    col_list = ", ".join(f'"{c}"' for c in cols[:8])
+                    _, d_rows = adapter.execute(
+                        f'SELECT COUNT(*) FROM (SELECT DISTINCT {col_list} FROM "{t}") AS sub'
+                    )
+                    distinct = d_rows[0][0] if d_rows else total
+                    if distinct < total:
+                        dups = total - distinct
+                        issues.append({
+                            "kind": "duplicates",
+                            "msg": f"{dups} duplicate rows detected (on first 8 columns)",
+                            "count": dups,
+                        })
+                        totals["dup_warnings"] += 1
+            except Exception:
+                pass
+
+            report.append({"table": t, "rows": total, "issues": issues})
+
+        return jsonify({"success": True, "totals": totals, "report": report})
+    except Exception as e:
+        return jsonify({"error": str(e)})
+
+
+@app.route("/api/command-center/kpis", methods=["POST"])
+def cc_kpis():
+    """
+    Asks the LLM to extract 4-8 business KPIs from the schema, writes SQL
+    for each, executes, and returns label/value pairs ready for display.
+    """
+    if not analysis_enabled:
+        return jsonify({"error": "Groq API not configured."})
+
+    try:
+        adapter, db_name, schema, table_stats, fk_info = _get_full_db_context()
+        from core.analyzer import GROQ_CLIENT
+        if not GROQ_CLIENT:
+            return jsonify({"error": "Groq client not initialized."})
+
+        stats_str = "\n".join([f"  - {ts['table']}: {ts['rows']} rows" for ts in table_stats])
+        prompt = f"""You are a business analyst. Given the schema of "{db_name}",
+propose 6 business KPIs. For each, provide: a short label, a SQL query ({adapter.dialect})
+that returns ONE numeric value, and a 1-sentence rationale.
+
+SCHEMA:
+{schema}
+
+TABLE ROW COUNTS:
+{stats_str}
+
+Respond as JSON:
+{{"kpis": [{{"label": "Total Customers", "sql": "SELECT COUNT(*) FROM customers", "rationale": "..." }}]}}
+Rules: SQL MUST return exactly one scalar value. Prefer aggregates (COUNT, SUM, AVG).
+Do not include markdown, only JSON.
+"""
+        resp = GROQ_CLIENT.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {"role": "system", "content": "You output strict JSON only."},
+                {"role": "user", "content": prompt},
+            ],
+            temperature=0.2,
+            response_format={"type": "json_object"},
+        )
+        raw = resp.choices[0].message.content.strip()
+        parsed = json.loads(raw)
+        kpis = parsed.get("kpis", [])[:8]
+
+        out = []
+        for k in kpis:
+            sql = (k.get("sql") or "").strip().rstrip(";")
+            label = k.get("label") or "KPI"
+            rationale = k.get("rationale") or ""
+            try:
+                _, r = adapter.execute(sql)
+                val = r[0][0] if r and r[0] else None
+                out.append({"label": label, "value": val, "sql": sql, "rationale": rationale})
+            except Exception as e:
+                out.append({"label": label, "error": str(e), "sql": sql, "rationale": rationale})
+
+        return jsonify({"success": True, "kpis": out, "db": db_name})
+    except Exception as e:
+        return jsonify({"error": str(e)})
+
+
+@app.route("/api/command-center/anomalies", methods=["POST"])
+def cc_anomalies():
+    """
+    Runs a simple statistical outlier scan on numeric columns across tables.
+    For each numeric column, compute mean/stddev and count rows > 3 sigma.
+    """
+    try:
+        adapter = get_active_adapter()
+        tables = adapter.list_tables()
+        findings = []
+        for t in tables:
+            try:
+                info = adapter.describe_table(t)
+            except Exception:
+                continue
+            cols = info.get("columns", [])
+            for c in cols[:12]:
+                ctype = (c.get("type") or "").upper()
+                if not any(k in ctype for k in ("INT", "REAL", "FLOAT", "DOUBLE", "NUMERIC", "DECIMAL")):
+                    continue
+                col = c["name"]
+                try:
+                    _, stat_rows = adapter.execute(
+                        f'SELECT AVG("{col}"), COUNT(*) FROM "{t}" WHERE "{col}" IS NOT NULL'
+                    )
+                    if not stat_rows or stat_rows[0][1] in (0, None):
+                        continue
+                    mean = stat_rows[0][0] or 0
+                    total = stat_rows[0][1]
+
+                    # Basic stddev (SQL-engine-agnostic: fetch a sample and compute client-side)
+                    sample_sql = f'SELECT "{col}" FROM "{t}" WHERE "{col}" IS NOT NULL LIMIT 5000'
+                    _, srows = adapter.execute(sample_sql)
+                    vals = [float(r[0]) for r in (srows or []) if r and r[0] is not None]
+                    if len(vals) < 10:
+                        continue
+                    import statistics
+                    sd = statistics.pstdev(vals) if len(vals) > 1 else 0
+                    if sd == 0:
+                        continue
+                    hi = mean + 3 * sd
+                    lo = mean - 3 * sd
+                    outliers = sum(1 for v in vals if v > hi or v < lo)
+                    if outliers > 0:
+                        findings.append({
+                            "table": t, "column": col,
+                            "mean": round(mean, 3), "stddev": round(sd, 3),
+                            "outliers_in_sample": outliers,
+                            "sample_size": len(vals),
+                            "bounds": [round(lo, 3), round(hi, 3)],
+                        })
+                except Exception:
+                    pass
+        return jsonify({"success": True, "findings": findings})
+    except Exception as e:
+        return jsonify({"error": str(e)})
+
+
+@app.route("/api/command-center/smart-ppt", methods=["POST"])
+def cc_smart_ppt():
+    """
+    Generate a full PPT report on any topic using the whole database as context.
+    Body: { topic: str, include_charts: bool }
+    Returns a .pptx download.
+    """
+    if not analysis_enabled:
+        return jsonify({"error": "Groq API not configured."})
+
+    data = request.json or {}
+    topic = (data.get("topic") or "Database Intelligence Report").strip()
+
+    try:
+        adapter, db_name, schema, table_stats, fk_info = _get_full_db_context()
+        from core.analyzer import generate_analytical_queries, generate_full_report
+        from core.ppt_generator import PPTGenerator
+
+        gen_out = generate_analytical_queries(
+            schema, db_name, table_stats, fk_info, dialect=adapter.dialect
+        ) or {}
+        if gen_out.get("error"):
+            return jsonify({"error": gen_out["error"]})
+        queries = (gen_out.get("queries") or [])[:6]
+
+        query_results = []
+        for q in queries:
+            sql = (q.get("sql") or "").strip().rstrip(";")
+            title = q.get("title") or "Analysis"
+            qr = {"title": title, "sql": sql}
+            try:
+                cols, rows = adapter.execute(sql)
+                qr["columns"] = cols or []
+                qr["rows"] = rows_to_list(rows)[:50]
+            except Exception as e:
+                qr["error"] = str(e)
+            query_results.append(qr)
+
+        report = generate_full_report(
+            schema, db_name, table_stats, fk_info, query_results,
+            dialect=adapter.dialect
+        )
+
+        gen = PPTGenerator(title=f"{topic} — {db_name}")
+        gen.add_title_slide(subtitle=f"AI-Generated Intelligence Report • {datetime.now().strftime('%b %d, %Y')}")
+
+        if "executive_summary" in report and report["executive_summary"]:
+            gen.add_text_slide("Executive Summary", report["executive_summary"])
+
+        if schema:
+            gen.add_schema_slide(schema)
+
+        for insight in (report.get("insights") or []):
+            ttl = insight.get("title") or "Insight"
+            if insight.get("markdown"):
+                gen.add_text_slide(ttl, insight["markdown"])
+            if insight.get("chart"):
+                try:
+                    gen.add_chart_slide(ttl, insight["chart"])
+                except Exception:
+                    pass
+            if insight.get("sql"):
+                gen.add_text_slide(f"SQL — {ttl}", insight["sql"])
+
+        # Always include the raw data tables at the end for traceability
+        for qr in query_results:
+            if qr.get("columns") and qr.get("rows"):
+                gen.add_table_slide(f"Data — {qr['title']}", qr["columns"], qr["rows"])
+
+        ppt_file = gen.save()
+        return send_file(
+            ppt_file,
+            mimetype="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            as_attachment=True,
+            download_name=f"command_center_{int(time.time())}.pptx",
+        )
+    except Exception as e:
+        return jsonify({"error": str(e)})
+
+
+@app.route("/api/command-center/answer-ppt", methods=["POST"])
+def cc_answer_ppt():
+    """
+    Generate a focused PPT from a single Deep-Ask answer.
+    Body: { question, answer_markdown, sql?, columns?, rows? }
+    """
+    data = request.json or {}
+    question = (data.get("question") or "Question").strip()
+    answer = (data.get("answer_markdown") or "").strip()
+    sql = (data.get("sql") or "").strip()
+    cols = data.get("columns") or []
+    rows = data.get("rows") or []
+
+    try:
+        from core.ppt_generator import PPTGenerator
+        db_name = session.get("active_db", "Database")
+        gen = PPTGenerator(title=f"{question[:70]} — {db_name}")
+        gen.add_title_slide(subtitle="Deep Ask • AI Answer")
+        if answer:
+            gen.add_text_slide("Answer", answer)
+        if sql:
+            gen.add_text_slide("SQL Used", sql)
+        if cols and rows:
+            gen.add_table_slide("Result Data", cols, rows)
+
+        ppt_file = gen.save()
+        return send_file(
+            ppt_file,
+            mimetype="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            as_attachment=True,
+            download_name=f"deep_ask_{int(time.time())}.pptx",
+        )
+    except Exception as e:
+        return jsonify({"error": str(e)})
+
+
+# =========================================================
+# SAMPLE DATABASES — Gallery + one-click install
+# =========================================================
+@app.route("/api/samples", methods=["GET"])
+def api_samples_list():
+    from core.sample_databases import list_samples
+    return jsonify({"samples": list_samples()})
+
+
+@app.route("/api/samples/install", methods=["POST"])
+def api_samples_install():
+    if session.get("role") not in ("ADMIN", "EDITOR"):
+        return jsonify({"error": "EDITOR or ADMIN role required."}), 403
+    data = request.json or {}
+    sid = (data.get("id") or "").strip()
+    if not sid:
+        return jsonify({"success": False, "message": "id required"})
+    from core.sample_databases import install_sample
+    return jsonify(install_sample(sid))
+
+
+# ---------------------------------------------------
+# Serve React Build (Production)
+# ---------------------------------------------------
+@app.route('/app')
+@app.route('/app/<path:path>')
+def serve_react(path=''):
+    dist_dir = os.path.join(os.path.dirname(__file__), 'meridian-frontend', 'dist')
+    if path and os.path.exists(os.path.join(dist_dir, path)):
+        return send_file(os.path.join(dist_dir, path))
+    index = os.path.join(dist_dir, 'index.html')
+    if os.path.exists(index):
+        return send_file(index)
+    return "React build not found. Run: cd meridian-frontend && npm run build", 404
+
+
 # ---------------------------------------------------
 # Run
 # ---------------------------------------------------
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=True, port=5001)

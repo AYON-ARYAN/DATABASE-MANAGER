@@ -709,5 +709,41 @@
     "prompt_tokens": 2048,
     "completion_tokens": 116,
     "total_tokens": 2164
+  },
+  {
+    "timestamp": "2026-04-16T20:36:10.272469",
+    "provider": "groq",
+    "model": "llama-3.3-70b-versatile",
+    "latency": 1.235,
+    "prompt_tokens": 2805,
+    "completion_tokens": 137,
+    "total_tokens": 2942
+  },
+  {
+    "timestamp": "2026-04-16T20:39:20.746288",
+    "provider": "groq",
+    "model": "llama-3.3-70b-versatile",
+    "latency": 0.713,
+    "prompt_tokens": 1389,
+    "completion_tokens": 66,
+    "total_tokens": 1455
+  },
+  {
+    "timestamp": "2026-04-16T20:39:48.870174",
+    "provider": "groq",
+    "model": "llama-3.3-70b-versatile",
+    "latency": 0.897,
+    "prompt_tokens": 1421,
+    "completion_tokens": 80,
+    "total_tokens": 1501
+  },
+  {
+    "timestamp": "2026-04-16T20:40:08.257470",
+    "provider": "groq",
+    "model": "llama-3.3-70b-versatile",
+    "latency": 0.64,
+    "prompt_tokens": 1458,
+    "completion_tokens": 46,
+    "total_tokens": 1504
   }
 ]

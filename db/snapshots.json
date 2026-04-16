@@ -70,5 +70,13 @@
     "timestamp": "2026-04-09T10:57:23.639801",
     "formatted_time": "Apr 09, 2026 - 10:57:23",
     "file_path": "db/snapshots/Default_SQLite_20260409_105723_4a5f9fc7.db"
+  },
+  {
+    "id": "9928805c",
+    "connection_name": "Hospital Management (Synthetic)",
+    "db_type": "sqlite",
+    "timestamp": "2026-04-16T20:39:55.875180",
+    "formatted_time": "Apr 16, 2026 - 20:39:55",
+    "file_path": "db/snapshots/Hospital_Management_(Synthetic)_20260416_203955_9928805c.db"
   }
 ]

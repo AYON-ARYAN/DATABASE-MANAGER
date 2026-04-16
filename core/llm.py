@@ -207,111 +207,93 @@ def _get_system_prompt(dialect: str, schema: str) -> str:
 # ---------------------------------------------------
 # Core generation
 # ---------------------------------------------------
-def generate_query(user_command: str, dialect: str = "sqlite", schema: str = "", provider: str = None, history: list = None, system_prompt: str = None, options: dict = None) -> str:
-    """
-    Given a natural language command, generate a query
-    appropriate for the database dialect using specified provider.
-    """
-    from core import llm_manager
-    managed_provider, p_config = llm_manager.get_active_config()
-    
-    # Use override provider if passed, otherwise use managed one
-    provider = provider or managed_provider
-    if provider != managed_provider:
-        # If we are overriding, we need to load that provider's config too
-        full_config = llm_manager.load_config()
-        p_config = full_config["providers"].get(provider, p_config)
+def _call_groq(context, history, user_command, p_config):
+    """Try Groq. Returns cleaned SQL string on success, raises on failure."""
+    api_key = p_config.get("api_key")
+    model = p_config.get("model", "llama-3.3-70b-versatile")
+    url = p_config.get("url", GROQ_API_URL)
+    if not api_key:
+        raise RuntimeError("No GROQ_API_KEY configured")
 
-    history = history or []
-    context = system_prompt or _get_system_prompt(dialect, schema)
-    
-    # Format history for prompt injection (Ollama)
-    history_str = ""
-    for msg in history:
-        history_str += f"USER: {msg['user']}\nASSISTANT: {msg['assistant']}\n"
-    
-    full_prompt = context + f"\nCONVERSATION HISTORY:\n{history_str}" + f"\nUSER COMMAND:\n{user_command}"
+    messages = [{"role": "system", "content": context}]
+    for msg in history or []:
+        messages.append({"role": "user", "content": msg["user"]})
+        messages.append({"role": "assistant", "content": msg["assistant"]})
+    messages.append({"role": "user", "content": f"USER COMMAND:\n{user_command}"})
 
-    start_time = time.time()
-    latency = 0
-    prompt_tokens = 0
-    completion_tokens = 0
+    start = time.time()
+    res = requests.post(url,
+        headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+        json={"model": model, "messages": messages, "temperature": 0.1},
+        timeout=60)
+    res.raise_for_status()
+    data = res.json()
+    usage = data.get("usage", {})
+    log_call("groq", data.get("model", model), time.time() - start,
+             usage.get("prompt_tokens", 0), usage.get("completion_tokens", 0))
+    return clean_sql(data["choices"][0]["message"]["content"])
 
-    if provider == "groq":
-        api_key = p_config.get("api_key")
-        model = p_config.get("model", "llama-3.3-70b-versatile")
-        url = p_config.get("url", GROQ_API_URL)
 
-        if api_key:
-            messages = [{"role": "system", "content": context}]
-            for msg in history:
-                messages.append({"role": "user", "content": msg["user"]})
-                messages.append({"role": "assistant", "content": msg["assistant"]})
-            messages.append({"role": "user", "content": f"USER COMMAND:\n{user_command}"})
-            
-            headers = {
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json"
-            }
-            payload = {
-                "model": model,
-                "messages": messages,
-                "temperature": 0.1
-            }
-            try:
-                res = requests.post(url, headers=headers, json=payload, timeout=60)
-                res.raise_for_status()
-                data = res.json()
-                latency = time.time() - start_time
-                
-                # Extract usage info
-                usage = data.get("usage", {})
-                prompt_tokens = usage.get("prompt_tokens", 0)
-                completion_tokens = usage.get("completion_tokens", 0)
-                
-                log_call("groq", data.get("model", model), latency, prompt_tokens, completion_tokens)
-                return clean_sql(data["choices"][0]["message"]["content"])
-            except Exception as e:
-                print(f"Groq API Error: {e}")
-                # Don't return yet, fall through to Ollama if this fails
-
-    # Default / Fallback: Ollama Local
-    ollama_config = p_config if provider == "mistral" else llm_manager.load_config()["providers"]["mistral"]
-    ollama_url = ollama_config.get("url", OLLAMA_URL)
-    ollama_model = ollama_config.get("model", "mistral")
-
-    # Resource Optimization: Default to 4 threads if not specified, and reasonable context
-    # This reduces CPU spike and RAM thrashing
-    default_options = {
-        "num_thread": 4,
-        "num_ctx": 2048,
-        "temperature": 0.1
-    }
+def _call_ollama(full_prompt, p_config, options=None):
+    """Try Ollama. Returns cleaned SQL string on success, raises on failure."""
+    ollama_url = p_config.get("url", OLLAMA_URL)
+    ollama_model = p_config.get("model", "mistral")
+    default_options = {"num_thread": 4, "num_ctx": 2048, "temperature": 0.1}
     if options:
         default_options.update(options)
 
-    try:
-        res = requests.post(
-            ollama_url,
-            json={
-                "model": ollama_model,
-                "prompt": full_prompt,
-                "stream": False,
-                "options": default_options
-            },
-            timeout=60,
-        )
-        latency = time.time() - start_time
-        data = res.json()
-        
-        prompt_tokens = data.get("prompt_eval_count", 0)
-        completion_tokens = data.get("eval_count", 0)
-        
-        log_call("mistral", ollama_model, latency, prompt_tokens, completion_tokens)
-        return clean_sql(data["response"])
-    except Exception as e:
-        print(f"Ollama Error: {e}")
-        return "ERROR: Connection failed"
+    start = time.time()
+    res = requests.post(ollama_url,
+        json={"model": ollama_model, "prompt": full_prompt,
+              "stream": False, "options": default_options},
+        timeout=60)
+    res.raise_for_status()
+    data = res.json()
+    log_call("mistral", ollama_model, time.time() - start,
+             data.get("prompt_eval_count", 0), data.get("eval_count", 0))
+    return clean_sql(data["response"])
+
+
+def generate_query(user_command: str, dialect: str = "sqlite", schema: str = "",
+                   provider: str = None, history: list = None,
+                   system_prompt: str = None, options: dict = None) -> str:
+    """
+    Generate a query using the active provider, with automatic fallback
+    to the other provider if the primary is unreachable or errors out.
+    """
+    from core import llm_manager
+    full_config = llm_manager.load_config()
+    managed_provider, _ = llm_manager.get_active_config()
+    provider = provider or managed_provider
+
+    groq_cfg = full_config["providers"].get("groq", {})
+    mistral_cfg = full_config["providers"].get("mistral", {})
+
+    history = history or []
+    context = system_prompt or _get_system_prompt(dialect, schema)
+    history_str = "".join(f"USER: {m['user']}\nASSISTANT: {m['assistant']}\n" for m in history)
+    full_prompt = context + f"\nCONVERSATION HISTORY:\n{history_str}\nUSER COMMAND:\n{user_command}"
+
+    # Ordered fallback chain starting with the requested provider
+    if provider == "mistral":
+        chain = [("mistral", mistral_cfg), ("groq", groq_cfg)]
+    else:
+        chain = [("groq", groq_cfg), ("mistral", mistral_cfg)]
+
+    errors = []
+    for name, cfg in chain:
+        try:
+            if name == "groq":
+                if not cfg.get("api_key"):
+                    raise RuntimeError("Groq API key not set")
+                return _call_groq(context, history, user_command, cfg)
+            else:
+                return _call_ollama(full_prompt, cfg, options)
+        except Exception as e:
+            errors.append(f"{name}: {e}")
+            print(f"[LLM] {name} failed — {e}")
+
+    return f"ERROR: all providers failed ({'; '.join(errors)})"
 
 
 def generate_query_with_explanation(
