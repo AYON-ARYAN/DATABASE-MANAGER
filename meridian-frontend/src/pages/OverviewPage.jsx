@@ -13,6 +13,14 @@ import { aiAsk } from '../api/analysis'
 import { runCommand, runRawQuery } from '../api/query'
 import ReactMarkdown from 'react-markdown'
 import mermaid from 'mermaid'
+
+mermaid.initialize({
+  theme: 'dark',
+  startOnLoad: false,
+  securityLevel: 'loose',
+  er: { useMaxWidth: true, diagramPadding: 20, layoutDirection: 'TB' },
+  themeVariables: { fontSize: '13px' },
+})
 import {
   LayoutDashboard, Table2, Rows3, Link2, Crown,
   Sparkles, Send, Play, Maximize2, Minimize2,
@@ -29,6 +37,8 @@ export default function OverviewPage() {
   const [overview, setOverview] = useState(null)
   const [loading, setLoading] = useState(true)
   const [erDiagram, setErDiagram] = useState('')
+  const [erError, setErError] = useState('')
+  const [erLoading, setErLoading] = useState(false)
   const [erFull, setErFull] = useState(false)
 
   // AI Ask (narrative) — separate from query console
@@ -60,40 +70,77 @@ export default function OverviewPage() {
 
   // Load ER diagram
   useEffect(() => {
+    let cancelled = false
     const loadEr = async () => {
+      setErLoading(true)
+      setErError('')
+      setErDiagram('')
       try {
         const data = await getErDiagram()
-        if (data.success && data.tables?.length) {
-          let mmd = 'erDiagram\n'
-          for (const t of data.tables) {
-            mmd += `    ${t.name.replace(/\s/g, '_')} {\n`
-            for (const c of (t.columns || []).slice(0, 10)) {
-              const typ = (c.type || 'text').replace(/[^a-zA-Z0-9]/g, '')
-              mmd += `        ${typ} ${c.name.replace(/[^a-zA-Z0-9_]/g, '')}${c.pk ? ' PK' : ''}\n`
-            }
-            mmd += '    }\n'
-          }
-          for (const fk of (data.foreign_keys || [])) {
-            mmd += `    ${fk.from_table.replace(/\s/g, '_')} ||--o{ ${fk.to_table.replace(/\s/g, '_')} : "${fk.from_column}"\n`
-          }
-          setErDiagram(mmd)
+        if (cancelled) return
+        if (!data?.success) {
+          setErError(data?.error || 'Failed to load ER diagram')
+          return
         }
-      } catch {}
+        const tables = data.tables || []
+        if (!tables.length) {
+          setErError('No tables found in this database.')
+          return
+        }
+        const mmd = buildErMermaid(tables, data.foreign_keys || [])
+        if (!mmd) {
+          setErError('Could not build a valid ER diagram from the schema.')
+          return
+        }
+        setErDiagram(mmd)
+      } catch (e) {
+        if (!cancelled) setErError(e?.response?.data?.error || e?.message || 'Failed to load ER diagram')
+      } finally {
+        if (!cancelled) setErLoading(false)
+      }
     }
     loadEr()
+    return () => { cancelled = true }
   }, [activeDb])
 
-  // Render Mermaid
+  // Render Mermaid — waits for the ref to be attached before rendering
   useEffect(() => {
-    if (!erDiagram || !erRef.current) return
-    mermaid.initialize({ theme: 'dark', startOnLoad: false })
+    if (!erDiagram) {
+      if (erRef.current) erRef.current.innerHTML = ''
+      return
+    }
+    let cancelled = false
+
+    const waitForRef = async (maxMs = 1500) => {
+      const start = performance.now()
+      while (!cancelled && !erRef.current && performance.now() - start < maxMs) {
+        await new Promise(r => requestAnimationFrame(r))
+      }
+      return erRef.current
+    }
+
     const renderEr = async () => {
+      const target = await waitForRef()
+      if (cancelled || !target) return
       try {
-        const { svg } = await mermaid.render('er-svg', erDiagram)
-        if (erRef.current) erRef.current.innerHTML = svg
-      } catch {}
+        const id = `er-svg-${Date.now()}-${Math.floor(Math.random() * 1e6)}`
+        const { svg } = await mermaid.render(id, erDiagram)
+        if (cancelled) return
+        const el = erRef.current
+        if (el) {
+          el.innerHTML = svg
+          setErError('')
+        }
+      } catch (e) {
+        if (cancelled) return
+        const msg = e?.message || String(e) || 'Diagram render failed'
+        console.error('[ER] Mermaid render failed:', msg, '\nSource:\n', erDiagram)
+        setErError(`Diagram render failed: ${msg.split('\n')[0]}`)
+        if (erRef.current) erRef.current.innerHTML = ''
+      }
     }
     renderEr()
+    return () => { cancelled = true }
   }, [erDiagram])
 
   const handleAsk = async () => {
@@ -439,18 +486,6 @@ export default function OverviewPage() {
               )}
             </div>
 
-            {erDiagram && (
-              <div className="glass rounded-xl p-5">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-sm font-semibold text-zinc-200">ER Diagram</h3>
-                  <button onClick={() => setErFull(!erFull)} className="p-1 hover:bg-white/10 rounded cursor-pointer">
-                    {erFull ? <Minimize2 className="w-4 h-4 text-zinc-400" /> : <Maximize2 className="w-4 h-4 text-zinc-400" />}
-                  </button>
-                </div>
-                <div ref={erRef} className={`overflow-auto ${erFull ? 'max-h-none' : 'max-h-[400px]'} [&_svg]:max-w-full`} />
-              </div>
-            )}
-
             {overview.suggested_queries?.length > 0 && (
               <div className="glass rounded-xl p-5">
                 <h3 className="text-sm font-semibold text-zinc-200 mb-3">Suggested Queries</h3>
@@ -470,6 +505,27 @@ export default function OverviewPage() {
             )}
           </>
         )}
+
+        {/* =========================== ER DIAGRAM =========================== */}
+        <div className="glass rounded-xl p-5">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-semibold text-zinc-200">ER Diagram</h3>
+            <button onClick={() => setErFull(!erFull)} className="p-1 hover:bg-white/10 rounded cursor-pointer">
+              {erFull ? <Minimize2 className="w-4 h-4 text-zinc-400" /> : <Maximize2 className="w-4 h-4 text-zinc-400" />}
+            </button>
+          </div>
+          {erLoading && <LoadingSpinner text="Building ER diagram..." />}
+          {!erLoading && erError && (
+            <div className="p-3 rounded-lg bg-rose-500/10 border border-rose-500/20 text-sm text-rose-300">
+              {erError}
+            </div>
+          )}
+          <div
+            ref={erRef}
+            style={{ display: erLoading || erError ? 'none' : 'block' }}
+            className={`overflow-auto ${erFull ? 'max-h-none' : 'max-h-[500px]'} [&_svg]:max-w-full [&_svg]:h-auto`}
+          />
+        </div>
 
         {/* Suggested-Query modal (from intel section) */}
         <Modal open={!!queryModal} onClose={() => setQueryModal(null)} title="Query Result" wide>
@@ -737,6 +793,73 @@ function Stat({ label, value, danger, span2 }) {
       <span className={`font-mono ${danger ? 'text-rose-400' : 'text-zinc-200'}`}>{value}</span>
     </div>
   )
+}
+
+/* ---------- Helpers: Mermaid ER builder ---------- */
+// Mermaid ER grammar is strict: identifiers must start with a letter/underscore,
+// contain only alphanumerics/underscore, and every entity needs at least one attribute.
+// We also avoid reserved single-word types (PK/FK/UK) colliding with constraint keywords.
+const MERMAID_RESERVED = new Set(['PK', 'FK', 'UK'])
+
+function sanitizeIdent(name, fallback = 'col') {
+  if (name == null) return fallback
+  let s = String(name).replace(/[^A-Za-z0-9_]/g, '_')
+  if (!s) return fallback
+  if (/^[0-9]/.test(s)) s = '_' + s
+  return s
+}
+
+function sanitizeType(t) {
+  const raw = (t == null ? '' : String(t)).replace(/[^A-Za-z0-9_]/g, '')
+  if (!raw) return 'text'
+  if (/^[0-9]/.test(raw)) return '_' + raw
+  if (MERMAID_RESERVED.has(raw.toUpperCase())) return raw + '_t'
+  return raw
+}
+
+function buildErMermaid(tables, foreignKeys) {
+  if (!Array.isArray(tables) || tables.length === 0) return ''
+
+  const entityNames = new Map() // original -> sanitized, unique
+  const used = new Set()
+  for (const t of tables) {
+    let name = sanitizeIdent(t?.name, 'table')
+    let suffix = 1
+    while (used.has(name)) name = sanitizeIdent(t?.name, 'table') + '_' + suffix++
+    used.add(name)
+    entityNames.set(t?.name, name)
+  }
+
+  let mmd = 'erDiagram\n'
+  for (const t of tables) {
+    const entity = entityNames.get(t?.name)
+    const cols = Array.isArray(t?.columns) ? t.columns.slice(0, 15) : []
+    if (!cols.length) {
+      // Mermaid requires an attribute block; give a placeholder so the entity still appears
+      mmd += `    ${entity} {\n        text _no_columns\n    }\n`
+      continue
+    }
+    mmd += `    ${entity} {\n`
+    const seen = new Set()
+    for (const c of cols) {
+      let colName = sanitizeIdent(c?.name, 'col')
+      let s = 1
+      while (seen.has(colName)) colName = sanitizeIdent(c?.name, 'col') + '_' + s++
+      seen.add(colName)
+      const typ = sanitizeType(c?.type)
+      mmd += `        ${typ} ${colName}${c?.pk ? ' PK' : ''}\n`
+    }
+    mmd += '    }\n'
+  }
+
+  for (const fk of (foreignKeys || [])) {
+    const from = entityNames.get(fk?.from_table)
+    const to = entityNames.get(fk?.to_table)
+    if (!from || !to) continue
+    const label = String(fk?.from_column || 'fk').replace(/"/g, "'")
+    mmd += `    ${from} ||--o{ ${to} : "${label}"\n`
+  }
+  return mmd
 }
 
 /* ---------- Helpers: profiling + chart inference ---------- */
