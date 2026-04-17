@@ -1,3 +1,13 @@
+FROM node:20-alpine AS frontend-build
+
+WORKDIR /frontend
+
+COPY meridian-frontend/package*.json ./
+RUN npm install
+
+COPY meridian-frontend/ ./
+RUN npm run build
+
 FROM python:3.11-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -21,6 +31,9 @@ COPY requirements.txt .
 RUN pip install -r requirements.txt && pip install gunicorn==21.2.0
 
 COPY . .
+
+# Copy React production build so Flask can serve it from /app
+COPY --from=frontend-build /frontend/dist /app/meridian-frontend/dist
 
 RUN mkdir -p /app/db /app/db/snapshots
 
