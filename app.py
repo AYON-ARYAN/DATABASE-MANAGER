@@ -5,7 +5,7 @@ import re
 import time
 from flask import (
     Flask, render_template, request,
-    session, redirect, url_for, Response, jsonify, send_file
+    session, redirect, url_for, Response, jsonify, send_file, send_from_directory
 )
 import json
 
@@ -41,8 +41,8 @@ load_dotenv()
 # ---------------------------------------------------
 app = Flask(
     __name__,
-    static_folder='meridian-frontend/dist/assets',
-    static_url_path='/assets'
+    static_folder='static',
+    static_url_path='/static'
 )
 app.secret_key = "dev-secret-key"
 app.config["SESSION_PERMANENT"] = False
@@ -52,6 +52,10 @@ GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
 analysis_enabled = bool(GROQ_API_KEY)
 
 PAGE_SIZE = 50
+REACT_DIST_INDEX = os.path.join(
+    os.path.dirname(__file__), "meridian-frontend", "dist", "index.html"
+)
+SERVE_REACT_AT_ROOT = os.environ.get("SERVE_REACT_AT_ROOT", "1") == "1"
 
 # Ensure default SQLite connection exists on startup
 ensure_default_sqlite()
@@ -243,6 +247,9 @@ def logout():
 # ---------------------------------------------------
 @app.route("/", methods=["GET", "POST"])
 def index():
+    if request.method == "GET" and SERVE_REACT_AT_ROOT and os.path.exists(REACT_DIST_INDEX):
+        return redirect(url_for("serve_react"))
+
     role = session.get("role", ROLE_VIEWER)
     db_info = get_active_db_info()
     connections = list_connections()
