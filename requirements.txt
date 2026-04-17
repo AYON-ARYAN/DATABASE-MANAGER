@@ -2,11 +2,12 @@
 Flask==3.1.1
 flask-cors==5.0.1
 python-dotenv==1.0.0
+gunicorn==22.0.0
 
 # Database adapters
 psycopg2-binary==2.9.11
 pymysql==1.1.1
-pymssql==2.3.4
+pymssql==2.3.4; python_version < "3.12"
 oracledb==3.1.0
 pymongo==4.13.0
 cassandra-driver==3.30.0
