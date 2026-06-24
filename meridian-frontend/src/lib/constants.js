@@ -31,6 +31,7 @@ export const GRADIENT_CARDS = [
 
 export const PAGE_SIZE = 50
 
+// Flat list kept for the mobile drawer & any consumer that wants every item.
 export const NAV_ITEMS = [
   { path: '/', label: 'Query', icon: 'Terminal' },
   { path: '/command-center', label: 'Command Center', icon: 'Rocket' },
@@ -42,4 +43,36 @@ export const NAV_ITEMS = [
   { path: '/samples', label: 'Samples', icon: 'Package' },
   { path: '/snapshots', label: 'Snapshots', icon: 'History' },
   { path: '/admin', label: 'Admin', icon: 'Settings' },
+]
+
+// Grouped structure for the desktop navbar.
+//  - kind 'link'  → a single top-level link (no dropdown)
+//  - kind 'menu'  → a dropdown grouping several items
+export const NAV_GROUPS = [
+  { kind: 'link', path: '/', label: 'Query', icon: 'Terminal' },
+  {
+    kind: 'menu', label: 'Workspace', icon: 'Rocket',
+    items: [
+      { path: '/command-center', label: 'Command Center', icon: 'Rocket', description: 'Saved & batch commands' },
+      { path: '/join-center', label: 'Join Center', icon: 'GitMerge', description: 'Build multi-table joins' },
+    ],
+  },
+  {
+    kind: 'menu', label: 'Insights', icon: 'BarChart3',
+    items: [
+      { path: '/overview', label: 'Overview', icon: 'LayoutDashboard', description: 'Database at a glance' },
+      { path: '/dashboards', label: 'Dashboards', icon: 'BarChart3', description: 'Saved chart boards' },
+      { path: '/analysis', label: 'Analysis', icon: 'BrainCircuit', description: 'Deep AI analysis' },
+      { path: '/insights', label: 'Insights', icon: 'Lightbulb', description: 'Auto-discovered insights' },
+    ],
+  },
+  {
+    kind: 'menu', label: 'Data', icon: 'Database',
+    items: [
+      { path: '/databases', label: 'Databases', icon: 'Database', description: 'Connections & sources' },
+      { path: '/samples', label: 'Samples', icon: 'Package', description: 'Sample datasets' },
+      { path: '/snapshots', label: 'Snapshots', icon: 'History', description: 'Backups & restore' },
+    ],
+  },
+  { kind: 'link', path: '/admin', label: 'Admin', icon: 'Settings' },
 ]

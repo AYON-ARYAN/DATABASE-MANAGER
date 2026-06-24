@@ -1,10 +1,11 @@
 import { cn } from '../../lib/utils'
 
-export default function Card({ className = '', gradient, glow, children, ...props }) {
+export default function Card({ className = '', gradient, glow, hover, children, ...props }) {
   return (
     <div
       className={cn(
-        'glass rounded-xl p-5',
+        'glass-vibrant rounded-2xl p-5',
+        hover && 'lift hover:border-white/20',
         gradient && `bg-gradient-to-br ${gradient} border-0`,
         glow && `hover:shadow-lg hover:shadow-${glow}-500/10`,
         className

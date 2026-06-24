@@ -18,7 +18,7 @@ import {
 } from 'lucide-react'
 
 export default function QueryPage() {
-  const { activeDb, connections, dbInfo, llmProvider, setLlmProvider, switchDb } = useDb()
+  const { activeDb, dbInfo, llmProvider, setLlmProvider } = useDb()
   const { user } = useAuth()
   const toast = useToast()
   const navigate = useNavigate()
@@ -88,14 +88,6 @@ export default function QueryPage() {
     } catch { toast.error('Failed to switch provider') }
   }
 
-  const handleDbSwitch = async (name) => {
-    try {
-      await switchDb(name)
-      setResult(null)
-      toast.success(`Switched to ${name}`)
-    } catch { toast.error('Failed to switch database') }
-  }
-
   const totalPages = result?.total_rows ? Math.ceil(result.total_rows / (result.page_size || 50)) : 0
   const currentPage = result?.page || 1
 
@@ -137,21 +129,13 @@ export default function QueryPage() {
         <div className="flex-1 flex flex-col min-w-0">
           {/* Context bar */}
           <div className="flex items-center gap-3 mb-4 flex-wrap">
-            <select
-              value={activeDb}
-              onChange={e => handleDbSwitch(e.target.value)}
-              className="bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-zinc-300 focus:outline-none cursor-pointer"
-            >
-              {connections.map(c => (
-                <option key={c.name} value={c.name} className="bg-zinc-900">{c.name}</option>
-              ))}
-            </select>
-
-            {dbInfo && (
-              <span className="text-[10px] px-2 py-1 rounded-md bg-blue-500/10 text-blue-400 border border-blue-500/20">
-                {dbInfo.display_type}
-              </span>
-            )}
+            <span className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-xs text-zinc-300">
+              <Database className="h-3.5 w-3.5 text-blue-400" />
+              <span className="font-medium">{activeDb}</span>
+              {dbInfo && (
+                <span className="rounded bg-blue-500/15 px-1.5 py-0.5 text-[10px] text-blue-300">{dbInfo.display_type}</span>
+              )}
+            </span>
 
             <select
               value={llmProvider}
@@ -310,7 +294,7 @@ export default function QueryPage() {
           </div>
 
           {/* Input bar */}
-          <div className="glass-bright rounded-xl p-3">
+          <div className="glass-vibrant gradient-ring rounded-2xl p-3">
             <div className="flex items-end gap-3">
               <div className="flex-1">
                 <textarea

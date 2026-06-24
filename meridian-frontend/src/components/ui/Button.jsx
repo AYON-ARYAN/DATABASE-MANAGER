@@ -1,8 +1,8 @@
 import { cn } from '../../lib/utils'
 
 const variants = {
-  primary: 'bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white shadow-lg shadow-blue-500/20',
-  secondary: 'bg-white/5 border border-white/10 hover:bg-white/10 text-zinc-300',
+  primary: 'bg-animated-gradient text-white shadow-lg shadow-purple-500/30 hover:shadow-purple-500/50 hover:brightness-110',
+  secondary: 'bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/20 text-zinc-200',
   danger: 'bg-rose-500/10 border border-rose-500/30 hover:bg-rose-500/20 text-rose-400',
   ghost: 'hover:bg-white/5 text-zinc-400 hover:text-zinc-200',
   success: 'bg-emerald-500/10 border border-emerald-500/30 hover:bg-emerald-500/20 text-emerald-400',
@@ -21,8 +21,8 @@ export default function Button({
   return (
     <button
       className={cn(
-        'inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-all duration-200 cursor-pointer',
-        'disabled:opacity-50 disabled:cursor-not-allowed',
+        'inline-flex items-center justify-center gap-2 rounded-xl font-medium transition-all duration-200 cursor-pointer',
+        'disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:brightness-100',
         variants[variant],
         sizes[size],
         className

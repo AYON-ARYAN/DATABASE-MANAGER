@@ -35,19 +35,20 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-4 relative overflow-hidden">
-      {/* Background gradients */}
-      <div className="absolute top-0 left-1/4 w-96 h-96 bg-blue-600/20 rounded-full blur-[120px]" />
-      <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-purple-600/20 rounded-full blur-[120px]" />
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-pink-600/10 rounded-full blur-[150px]" />
+    <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden">
+      {/* Animated ambient background */}
+      <div className="aurora-bg" aria-hidden="true" />
 
-      <div className="relative glass-bright p-8 w-full max-w-sm animate-fade-up">
+      <div className="relative z-10 gradient-ring glass-vibrant rounded-3xl p-8 w-full max-w-sm animate-fade-up shadow-2xl shadow-black/50">
         {/* Logo */}
         <div className="flex flex-col items-center mb-8">
-          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center mb-4 shadow-lg shadow-blue-500/20">
-            <Zap className="w-7 h-7 text-white" />
+          <div className="relative mb-4">
+            <div className="absolute inset-0 rounded-2xl bg-animated-gradient blur-lg opacity-60" />
+            <div className="relative w-14 h-14 rounded-2xl bg-animated-gradient flex items-center justify-center shadow-lg shadow-purple-500/40">
+              <Zap className="w-7 h-7 text-white" />
+            </div>
           </div>
-          <h1 className="text-xl font-bold text-zinc-100">Meridian Data</h1>
+          <h1 className="text-2xl font-bold gradient-text">Meridian Data</h1>
           <p className="text-sm text-zinc-500 mt-1">AI-Powered Database Explorer</p>
         </div>
 
@@ -60,6 +61,8 @@ export default function LoginPage() {
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
           <Input
             label="Username"
+            name="username"
+            id="username"
             value={username}
             onChange={e => setUsername(e.target.value)}
             placeholder="Enter username"
@@ -68,6 +71,8 @@ export default function LoginPage() {
           />
           <Input
             label="Password"
+            name="password"
+            id="password"
             type="password"
             value={password}
             onChange={e => setPassword(e.target.value)}
