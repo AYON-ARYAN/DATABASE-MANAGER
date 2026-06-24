@@ -3,13 +3,35 @@ name: API Contract Test (Specmatic)
 # Executable-contract guardrail: every push/PR that touches the API is checked
 # against the OpenAPI contract with Specmatic. If the implementation (or an
 # AI-generated change) drifts from the contract, this job fails and blocks the merge.
+#
+# Three layers:
+#   1. Contract test (with inline + external examples) — value-checked conformance
+#   2. Schema-resiliency tests (generative negative tests) — input-validation guardrail
+#   3. LLM virtualization test — the app's NL-to-SQL runs against a Specmatic stub of
+#      the LLM provider, so AI-dependent tests are deterministic, offline, and 0-token.
 
 on:
   push:
     branches: [ main, react_build ]
-    paths: [ "api_routes.py", "app.py", "api_contract.yaml", "contract_public.yaml", ".github/workflows/contract.yml" ]
+    paths:
+      - "api_routes.py"
+      - "app.py"
+      - "core/**"
+      - "api_contract.yaml"
+      - "contract_public.yaml"
+      - "llm_contract.yaml"
+      - "examples/**"
+      - "scripts/llm_mock_test.py"
+      - ".github/workflows/contract.yml"
   pull_request:
-    paths: [ "api_routes.py", "app.py", "api_contract.yaml", "contract_public.yaml" ]
+    paths:
+      - "api_routes.py"
+      - "app.py"
+      - "core/**"
+      - "api_contract.yaml"
+      - "contract_public.yaml"
+      - "llm_contract.yaml"
+      - "examples/**"
   workflow_dispatch:
 
 jobs:
@@ -37,9 +59,29 @@ jobs:
             sleep 2
           done
 
-      - name: Run Specmatic contract test (executable contract)
+      - name: Contract test (with inline + external examples)
         run: |
           docker run --rm --network host -v "${{ github.workspace }}:/specs" -w /specs \
-            specmatic/specmatic:latest test contract_public.yaml --host localhost --port 5001
+            specmatic/specmatic:latest test contract_public.yaml --examples examples \
+            --host localhost --port 5001
 
-      # Drift in the API contract -> this step fails -> PR is blocked.
+      - name: Schema-resiliency tests (generative)
+        run: |
+          docker run --rm --network host -e SPECMATIC_GENERATIVE_TESTS=true \
+            -v "${{ github.workspace }}:/specs" -w /specs \
+            specmatic/specmatic:latest test contract_public.yaml --examples examples \
+            --host localhost --port 5001
+
+      - name: LLM virtualization test (Specmatic stubs the LLM provider)
+        run: |
+          docker run -d --rm --network host -v "${{ github.workspace }}:/specs" -w /specs \
+            specmatic/specmatic:latest stub llm_contract.yaml --port 9090
+          for i in $(seq 1 30); do
+            curl -s -o /dev/null http://localhost:9090/ && break
+            sleep 2
+          done
+          GROQ_API_URL=http://localhost:9090/openai/v1/chat/completions \
+          GROQ_API_KEY=ci-stub-key \
+          python scripts/llm_mock_test.py
+
+      # Any drift / unhandled malformed input / broken AI wiring -> a step fails -> PR blocked.

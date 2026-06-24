@@ -110,9 +110,15 @@ def safe_count(adapter, sql):
 # ---------------------------------------------------
 @api.route('/api/auth/login', methods=['POST'])
 def api_login():
-    data = request.json or {}
-    username = data.get('username', '')
-    password = data.get('password', '')
+    data = request.get_json(silent=True)
+    # Input validation (surfaced by Specmatic schema-resiliency tests): reject
+    # malformed bodies with 400 instead of silently treating them as a failed login.
+    if not isinstance(data, dict):
+        return jsonify({"success": False, "error": "Request body must be a JSON object"}), 400
+    username = data.get('username')
+    password = data.get('password')
+    if not isinstance(username, str) or not isinstance(password, str):
+        return jsonify({"success": False, "error": "username and password are required strings"}), 400
 
     user = USERS.get(username)
     if not user or not check_password_hash(user["password"], password):

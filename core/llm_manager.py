@@ -4,29 +4,50 @@ import requests
 
 LLM_CONFIG_FILE = "db/llm_config.json"
 
+# Provider endpoints are env-overridable so tests can point the app at a
+# Specmatic stub (service virtualization) instead of the real Groq/Ollama.
+# In production these env vars are unset, so the real endpoints are used.
+GROQ_URL = os.getenv("GROQ_API_URL", "https://api.groq.com/openai/v1/chat/completions")
+OLLAMA_URL = os.getenv("OLLAMA_API_URL", "http://localhost:11434/api/generate")
+
 DEFAULT_CONFIG = {
     "active_provider": "mistral", # mistral (ollama) or groq
     "providers": {
         "groq": {
             "api_key": os.getenv("GROQ_API_KEY", ""),
             "model": "llama-3.3-70b-versatile",
-            "url": "https://api.groq.com/openai/v1/chat/completions"
+            "url": GROQ_URL
         },
         "mistral": {
             "model": "mistral",
-            "url": "http://localhost:11434/api/generate"
+            "url": OLLAMA_URL
         }
     }
 }
 
+def _apply_env_overrides(config):
+    """Let GROQ_API_URL / OLLAMA_API_URL / GROQ_API_KEY override config at runtime.
+    Enables pointing the LLM calls at a Specmatic stub during tests."""
+    try:
+        providers = config.setdefault("providers", {})
+        if os.getenv("GROQ_API_URL"):
+            providers.setdefault("groq", {})["url"] = os.getenv("GROQ_API_URL")
+        if os.getenv("GROQ_API_KEY"):
+            providers.setdefault("groq", {})["api_key"] = os.getenv("GROQ_API_KEY")
+        if os.getenv("OLLAMA_API_URL"):
+            providers.setdefault("mistral", {})["url"] = os.getenv("OLLAMA_API_URL")
+    except Exception:
+        pass
+    return config
+
 def load_config():
     if not os.path.exists(LLM_CONFIG_FILE):
-        return DEFAULT_CONFIG
+        return _apply_env_overrides(json.loads(json.dumps(DEFAULT_CONFIG)))
     try:
         with open(LLM_CONFIG_FILE, "r") as f:
-            return json.load(f)
+            return _apply_env_overrides(json.load(f))
     except Exception:
-        return DEFAULT_CONFIG
+        return _apply_env_overrides(json.loads(json.dumps(DEFAULT_CONFIG)))
 
 def save_config(config):
     os.makedirs(os.path.dirname(LLM_CONFIG_FILE), exist_ok=True)

@@ -184,6 +184,7 @@ components:
         success:  { type: boolean }
         username: { type: string }
         role:     { type: string }
+      example: { success: true, username: "admin1", role: "ADMIN" }
     Failure:
       type: object
       required: [success, error]
@@ -207,6 +208,15 @@ components:
         page:        { type: integer }
         page_size:   { type: integer }
         total_rows:  { type: integer }
+      example:
+        task: "READ"
+        sql: "SELECT Name FROM Artist LIMIT 3;"
+        explanation: "Lists the first three artist names."
+        columns: ["Name"]
+        results: [["AC/DC"], ["Accept"], ["Aerosmith"]]
+        page: 1
+        page_size: 50
+        total_rows: 275
     NeedsReview:
       type: object
       required: [needs_review, sql, explanation, task]
@@ -215,6 +225,11 @@ components:
         sql:          { type: string }
         explanation:  { type: string }
         task:         { type: string, example: "WRITE" }
+      example:
+        needs_review: true
+        sql: "UPDATE Artist SET Name = 'AC/DC' WHERE ArtistId = 1;"
+        explanation: "This modifies data — review before running."
+        task: "WRITE"
     Error:
       type: object
       required: [error]

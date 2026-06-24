@@ -13,6 +13,13 @@ paths:
               type: object
               required: [username, password]
               properties: { username: { type: string }, password: { type: string } }
+            examples:
+              validLogin:
+                summary: Correct admin credentials
+                value: { username: "admin1", password: "admin123" }
+              invalidLogin:
+                summary: Wrong credentials
+                value: { username: "nobody", password: "wrong-pass" }
       responses:
         "200":
           description: Login processed
@@ -26,3 +33,20 @@ paths:
                   username: { type: string }
                   role:     { type: string }
                   error:    { type: string }
+              examples:
+                validLogin:
+                  summary: Successful auth
+                  value: { success: true, username: "admin1", role: "ADMIN" }
+                invalidLogin:
+                  summary: Rejected auth (still HTTP 200 with a flag)
+                  value: { success: false, error: "Invalid credentials" }
+        "400":
+          description: Malformed request body (missing/!string username or password)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, error]
+                properties:
+                  success: { type: boolean }
+                  error:   { type: string }

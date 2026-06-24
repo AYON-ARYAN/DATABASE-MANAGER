@@ -1,0 +1,104 @@
+openapi: 3.0.3
+info:
+  title: LLM Provider API (OpenAI-compatible chat completions)
+  version: "1.0.0"
+  description: >
+    Contract for the upstream LLM provider that Meridian Data consumes for NL-to-SQL
+    (Groq is OpenAI-compatible: POST /openai/v1/chat/completions). Specmatic stubs this
+    contract so the app's AI calls are virtualized in tests — deterministic, offline, and
+    zero-token, instead of hitting a real LLM on every test run. Ref: OpenAI openapi.yaml.
+servers:
+  - url: http://localhost:9090
+
+paths:
+  /openai/v1/chat/completions:
+    post:
+      summary: Create a chat completion (NL command -> SQL)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [model, messages]
+              properties:
+                model: { type: string }
+                temperature: { type: number }
+                messages:
+                  type: array
+                  items:
+                    type: object
+                    required: [role, content]
+                    properties:
+                      role: { type: string }
+                      content: { type: string }
+            examples:
+              nlToSql:
+                summary: NL command -> SQL (drives the stub response)
+                value:
+                  model: "llama-3.3-70b-versatile"
+                  temperature: 0.1
+                  messages:
+                    - role: "system"
+                      content: "You are a SQLite assistant."
+                    - role: "user"
+                      content: "show all albums"
+      responses:
+        "200":
+          description: Chat completion
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [id, object, model, choices, usage]
+                properties:
+                  id: { type: string }
+                  object: { type: string }
+                  created: { type: integer }
+                  model: { type: string }
+                  choices:
+                    type: array
+                    items:
+                      type: object
+                      required: [index, message, finish_reason]
+                      properties:
+                        index: { type: integer }
+                        finish_reason: { type: string }
+                        message:
+                          type: object
+                          required: [role, content]
+                          properties:
+                            role: { type: string }
+                            content: { type: string }
+                  usage:
+                    type: object
+                    required: [prompt_tokens, completion_tokens, total_tokens]
+                    properties:
+                      prompt_tokens: { type: integer }
+                      completion_tokens: { type: integer }
+                      total_tokens: { type: integer }
+              examples:
+                nlToSql:
+                  value:
+                    id: "chatcmpl-stub-001"
+                    object: "chat.completion"
+                    created: 1750000000
+                    model: "llama-3.3-70b-versatile"
+                    choices:
+                      - index: 0
+                        finish_reason: "stop"
+                        message:
+                          role: "assistant"
+                          content: "SELECT * FROM Album LIMIT 10;"
+                    usage:
+                      prompt_tokens: 42
+                      completion_tokens: 12
+                      total_tokens: 54
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
