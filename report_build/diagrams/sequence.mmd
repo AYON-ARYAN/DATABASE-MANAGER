@@ -1,0 +1,45 @@
+sequenceDiagram
+  autonumber
+  actor User
+  participant UI as Web UI
+  participant App as Flask Handler
+  participant Intent as Intent Router
+  participant Adp as DB Adapter
+  participant LLM as LLM Router
+  participant Val as Validator
+  participant DB as Database
+
+  User->>UI: Type natural-language command
+  UI->>App: POST /command
+  App->>Intent: normalize and match command
+  alt Hardcoded introspection command
+    Intent->>Adp: describe / show FKs / indexes ...
+    Adp->>DB: PRAGMA / catalog query
+    DB-->>Adp: metadata
+    Adp-->>App: structured result (no LLM)
+  else Natural-language query
+    App->>Adp: get_schema() (cols, PKs, FKs, indexes, 3 sample rows)
+    Adp-->>App: schema text
+    App->>LLM: prompt(schema, history, command)
+    LLM-->>App: generated SQL + explanation
+    App->>Val: classify_query() and is_safe()
+    alt READ / SYSTEM and safe
+      App->>Val: RBAC is_allowed(role, task)
+      App->>Adp: execute(paginated SQL)
+      Adp->>DB: run query
+      DB-->>Adp: rows
+      Adp-->>App: columns + rows
+      App-->>UI: results table
+    else WRITE / SCHEMA
+      App-->>UI: Review page (editable SQL)
+      User->>UI: Confirm / Dry-Run
+      UI->>App: POST /execute
+      App->>Val: re-check is_safe + RBAC
+      App->>App: take_snapshot() (auto backup)
+      App->>Adp: execute(write)
+      Adp->>DB: commit
+      App-->>UI: success + undo option
+    else Unsafe / blocked
+      App-->>UI: blocked (logged)
+    end
+  end

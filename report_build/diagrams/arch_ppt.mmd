@@ -1,0 +1,7 @@
+flowchart LR
+  P["<b>Presentation</b><br/><br/>Jinja UI<br/>React 19 SPA"] --> A["<b>Application</b><br/>(Flask)<br/><br/>Query Engine<br/>Analysis · Dashboards<br/>Export · RBAC"] --> L["<b>LLM Providers</b><br/>(failover)<br/><br/>Groq —<br/>Llama 3.3 70B<br/>Ollama — Mistral"] --> D["<b>Data Access</b><br/><br/>DatabaseAdapter<br/>(ABC)<br/>8 adapters"] --> S["<b>Databases</b><br/><br/>SQLite · PostgreSQL<br/>MySQL · MSSQL<br/>Oracle · MongoDB<br/>Cassandra · Redis"]
+  style P fill:#e0f2fe,stroke:#0369a1,stroke-width:2px
+  style A fill:#ede9fe,stroke:#6d28d9,stroke-width:2px
+  style L fill:#fef3c7,stroke:#b45309,stroke-width:2px
+  style D fill:#dcfce7,stroke:#15803d,stroke-width:2px
+  style S fill:#f1f5f9,stroke:#475569,stroke-width:2px

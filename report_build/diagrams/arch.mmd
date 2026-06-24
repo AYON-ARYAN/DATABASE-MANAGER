@@ -1,0 +1,69 @@
+flowchart TB
+  subgraph CLIENT["Presentation Layer"]
+    direction LR
+    U1["Jinja UI<br/>(Chart.js · Marked.js · Mermaid)"]
+    U2["React 19 SPA<br/>(Vite · Tailwind · React Query)"]
+  end
+
+  subgraph FLASK["Application Layer — Flask (app.py / api_routes.py)"]
+    direction TB
+    AUTH["Auth and RBAC<br/>(session · Viewer/Editor/Admin)"]
+    subgraph QE["Query Engine"]
+      direction TB
+      INT["Intent Router<br/>(string-prefix match)"]
+      HC["Hardcoded DBMS Commands<br/>(8 introspection commands)"]
+      LLMR["LLM Router<br/>(schema-aware prompt builder)"]
+      VAL["Validator<br/>(classify_query · is_safe)"]
+      REV["Human-in-the-Loop<br/>Review / Dry-Run"]
+    end
+    ANA["Analysis Engine<br/>(insights · charts · full-DB report)"]
+    DASH["Dashboard Engine"]
+    EXP["Export<br/>(CSV · PowerPoint)"]
+    SNAP["Snapshot / Rollback"]
+    MET["Usage Metrics"]
+  end
+
+  subgraph LLM["LLM Providers (cloud / local failover)"]
+    direction LR
+    GROQ["Groq Cloud<br/>Llama 3.3 70B"]
+    OLLAMA["Local Ollama<br/>Mistral"]
+  end
+
+  subgraph DATA["Data Access Layer — Adapter Pattern"]
+    direction TB
+    BASE["DatabaseAdapter (ABC)"]
+    ADP["SQLite · PostgreSQL · MySQL · MSSQL<br/>Oracle · MongoDB · Cassandra · Redis"]
+  end
+
+  subgraph STORE["Databases and Persistence"]
+    direction LR
+    DBS[("Target Databases")]
+    JSON[("JSON store<br/>connections · dashboards<br/>metrics · snapshots")]
+  end
+
+  U1 --> AUTH
+  U2 --> AUTH
+  AUTH --> QE
+  AUTH --> ANA
+  AUTH --> DASH
+  INT --> HC
+  INT --> LLMR
+  LLMR --> GROQ
+  LLMR --> OLLAMA
+  GROQ --> VAL
+  OLLAMA --> VAL
+  HC --> BASE
+  VAL --> REV
+  VAL --> BASE
+  REV --> SNAP
+  REV --> BASE
+  ANA --> GROQ
+  ANA --> BASE
+  DASH --> BASE
+  EXP --> BASE
+  SNAP --> DBS
+  BASE --> ADP
+  ADP --> DBS
+  AUTH -.-> JSON
+  MET -.-> JSON
+  LLMR -.-> MET

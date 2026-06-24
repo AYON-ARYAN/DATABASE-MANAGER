@@ -37,6 +37,7 @@ export const NAV_ITEMS = [
   { path: '/overview', label: 'Overview', icon: 'LayoutDashboard' },
   { path: '/dashboards', label: 'Dashboards', icon: 'BarChart3' },
   { path: '/analysis', label: 'Analysis', icon: 'BrainCircuit' },
+  { path: '/join-center', label: 'Join Center', icon: 'GitMerge' },
   { path: '/databases', label: 'Databases', icon: 'Database' },
   { path: '/samples', label: 'Samples', icon: 'Package' },
   { path: '/snapshots', label: 'Snapshots', icon: 'History' },

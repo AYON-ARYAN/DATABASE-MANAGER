@@ -1,0 +1,222 @@
+openapi: 3.0.3
+info:
+  title: Meridian Data API
+  version: "1.0.0"
+  description: >
+    Executable contract for the Meridian Data REST API (Flask `/api` blueprint).
+    Meridian Data is a natural-language-to-SQL engine across 8 database engines with
+    human-in-the-loop write safety. This contract is the single source of truth: Specmatic
+    uses it to (a) contract-test the running implementation, and (b) stub the API for the
+    React frontend — so neither humans nor AI coding agents can silently drift the API.
+    Protected endpoints require a Flask session cookie; Specmatic verifies they correctly
+    return 401 when unauthenticated.
+servers:
+  - url: http://localhost:5001
+
+paths:
+  /api/auth/login:
+    post:
+      summary: Authenticate a user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password]
+              properties:
+                username: { type: string }
+                password: { type: string }
+      responses:
+        "200":
+          description: Login attempt processed (success or failure both return 200 with a flag)
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/LoginOk"
+                  - $ref: "#/components/schemas/Failure"
+
+  /api/auth/session:
+    get:
+      summary: Current session status
+      responses:
+        "200":
+          description: Logged in
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [logged_in, username, role]
+                properties:
+                  logged_in: { type: boolean }
+                  username:  { type: string }
+                  role:      { type: string }
+        "401":
+          description: Not logged in
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [logged_in]
+                properties:
+                  logged_in: { type: boolean }
+
+  /api/connections:
+    get:
+      summary: List database connections + active context (requires auth)
+      responses:
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Unauthorized" }
+        "200":
+          description: Connection list
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [connections, active_db, db_info, llm_provider]
+                properties:
+                  connections:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        name:    { type: string }
+                        db_type: { type: string }
+                  active_db:    { type: string }
+                  db_info:      { type: object }
+                  llm_provider: { type: string }
+
+  /api/command:
+    post:
+      summary: Run a natural-language command (NL-to-SQL). Reads return rows; writes return for review. (requires auth)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [command]
+              properties:
+                command:
+                  type: string
+                  example: "show top 10 customers by revenue"
+      responses:
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Unauthorized" }
+        "200":
+          description: >
+            A READ result, a WRITE/SCHEMA staged for human review (needs_review=true),
+            or an error object. This union is exactly what the contract pins down so the
+            frontend and any AI-generated change stay honest.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/ReadResult"
+                  - $ref: "#/components/schemas/NeedsReview"
+                  - $ref: "#/components/schemas/Error"
+
+  /api/execute:
+    post:
+      summary: Execute a previously-reviewed WRITE/SCHEMA query (human-in-the-loop confirm step) (requires auth)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                sql: { type: string, description: "If omitted, the last reviewed SQL in session is used" }
+      responses:
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Unauthorized" }
+        "200":
+          description: Execution result
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - type: object
+                    required: [success, message]
+                    properties:
+                      success: { type: boolean }
+                      message: { type: string }
+                  - $ref: "#/components/schemas/Failure"
+
+  /api/undo:
+    post:
+      summary: Roll back the last write (admin only, snapshot restore) (requires auth)
+      responses:
+        "401":
+          description: Not authenticated
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Unauthorized" }
+        "200":
+          description: Undo result
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - type: object
+                    required: [success, message]
+                    properties:
+                      success: { type: boolean }
+                      message: { type: string }
+                  - $ref: "#/components/schemas/Failure"
+
+components:
+  schemas:
+    LoginOk:
+      type: object
+      required: [success, username, role]
+      properties:
+        success:  { type: boolean }
+        username: { type: string }
+        role:     { type: string }
+    Failure:
+      type: object
+      required: [success, error]
+      properties:
+        success: { type: boolean }
+        error:   { type: string }
+    Unauthorized:
+      type: object
+      required: [error]
+      properties:
+        error: { type: string, example: "Unauthorized" }
+    ReadResult:
+      type: object
+      required: [task, sql, columns, results, page, page_size, total_rows]
+      properties:
+        task:        { type: string, example: "READ" }
+        sql:         { type: string }
+        explanation: { type: string }
+        columns:     { type: array, items: { type: string } }
+        results:     { type: array, items: { type: array, items: {} } }
+        page:        { type: integer }
+        page_size:   { type: integer }
+        total_rows:  { type: integer }
+    NeedsReview:
+      type: object
+      required: [needs_review, sql, explanation, task]
+      properties:
+        needs_review: { type: boolean }
+        sql:          { type: string }
+        explanation:  { type: string }
+        task:         { type: string, example: "WRITE" }
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error: { type: string }

@@ -1,0 +1,71 @@
+erDiagram
+  ARTIST ||--o{ ALBUM : "records"
+  ALBUM ||--o{ TRACK : "contains"
+  GENRE ||--o{ TRACK : "categorizes"
+  MEDIATYPE ||--o{ TRACK : "encodes"
+  PLAYLIST ||--o{ PLAYLISTTRACK : "includes"
+  TRACK ||--o{ PLAYLISTTRACK : "listed in"
+  EMPLOYEE ||--o{ CUSTOMER : "supports"
+  EMPLOYEE ||--o{ EMPLOYEE : "reports to"
+  CUSTOMER ||--o{ INVOICE : "places"
+  INVOICE ||--o{ INVOICELINE : "itemized by"
+  TRACK ||--o{ INVOICELINE : "billed in"
+
+  ARTIST {
+    int ArtistId PK
+    string Name
+  }
+  ALBUM {
+    int AlbumId PK
+    string Title
+    int ArtistId FK
+  }
+  TRACK {
+    int TrackId PK
+    string Name
+    int AlbumId FK
+    int MediaTypeId FK
+    int GenreId FK
+    real UnitPrice
+  }
+  GENRE {
+    int GenreId PK
+    string Name
+  }
+  MEDIATYPE {
+    int MediaTypeId PK
+    string Name
+  }
+  PLAYLIST {
+    int PlaylistId PK
+    string Name
+  }
+  PLAYLISTTRACK {
+    int PlaylistId PK_FK
+    int TrackId PK_FK
+  }
+  EMPLOYEE {
+    int EmployeeId PK
+    string LastName
+    string Title
+    int ReportsTo FK
+  }
+  CUSTOMER {
+    int CustomerId PK
+    string FirstName
+    string Email
+    int SupportRepId FK
+  }
+  INVOICE {
+    int InvoiceId PK
+    int CustomerId FK
+    string InvoiceDate
+    real Total
+  }
+  INVOICELINE {
+    int InvoiceLineId PK
+    int InvoiceId FK
+    int TrackId FK
+    real UnitPrice
+    int Quantity
+  }

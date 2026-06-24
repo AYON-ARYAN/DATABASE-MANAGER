@@ -20,6 +20,7 @@ import AdminPage from './pages/AdminPage'
 import CommandGuidePage from './pages/CommandGuidePage'
 import CommandCenterPage from './pages/CommandCenterPage'
 import SamplesPage from './pages/SamplesPage'
+import JoinCenterPage from './pages/JoinCenterPage'
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 30000 } }
@@ -50,6 +51,7 @@ function AppRoutes() {
       <Route path="/command-guide" element={<ProtectedRoute><CommandGuidePage /></ProtectedRoute>} />
       <Route path="/command-center" element={<ProtectedRoute><CommandCenterPage /></ProtectedRoute>} />
       <Route path="/samples" element={<ProtectedRoute><SamplesPage /></ProtectedRoute>} />
+      <Route path="/join-center" element={<ProtectedRoute><JoinCenterPage /></ProtectedRoute>} />
     </Routes>
   )
 }

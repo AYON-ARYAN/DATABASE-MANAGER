@@ -82,3 +82,8 @@ pass_test.txt
 
 # -------- Claude Code --------
 .claude/
+specmatic.jar
+
+# -------- Browser automation / generated artifacts --------
+.playwright-mcp/
+build/

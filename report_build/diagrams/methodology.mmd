@@ -1,0 +1,16 @@
+flowchart LR
+  A["Natural-language<br/>input"] --> B{"Intent<br/>classification"}
+  B -- "introspection" --> C["Hardcoded DBMS<br/>command (no LLM)"]
+  B -- "data question" --> D["Schema extraction<br/>(cols · PKs · FKs ·<br/>indexes · samples)"]
+  D --> E["LLM SQL generation<br/>(dialect-aware prompt,<br/>Groq / Ollama failover)"]
+  E --> F["Validation gate<br/>classify_query + is_safe"]
+  C --> G["RBAC check<br/>(role to task)"]
+  F --> G
+  G -- "READ / SYSTEM" --> H["Execute<br/>(paginated)"]
+  G -- "WRITE / SCHEMA" --> I["Human review<br/>+ snapshot"]
+  I --> H
+  H --> J["Results, AI insights,<br/>charts, export"]
+  style C fill:#e0f2fe,stroke:#0369a1
+  style E fill:#ede9fe,stroke:#6d28d9
+  style F fill:#fef3c7,stroke:#b45309
+  style I fill:#fee2e2,stroke:#b91c1c

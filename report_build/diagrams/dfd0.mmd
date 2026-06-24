@@ -1,0 +1,12 @@
+flowchart LR
+  USER(["User<br/>(Viewer / Editor / Admin)"])
+  SYS["0<br/>Meridian Data<br/>NL-to-SQL Explorer"]
+  LLMP(["LLM Provider<br/>(Groq / Ollama)"])
+  DBEXT[("Target Databases<br/>(SQL / NoSQL)")]
+
+  USER -- "NL command, credentials" --> SYS
+  SYS -- "results, charts, insights, SQL" --> USER
+  SYS -- "schema-aware prompt" --> LLMP
+  LLMP -- "generated SQL / answer" --> SYS
+  SYS -- "validated query" --> DBEXT
+  DBEXT -- "rows, schema metadata" --> SYS

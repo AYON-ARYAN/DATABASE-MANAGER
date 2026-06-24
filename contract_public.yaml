@@ -1,0 +1,28 @@
+openapi: 3.0.3
+info: { title: Meridian Data Auth API, version: "1.0.0" }
+servers: [ { url: http://localhost:5001 } ]
+paths:
+  /api/auth/login:
+    post:
+      summary: Authenticate a user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password]
+              properties: { username: { type: string }, password: { type: string } }
+      responses:
+        "200":
+          description: Login processed
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success]
+                properties:
+                  success:  { type: boolean }
+                  username: { type: string }
+                  role:     { type: string }
+                  error:    { type: string }

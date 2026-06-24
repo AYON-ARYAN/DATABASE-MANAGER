@@ -4,11 +4,11 @@ import { useDb } from '../../context/DbContext'
 import { NAV_ITEMS } from '../../lib/constants'
 import {
   Terminal, LayoutDashboard, BarChart3, BrainCircuit,
-  Database, History, Settings, LogOut, Menu, X, Zap, Rocket, Package
+  Database, History, Settings, LogOut, Menu, X, Zap, Rocket, Package, GitMerge
 } from 'lucide-react'
 import { useState } from 'react'
 
-const iconMap = { Terminal, LayoutDashboard, BarChart3, BrainCircuit, Database, History, Settings, Rocket, Package }
+const iconMap = { Terminal, LayoutDashboard, BarChart3, BrainCircuit, Database, History, Settings, Rocket, Package, GitMerge }
 
 export default function Navbar() {
   const { user, logout } = useAuth()

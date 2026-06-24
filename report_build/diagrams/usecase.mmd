@@ -1,0 +1,40 @@
+flowchart LR
+  V(("Viewer"))
+  E(("Editor"))
+  A(("Admin"))
+  G["Groq Cloud LLM"]
+  O["Local Ollama LLM"]
+
+  subgraph SYS["Meridian Data"]
+    direction TB
+    UC1(["Authenticate / Login"])
+    UC2(["Run NL Query (READ)"])
+    UC3(["Browse Schema and Overview"])
+    UC4(["AI Data Analysis and Charts"])
+    UC5(["Build / Generate Dashboards"])
+    UC6(["Export CSV / PowerPoint"])
+    UC7(["Execute WRITE after Review"])
+    UC8(["Run SCHEMA / DDL change"])
+    UC9(["Manage Connections"])
+    UC10(["Switch LLM Provider / Pull Model"])
+    UC11(["View Usage Metrics"])
+    UC12(["Create / Restore Snapshot"])
+  end
+
+  V --- UC1
+  V --- UC2
+  V --- UC3
+  V --- UC4
+  V --- UC6
+  E --- UC7
+  E --- UC5
+  A --- UC8
+  A --- UC9
+  A --- UC10
+  A --- UC11
+  A --- UC12
+
+  UC2 -. uses .-> G
+  UC2 -. uses .-> O
+  UC4 -. uses .-> G
+  UC7 -. triggers .-> UC12

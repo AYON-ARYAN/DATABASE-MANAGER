@@ -1,0 +1,33 @@
+flowchart TB
+  ROOT["Meridian Data<br/>Application Controller"]
+
+  ROOT --> M1["Authentication and<br/>RBAC Module"]
+  ROOT --> M2["Query Engine"]
+  ROOT --> M3["Analysis Module"]
+  ROOT --> M4["Dashboard Module"]
+  ROOT --> M5["Data Access Module"]
+  ROOT --> M6["Administration Module"]
+
+  M2 --> M2a["Intent Router"]
+  M2 --> M2b["Hardcoded Command<br/>Handler"]
+  M2 --> M2c["LLM Query Generator"]
+  M2 --> M2d["Validator<br/>(classify · is_safe)"]
+  M2 --> M2e["Execution and<br/>Pagination"]
+  M2 --> M2f["Review / Dry-Run"]
+
+  M2c --> P1["Prompt Templates<br/>(8 dialects)"]
+  M2c --> P2["Provider Failover<br/>(Groq / Ollama)"]
+
+  M3 --> M3a["analyze_data()"]
+  M3 --> M3b["ai_ask()"]
+  M3 --> M3c["get_table_overview()"]
+  M3 --> M3d["Full-DB Async Pipeline"]
+
+  M5 --> M5a["DatabaseAdapter (ABC)"]
+  M5a --> M5b["8 Concrete Adapters"]
+  M5 --> M5c["Connection Manager<br/>(Fernet-encrypted)"]
+  M5 --> M5d["Snapshot / Rollback"]
+
+  M6 --> M6a["LLM Config Manager"]
+  M6 --> M6b["Usage Metrics"]
+  M6 --> M6c["Export (CSV / PPTX)"]

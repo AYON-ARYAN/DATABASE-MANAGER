@@ -1,0 +1,14 @@
+flowchart LR
+  E1["Rule / pattern-based<br/>NLIDB<br/>(Androutsopoulos 1995)"]
+  E2["Seq2SQL + WikiSQL<br/>(2017)<br/>RL, single table"]
+  E3["SQLNet<br/>(2017)<br/>sketch, no RL"]
+  E4["Spider benchmark<br/>(2018)<br/>cross-domain, multi-table"]
+  E5["RAT-SQL · BRIDGE<br/>(2020)<br/>schema linking"]
+  E6["PICARD<br/>(2021)<br/>constrained decoding"]
+  E7["LLM in-context<br/>Codex (2022)<br/>zero/few-shot"]
+  E8["DIN-SQL · DAIL-SQL ·<br/>BIRD (2023)<br/>decomposition, dirty DBs"]
+  E9["Meridian Data<br/>(systems integration:<br/>generate + validate +<br/>RBAC + human oversight)"]
+
+  E1 --> E2 --> E3 --> E4 --> E5 --> E6 --> E7 --> E8 --> E9
+  style E9 fill:#dcfce7,stroke:#15803d
+  style E1 fill:#f1f5f9,stroke:#475569

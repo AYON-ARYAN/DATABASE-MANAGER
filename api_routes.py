@@ -21,6 +21,7 @@ from core.adapters import DB_TYPES, DB_DISPLAY_NAMES, DB_CONNECTION_FIELDS
 from core.metrics import get_summary
 from core.dashboards import list_dashboards, get_dashboard
 from core import llm_manager
+from core import join_center
 
 import os
 
@@ -644,3 +645,97 @@ def api_create_database():
         return jsonify({"success": True, "message": f"Database '{db_name}' created!"})
     except Exception as e:
         return jsonify({"success": False, "error": str(e)})
+
+
+# ---------------------------------------------------
+# Join Center
+# ---------------------------------------------------
+def _join_guard():
+    """Common preflight for /api/join/*. Returns (adapter, None) or (None, (resp, status))."""
+    if "role" not in session or "username" not in session:
+        return None, (jsonify({"error": "Authentication required."}), 401)
+    if not is_allowed(session.get("role"), "READ"):
+        return None, (jsonify({"error": "Permission denied."}), 403)
+    adapter = get_active_adapter()
+    if getattr(adapter, "is_nosql", False):
+        return None, (jsonify({
+            "error": f"Joins are not supported for {adapter.dialect} (NoSQL)."
+        }), 400)
+    dialect = (getattr(adapter, "dialect", "") or "").lower()
+    if dialect not in join_center.SUPPORTED_DIALECTS:
+        return None, (jsonify({
+            "error": f"Join Center does not support dialect {dialect!r}."
+        }), 400)
+    return adapter, None
+
+
+def _join_server_error(exc):
+    """Log the real exception, return a generic message with a request id."""
+    import logging
+    import uuid
+    rid = uuid.uuid4().hex[:8]
+    logging.getLogger("meridian.join").exception("join endpoint failed [rid=%s]", rid)
+    return jsonify({"error": "Internal error.", "request_id": rid}), 500
+
+
+@api.route('/api/join/schema', methods=['GET'])
+def api_join_schema():
+    adapter, err = _join_guard()
+    if err:
+        return err
+    try:
+        snapshot = join_center.build_schema_snapshot(adapter)
+        return jsonify(snapshot)
+    except join_center.JoinSpecError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        return _join_server_error(e)
+
+
+@api.route('/api/join/suggest', methods=['POST'])
+def api_join_suggest():
+    adapter, err = _join_guard()
+    if err:
+        return err
+    data = request.json or {}
+    left = data.get("left_table")
+    right = data.get("right_table")
+    if not isinstance(left, str) or not isinstance(right, str) or not left or not right:
+        return jsonify({"error": "left_table and right_table are required."}), 400
+    try:
+        return jsonify({"suggestions": join_center.suggest_joins(adapter, left, right)})
+    except join_center.JoinSpecError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        return _join_server_error(e)
+
+
+@api.route('/api/join/preview', methods=['POST'])
+def api_join_preview():
+    adapter, err = _join_guard()
+    if err:
+        return err
+    spec = request.json or {}
+    try:
+        schema = join_center.build_schema_snapshot(adapter)
+        sql = join_center.build_join_sql(spec, schema)
+        return jsonify({"sql": sql})
+    except join_center.JoinSpecError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        return _join_server_error(e)
+
+
+@api.route('/api/join/execute', methods=['POST'])
+def api_join_execute():
+    adapter, err = _join_guard()
+    if err:
+        return err
+    spec = request.json or {}
+    try:
+        result = join_center.execute_join(adapter, spec)
+        return jsonify(result)
+    except join_center.JoinSpecError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        return _join_server_error(e)
