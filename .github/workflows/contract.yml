@@ -59,13 +59,11 @@ jobs:
             sleep 2
           done
 
-      - name: Contract test (with inline + external examples)
-        run: |
-          docker run --rm --network host -v "${{ github.workspace }}:/specs" -w /specs \
-            specmatic/specmatic:latest test contract_public.yaml --examples examples \
-            --host localhost --port 5001
-
-      - name: Schema-resiliency tests (generative)
+      - name: Contract + schema-resiliency tests (examples + generative)
+        # SPECMATIC_GENERATIVE_TESTS=true runs BOTH the positive, example-driven tests
+        # and the negative/mutation (resiliency) tests in a single pass. The negatives
+        # exercise the 400 response (only reachable via invalid input), so contract
+        # COVERAGE reaches 100% (200 + 400 both covered).
         run: |
           docker run --rm --network host -e SPECMATIC_GENERATIVE_TESTS=true \
             -v "${{ github.workspace }}:/specs" -w /specs \
@@ -73,6 +71,10 @@ jobs:
             --host localhost --port 5001
 
       - name: LLM virtualization test (Specmatic stubs the LLM provider)
+        # Separate step on purpose: the two steps above test MERIDIAN'S OWN API
+        # (provider side). This step virtualizes an UPSTREAM DEPENDENCY the app
+        # consumes — it boots a Specmatic stub of the LLM's chat-completions API and
+        # points the app at it (GROQ_API_URL), proving NL-to-SQL runs offline / 0-token.
         run: |
           docker run -d --rm --network host -v "${{ github.workspace }}:/specs" -w /specs \
             specmatic/specmatic:latest stub llm_contract.yaml --port 9090

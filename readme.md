@@ -10,6 +10,58 @@ Built for students, teachers, and analysts who want to explore databases without
 
 ---
 
+## Spec-Driven Development with Specmatic
+
+Meridian uses **[Specmatic](https://specmatic.io)** executable contracts as a guardrail for
+AI-generated code — catching silent API drift, and even **virtualizing the LLM provider** so
+AI-dependent tests run offline and token-free.
+
+### The three contracts — what each is and why it exists
+
+| Contract | Describes | Why it exists |
+|---|---|---|
+| **`api_contract.yaml`** | The full `/api` surface (auth, connections, `command`, `execute`, `undo`), incl. the `/api/command` `oneOf` union (READ result / write-needs-review / error) and `401`s on protected endpoints. | **Single source of truth** for the API. Specmatic uses it to (a) **stub** the backend so the React frontend can develop in parallel, and (b) pin the real shapes (with `examples`) so humans/AI agents can't silently drift them. |
+| **`contract_public.yaml`** | The **unauthenticated public surface** (`POST /api/auth/login`, incl. the `400` for malformed input). | This is what runs in **CI**. The full API is behind a Flask **session cookie**, which Specmatic's test mode can't drive (it supports header/bearer/oauth2, not cookies) — so CI tests the cookie-free surface, with inline + external **examples** and **generative resiliency** tests. |
+| **`llm_contract.yaml`** | The **upstream LLM provider** Meridian consumes — Groq's OpenAI-compatible `POST /openai/v1/chat/completions`. | Lets Specmatic **stub the LLM** in tests (service virtualization). See [`LLM_CONTRACT_NOTES.md`](./LLM_CONTRACT_NOTES.md) for every deviation from the real OpenAI/Groq spec and why. |
+
+External example files live in [`examples/`](./examples) (loaded via `--examples`).
+
+### How the LLM mock is used (and why it's a separate CI step)
+
+Real LLM calls would burn tokens on every CI run and be non-deterministic. So:
+
+1. CI starts a Specmatic **stub** of `llm_contract.yaml` (`specmatic stub llm_contract.yaml --port 9090`).
+2. The app's provider base URL is **env-overridable** — `core/llm_manager.py` reads `GROQ_API_URL`;
+   CI sets it to the stub.
+3. `scripts/llm_mock_test.py` runs the real NL-to-SQL path, which now talks to the stub instead
+   of Groq → **deterministic, offline, zero-token** AI tests.
+
+It runs as its **own step, after** the contract + resiliency tests, on purpose: those test
+**Meridian's own API** (Meridian as *provider*); this step virtualizes an **upstream dependency
+Meridian consumes** (Meridian as *consumer*). Different role, different contract → separate step.
+
+### CI (`.github/workflows/contract.yml`)
+
+On every push/PR touching the API:
+1. **Contract + schema-resiliency tests** — `SPECMATIC_GENERATIVE_TESTS=true` runs the
+   example-driven positive tests **and** negative/mutation tests in one pass. The negatives
+   exercise the `400`, so **contract coverage is 100%** (`200` + `400` both covered).
+2. **LLM virtualization test** — as above.
+
+```bash
+# Contract + resiliency (100% coverage)
+SPECMATIC_GENERATIVE_TESTS=true \
+  java -jar specmatic.jar test contract_public.yaml --examples examples --host localhost --port 5001
+# Stub the backend for frontend dev
+java -jar specmatic.jar stub api_contract.yaml
+# Virtualize the LLM, then prove NL-to-SQL runs offline / 0-token
+java -jar specmatic.jar stub llm_contract.yaml --port 9090 &
+GROQ_API_URL=http://localhost:9090/openai/v1/chat/completions GROQ_API_KEY=stub \
+  python scripts/llm_mock_test.py
+```
+
+---
+
 ## Screenshots
 
 | Query Agent | AI Analysis | Database Overview |
