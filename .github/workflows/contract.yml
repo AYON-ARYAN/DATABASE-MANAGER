@@ -51,30 +51,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Start Meridian Data API
-        run: |
-          python -m flask --app app run --port 5001 &
-          for i in $(seq 1 30); do
-            curl -sf http://localhost:5001/api/auth/session > /dev/null && break
-            sleep 2
-          done
-
-      - name: Contract + schema-resiliency tests (examples + generative)
-        # SPECMATIC_GENERATIVE_TESTS=true runs BOTH the positive, example-driven tests
-        # and the negative/mutation (resiliency) tests in a single pass. The negatives
-        # exercise the 400 response (only reachable via invalid input), so contract
-        # COVERAGE reaches 100% (200 + 400 both covered).
-        run: |
-          docker run --rm --network host -e SPECMATIC_GENERATIVE_TESTS=true \
-            -v "${{ github.workspace }}:/specs" -w /specs \
-            specmatic/specmatic:latest test contract_public.yaml --examples examples \
-            --host localhost --port 5001
-
-      - name: LLM virtualization test (Specmatic stubs the LLM provider)
-        # Separate step on purpose: the two steps above test MERIDIAN'S OWN API
-        # (provider side). This step virtualizes an UPSTREAM DEPENDENCY the app
-        # consumes — it boots a Specmatic stub of the LLM's chat-completions API and
-        # points the app at it (GROQ_API_URL), proving NL-to-SQL runs offline / 0-token.
+      - name: Start LLM stub (Specmatic virtualizes the LLM provider)
         run: |
           docker run -d --rm --network host -v "${{ github.workspace }}:/specs" -w /specs \
             specmatic/specmatic:latest stub llm_contract.yaml --port 9090
@@ -82,8 +59,43 @@ jobs:
             curl -s -o /dev/null http://localhost:9090/ && break
             sleep 2
           done
-          GROQ_API_URL=http://localhost:9090/openai/v1/chat/completions \
-          GROQ_API_KEY=ci-stub-key \
-          python scripts/llm_mock_test.py
+
+      - name: Start Meridian Data API (LLM -> stub, gated test-auth on)
+        # SPECMATIC_TEST lets Specmatic contract-test the PROTECTED endpoints (incl. the
+        # LLM-calling /api/command) via a Bearer token; GROQ_API_URL points the app's LLM
+        # calls at the stub above -> the AI path is exercised offline, zero-token.
+        env:
+          SPECMATIC_TEST: "1"
+          GROQ_API_URL: http://localhost:9090/openai/v1/chat/completions
+          GROQ_API_KEY: ci-stub-key
+        run: |
+          python -m flask --app app run --port 5001 &
+          for i in $(seq 1 30); do
+            curl -s -o /dev/null http://localhost:5001/api/auth/session && break
+            sleep 2
+          done
+
+      - name: Public contract + resiliency (100% coverage)
+        run: |
+          docker run --rm --network host -e SPECMATIC_GENERATIVE_TESTS=true \
+            -v "${{ github.workspace }}:/specs" -w /specs \
+            specmatic/specmatic:latest test contract_public.yaml --examples examples \
+            --host localhost --port 5001
+
+      - name: Full API contract + resiliency, LLM mocked (incl. /api/command)
+        # Tests the REAL endpoints that call the LLM (/api/command etc.) with the provider
+        # virtualized by the stub above — deterministic, offline, zero-token. Protected
+        # endpoints are reachable via the gated test-auth (SPECMATIC_TEST).
+        run: |
+          docker run --rm --network host -e SPECMATIC_GENERATIVE_TESTS=true \
+            -v "${{ github.workspace }}:/specs" -w /specs \
+            specmatic/specmatic:latest test api_contract.yaml \
+            --host localhost --port 5001
+
+      - name: LLM virtualization smoke test
+        env:
+          GROQ_API_URL: http://localhost:9090/openai/v1/chat/completions
+          GROQ_API_KEY: ci-stub-key
+        run: python scripts/llm_mock_test.py
 
       # Any drift / unhandled malformed input / broken AI wiring -> a step fails -> PR blocked.

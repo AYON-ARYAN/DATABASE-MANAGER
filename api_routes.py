@@ -218,7 +218,11 @@ def api_db_types():
 # ---------------------------------------------------
 @api.route('/api/command', methods=['POST'])
 def api_command():
-    data = request.json or {}
+    # Input validation (surfaced by Specmatic schema-resiliency tests): a non-string
+    # command used to crash with 500 (None.strip()). Reject it with 400 instead.
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict) or not isinstance(data.get('command'), str):
+        return jsonify({"error": "command must be a string"}), 400
     user_cmd = data.get('command', '').strip()
     if not user_cmd:
         return jsonify({"error": "Empty command."})
@@ -472,7 +476,15 @@ def api_paginate():
 # ---------------------------------------------------
 @api.route('/api/execute', methods=['POST'])
 def api_execute():
-    data = request.json or {}
+    # Input validation (Specmatic resiliency): reject a non-object body or non-string sql
+    # with 400 rather than mishandling it.
+    data = request.get_json(silent=True)
+    if data is None:
+        data = {}
+    if not isinstance(data, dict):
+        return jsonify({"success": False, "error": "Request body must be a JSON object"}), 400
+    if "sql" in data and not isinstance(data["sql"], str):
+        return jsonify({"success": False, "error": "sql must be a string"}), 400
     role = session.get("role")
     query = data.get("sql") or session.get("last_sql")
     task = session.get("last_task")

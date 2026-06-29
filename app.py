@@ -198,6 +198,19 @@ def require_login():
     # React SPA handles its own auth via /api/auth/session
     if request.path == "/app" or request.path.startswith("/app/"):
         return
+    # Test-only auth: lets Specmatic contract-test the PROTECTED endpoints (incl. the
+    # LLM-calling /api/command) in CI. Enabled ONLY when SPECMATIC_TEST is set (never in
+    # production). Any Bearer token is accepted as an admin session; the LLM provider is
+    # forced to "groq" so calls hit the Specmatic LLM stub (via GROQ_API_URL) — zero tokens.
+    # Runs before the auth-endpoint allow-list so /api/auth/session can return its
+    # authenticated 200 under contract test.
+    if os.environ.get("SPECMATIC_TEST") and request.headers.get("Authorization", "").startswith("Bearer "):
+        session["logged_in"] = True
+        session["username"] = "specmatic"
+        session["role"] = "ADMIN"
+        session["active_db"] = "Default SQLite"
+        session["llm_provider"] = "groq"
+        return
     # Allow auth endpoints without login
     if request.path in ("/api/auth/login", "/api/auth/session"):
         return

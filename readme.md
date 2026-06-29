@@ -42,11 +42,18 @@ Meridian consumes** (Meridian as *consumer*). Different role, different contract
 
 ### CI (`.github/workflows/contract.yml`)
 
-On every push/PR touching the API:
-1. **Contract + schema-resiliency tests** — `SPECMATIC_GENERATIVE_TESTS=true` runs the
-   example-driven positive tests **and** negative/mutation tests in one pass. The negatives
-   exercise the `400`, so **contract coverage is 100%** (`200` + `400` both covered).
-2. **LLM virtualization test** — as above.
+On every push/PR touching the API (`SPECMATIC_GENERATIVE_TESTS=true` everywhere → positive
+examples **and** negative/mutation resiliency in one pass):
+1. **Public contract + resiliency** (`contract_public.yaml`) — **100% coverage** (`200` + `400`).
+2. **Full API contract + resiliency, LLM mocked** (`api_contract.yaml`) — exercises the real
+   LLM-calling endpoints (`/api/command`, …) with the provider served by the Specmatic stub,
+   so the AI path is tested **offline, zero-token**. Protected endpoints are reached via a
+   **gated test-auth** (a Bearer path enabled only when `SPECMATIC_TEST` is set — never in prod).
+3. **LLM virtualization smoke test** (`scripts/llm_mock_test.py`).
+
+Captured run reports for all three specs live in [`reports/`](./reports). This suite has
+already caught real bugs — a `500` crash on malformed `/api/command` input, an undocumented
+`config` leak in `/api/connections`, an ambiguous error `oneOf` — see the blog learnings.
 
 ```bash
 # Contract + resiliency (100% coverage)
