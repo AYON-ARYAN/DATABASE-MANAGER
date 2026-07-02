@@ -19,7 +19,7 @@ for i in $(seq 1 40); do curl -s -o /dev/null http://localhost:$STUB_PORT/ && br
 echo "stub status: $(curl -s -o /dev/null -w '%{http_code}' http://localhost:$STUB_PORT/ || echo down)"
 
 echo "starting Flask app on $APP_PORT (SPECMATIC_TEST, LLM->stub)..."
-SPECMATIC_TEST=1 \
+SPECMATIC_TEST=specmatic-ci-token \
 GROQ_API_URL=http://localhost:$STUB_PORT/openai/v1/chat/completions \
 GROQ_API_KEY=ci-stub-key \
 nohup ./venv/bin/python -m flask --app app run --port $APP_PORT > /tmp/app5002.log 2>&1 &

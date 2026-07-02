@@ -1,0 +1,2 @@
+{ "http-request": { "method":"POST","path":"/api/undo","headers":{"Authorization":"Bearer not-the-ci-token"} },
+  "http-response": { "status":401,"body":{"error":"Unauthorized"} } }

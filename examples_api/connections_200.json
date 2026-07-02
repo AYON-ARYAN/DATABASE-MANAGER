@@ -1,0 +1,2 @@
+{ "http-request": { "method":"GET","path":"/api/connections","headers":{"Authorization":"Bearer specmatic-ci-token"} },
+  "http-response": { "status":200,"body":{"connections":[{"name":"Default SQLite","db_type":"sqlite","config":{"db_path":"db/main.db"}}],"active_db":"Default SQLite","db_info":{},"llm_provider":"groq"} } }

@@ -1,0 +1,2 @@
+{ "http-request": { "method":"POST","path":"/api/command","headers":{"Authorization":"Bearer specmatic-ci-token"},"body":{"command":"list 5 artists"} },
+  "http-response": { "status":200,"body":{"task":"READ","sql":"SELECT Name FROM Artist LIMIT 5;","explanation":"Lists five artists.","columns":["Name"],"results":[["AC/DC"]],"page":1,"page_size":50,"total_rows":275} } }

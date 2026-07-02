@@ -1,0 +1,2 @@
+{ "http-request": { "method":"POST","path":"/api/command","headers":{"Authorization":"Bearer specmatic-ci-token"},"body":{"command":123} },
+  "http-response": { "status":400,"body":{"error":"command must be a string"} } }

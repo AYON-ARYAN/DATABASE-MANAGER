@@ -1,0 +1,2 @@
+{ "http-request": { "method":"GET","path":"/api/connections","headers":{"Authorization":"Bearer not-the-ci-token"} },
+  "http-response": { "status":401,"body":{"error":"Unauthorized"} } }

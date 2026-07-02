@@ -30,7 +30,7 @@ run() {  # name  spec  generative(true/empty)  extra_args
 
 run "contract_public-contract"    contract_public.yaml ""     "--examples examples"
 run "contract_public-resiliency"  contract_public.yaml true   "--examples examples"
-run "api_contract-contract"       api_contract.yaml    ""     ""
-run "api_contract-resiliency"     api_contract.yaml    true   ""
+run "api_contract-contract"       api_contract.yaml    ""     "--examples examples_api"
+run "api_contract-resiliency"     api_contract.yaml    true   "--examples examples_api"
 
 echo; echo "=== reports/ now ==="; ls -la reports/

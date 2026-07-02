@@ -23,6 +23,7 @@ on:
       - "llm_contract.yaml"
       - "specmatic.yaml"
       - "examples/**"
+      - "examples_api/**"
       - "scripts/llm_mock_test.py"
       - ".github/workflows/contract.yml"
   pull_request:
@@ -35,6 +36,7 @@ on:
       - "llm_contract.yaml"
       - "specmatic.yaml"
       - "examples/**"
+      - "examples_api/**"
   workflow_dispatch:
 
 jobs:
@@ -56,11 +58,11 @@ jobs:
             generative: "true"
           - spec: api_contract.yaml
             mode: contract
-            examples: ""
+            examples: "--examples examples_api"
             generative: "false"
           - spec: api_contract.yaml
             mode: resiliency
-            examples: ""
+            examples: "--examples examples_api"
             generative: "true"
     steps:
       - name: Checkout
@@ -84,7 +86,9 @@ jobs:
 
       - name: Start Meridian Data API (LLM -> stub, gated test-auth on)
         env:
-          SPECMATIC_TEST: "1"
+          # value doubles as the exact bearer token the contract examples carry, so the
+          # examples can exercise BOTH the authenticated (200/400) and the 401 responses.
+          SPECMATIC_TEST: "specmatic-ci-token"
           GROQ_API_URL: http://localhost:9090/openai/v1/chat/completions
           GROQ_API_KEY: ci-stub-key
         run: |

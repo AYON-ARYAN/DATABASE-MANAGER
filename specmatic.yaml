@@ -1,15 +1,62 @@
-version: 2
-# Report configuration: Specmatic emits a human-readable text summary AND a full
-# HTML coverage report (build/reports/specmatic/html) for every `specmatic test` run.
-# The committed HTML reports under reports/ are produced by this config.
-report:
-  formatters:
-    - type: text
-    - type: html
-  types:
-    APICoverage:
-      OpenAPI:
-        successCriteria:
-          minThresholdPercentage: 0
-          maxMissedEndpointsInSpec: 0
-          enforce: false
+version: 3
+
+# --- v3 explicit service wiring (migrated from v2) ---
+# System Under Test = the Meridian Data API (tested live). Its only external dependency,
+# the LLM provider, is virtualized as a mock — so the AI-calling endpoints run
+# deterministically and zero-token. This mirrors the real architecture 1:1.
+systemUnderTest:
+  service:
+    $ref: "#/components/services/meridianDataApi"
+
+dependencies:
+  services:
+    - service:
+        $ref: "#/components/services/llmProvider"
+
+components:
+  sources:
+    local:
+      filesystem:
+        directory: .
+  services:
+    meridianDataApi:
+      definitions:
+        - definition:
+            source:
+              $ref: "#/components/sources/local"
+            specs:
+              - contract_public.yaml
+              - api_contract.yaml
+      runOptions:
+        $ref: "#/components/runOptions/meridianTest"
+    llmProvider:
+      definitions:
+        - definition:
+            source:
+              $ref: "#/components/sources/local"
+            specs:
+              - llm_contract.yaml
+      runOptions:
+        $ref: "#/components/runOptions/llmMock"
+  runOptions:
+    meridianTest:
+      openapi:
+        type: test
+        baseUrl: http://localhost:5001
+    llmMock:
+      openapi:
+        type: mock
+        baseUrl: http://localhost:9090
+
+# --- v3 report configuration: text + HTML coverage reports ---
+specmatic:
+  governance:
+    report:
+      formats:
+        - html
+        - ctrf
+      outputDirectory: build/reports/specmatic
+    successCriteria:
+      minCoveragePercentage: 0
+      maxMissedOperationsInSpec: 0
+      enforce: false

@@ -1,0 +1,2 @@
+{ "http-request": { "method":"GET","path":"/api/auth/session","headers":{"Authorization":"Bearer specmatic-ci-token"} },
+  "http-response": { "status":200,"body":{"logged_in":true,"username":"specmatic","role":"ADMIN"} } }

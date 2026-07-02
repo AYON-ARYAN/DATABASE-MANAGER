@@ -200,11 +200,15 @@ def require_login():
         return
     # Test-only auth: lets Specmatic contract-test the PROTECTED endpoints (incl. the
     # LLM-calling /api/command) in CI. Enabled ONLY when SPECMATIC_TEST is set (never in
-    # production). Any Bearer token is accepted as an admin session; the LLM provider is
-    # forced to "groq" so calls hit the Specmatic LLM stub (via GROQ_API_URL) — zero tokens.
-    # Runs before the auth-endpoint allow-list so /api/auth/session can return its
-    # authenticated 200 under contract test.
-    if os.environ.get("SPECMATIC_TEST") and request.headers.get("Authorization", "").startswith("Bearer "):
+    # production). The env var's VALUE is the exact bearer token accepted — so a contract
+    # example carrying that token authenticates (200/400 paths), while an example with a
+    # wrong/absent token exercises the real 401 path. This is what lets the contract cover
+    # BOTH the authenticated and the unauthorized responses of every protected endpoint.
+    # The LLM provider is forced to "groq" so calls hit the Specmatic LLM stub (via
+    # GROQ_API_URL) — zero tokens. Runs before the auth-endpoint allow-list so
+    # /api/auth/session can return its authenticated 200 under contract test.
+    _ci_token = os.environ.get("SPECMATIC_TEST")
+    if _ci_token and request.headers.get("Authorization", "") == f"Bearer {_ci_token}":
         session["logged_in"] = True
         session["username"] = "specmatic"
         session["role"] = "ADMIN"

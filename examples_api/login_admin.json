@@ -1,0 +1,2 @@
+{ "http-request": { "method":"POST","path":"/api/auth/login","body":{"username":"admin1","password":"admin123"} },
+  "http-response": { "status":200,"body":{"success":true,"username":"admin1","role":"ADMIN"} } }

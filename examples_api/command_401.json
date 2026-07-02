@@ -1,0 +1,2 @@
+{ "http-request": { "method":"POST","path":"/api/command","headers":{"Authorization":"Bearer not-the-ci-token"},"body":{"command":"list artists"} },
+  "http-response": { "status":401,"body":{"error":"Unauthorized"} } }

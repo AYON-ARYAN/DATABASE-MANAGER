@@ -1,0 +1,2 @@
+{ "http-request": { "method":"POST","path":"/api/execute","headers":{"Authorization":"Bearer specmatic-ci-token"},"body":{} },
+  "http-response": { "status":200,"body":{"success":false,"error":"Permission denied or unsafe query."} } }

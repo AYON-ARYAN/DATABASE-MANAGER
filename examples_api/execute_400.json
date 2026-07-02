@@ -1,0 +1,2 @@
+{ "http-request": { "method":"POST","path":"/api/execute","headers":{"Authorization":"Bearer specmatic-ci-token"},"body":{"sql":123} },
+  "http-response": { "status":400,"body":{"success":false,"error":"sql must be a string"} } }
