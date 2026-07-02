@@ -1,14 +1,15 @@
 name: API Contract Test (Specmatic)
 
-# Executable-contract guardrail: every push/PR that touches the API is checked
-# against the OpenAPI contract with Specmatic. If the implementation (or an
-# AI-generated change) drifts from the contract, this job fails and blocks the merge.
+# Executable-contract guardrail. For EACH API spec we run TWO independent jobs:
+#   * contract   — value-checked conformance against inline + external examples
+#   * resiliency — generative negative/boundary tests (input-validation guardrail)
+# With two app specs (contract_public.yaml, api_contract.yaml) that is 4 test jobs,
+# kept deliberately separate so a contract regression and a resiliency regression
+# show up as distinct red checks. Each job emits a Specmatic HTML report artifact.
 #
-# Three layers:
-#   1. Contract test (with inline + external examples) — value-checked conformance
-#   2. Schema-resiliency tests (generative negative tests) — input-validation guardrail
-#   3. LLM virtualization test — the app's NL-to-SQL runs against a Specmatic stub of
-#      the LLM provider, so AI-dependent tests are deterministic, offline, and 0-token.
+# The LLM-calling endpoints (e.g. /api/command) are exercised with the LLM provider
+# virtualized by a Specmatic stub of llm_contract.yaml — deterministic, offline, 0-token.
+# A 5th job smoke-tests that virtualization directly.
 
 on:
   push:
@@ -20,6 +21,7 @@ on:
       - "api_contract.yaml"
       - "contract_public.yaml"
       - "llm_contract.yaml"
+      - "specmatic.yaml"
       - "examples/**"
       - "scripts/llm_mock_test.py"
       - ".github/workflows/contract.yml"
@@ -31,12 +33,35 @@ on:
       - "api_contract.yaml"
       - "contract_public.yaml"
       - "llm_contract.yaml"
+      - "specmatic.yaml"
       - "examples/**"
   workflow_dispatch:
 
 jobs:
-  contract-test:
+  # ---- 4 test jobs: {contract_public, api_contract} x {contract, resiliency} ----
+  api-test:
+    name: ${{ matrix.spec }} · ${{ matrix.mode }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - spec: contract_public.yaml
+            mode: contract
+            examples: "--examples examples"
+            generative: "false"
+          - spec: contract_public.yaml
+            mode: resiliency
+            examples: "--examples examples"
+            generative: "true"
+          - spec: api_contract.yaml
+            mode: contract
+            examples: ""
+            generative: "false"
+          - spec: api_contract.yaml
+            mode: resiliency
+            examples: ""
+            generative: "true"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -55,47 +80,53 @@ jobs:
         run: |
           docker run -d --rm --network host -v "${{ github.workspace }}:/specs" -w /specs \
             specmatic/specmatic:latest stub llm_contract.yaml --port 9090
-          for i in $(seq 1 30); do
-            curl -s -o /dev/null http://localhost:9090/ && break
-            sleep 2
-          done
+          for i in $(seq 1 30); do curl -s -o /dev/null http://localhost:9090/ && break; sleep 2; done
 
       - name: Start Meridian Data API (LLM -> stub, gated test-auth on)
-        # SPECMATIC_TEST lets Specmatic contract-test the PROTECTED endpoints (incl. the
-        # LLM-calling /api/command) via a Bearer token; GROQ_API_URL points the app's LLM
-        # calls at the stub above -> the AI path is exercised offline, zero-token.
         env:
           SPECMATIC_TEST: "1"
           GROQ_API_URL: http://localhost:9090/openai/v1/chat/completions
           GROQ_API_KEY: ci-stub-key
         run: |
           python -m flask --app app run --port 5001 &
-          for i in $(seq 1 30); do
-            curl -s -o /dev/null http://localhost:5001/api/auth/session && break
-            sleep 2
-          done
+          for i in $(seq 1 30); do curl -s -o /dev/null http://localhost:5001/api/auth/session && break; sleep 2; done
 
-      - name: Public contract + resiliency (100% coverage)
+      - name: ${{ matrix.mode }} test — ${{ matrix.spec }} (LLM mocked)
+        # specmatic.yaml (committed) configures text + HTML report output.
         run: |
-          docker run --rm --network host -e SPECMATIC_GENERATIVE_TESTS=true \
+          docker run --rm --network host -e SPECMATIC_GENERATIVE_TESTS=${{ matrix.generative }} \
             -v "${{ github.workspace }}:/specs" -w /specs \
-            specmatic/specmatic:latest test contract_public.yaml --examples examples \
+            specmatic/specmatic:latest test ${{ matrix.spec }} ${{ matrix.examples }} \
             --host localhost --port 5001
 
-      - name: Full API contract + resiliency, LLM mocked (incl. /api/command)
-        # Tests the REAL endpoints that call the LLM (/api/command etc.) with the provider
-        # virtualized by the stub above — deterministic, offline, zero-token. Protected
-        # endpoints are reachable via the gated test-auth (SPECMATIC_TEST).
-        run: |
-          docker run --rm --network host -e SPECMATIC_GENERATIVE_TESTS=true \
-            -v "${{ github.workspace }}:/specs" -w /specs \
-            specmatic/specmatic:latest test api_contract.yaml \
-            --host localhost --port 5001
+      - name: Upload Specmatic HTML report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: report-${{ matrix.spec }}-${{ matrix.mode }}
+          path: build/reports/specmatic/test/html
 
-      - name: LLM virtualization smoke test
+  # ---- LLM virtualization smoke test (the AI path runs offline / zero-token) ----
+  llm-virtualization-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Start LLM stub
+        run: |
+          docker run -d --rm --network host -v "${{ github.workspace }}:/specs" -w /specs \
+            specmatic/specmatic:latest stub llm_contract.yaml --port 9090
+          for i in $(seq 1 30); do curl -s -o /dev/null http://localhost:9090/ && break; sleep 2; done
+      - name: NL-to-SQL served by the stub (deterministic, 0-token)
         env:
           GROQ_API_URL: http://localhost:9090/openai/v1/chat/completions
           GROQ_API_KEY: ci-stub-key
         run: python scripts/llm_mock_test.py
-
-      # Any drift / unhandled malformed input / broken AI wiring -> a step fails -> PR blocked.

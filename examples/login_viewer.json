@@ -1,0 +1,11 @@
+{
+  "http-request": {
+    "method": "POST",
+    "path": "/api/auth/login",
+    "body": { "username": "viewer1", "password": "viewer123" }
+  },
+  "http-response": {
+    "status": 200,
+    "body": { "success": true, "username": "viewer1", "role": "VIEWER" }
+  }
+}

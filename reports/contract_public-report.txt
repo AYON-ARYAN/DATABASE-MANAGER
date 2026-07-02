@@ -1,7 +1,0 @@
-REPORT: contract_public.yaml (public surface) — contract + resiliency
-Generated 2026-06-25 · Specmatic v2.48.0
-
-| 100% API Coverage reported from 2 operations eligible for coverage                                           |
-Tests run: 24, Successes: 24, Failures: 0, WIP: 0, Errors: 0
-Coverage 100% (200 + 400 both covered). Inline + external examples value-check
-admin1->ADMIN, invalid->error, editor1->EDITOR.

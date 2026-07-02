@@ -1,0 +1,15 @@
+version: 2
+# Report configuration: Specmatic emits a human-readable text summary AND a full
+# HTML coverage report (build/reports/specmatic/html) for every `specmatic test` run.
+# The committed HTML reports under reports/ are produced by this config.
+report:
+  formatters:
+    - type: text
+    - type: html
+  types:
+    APICoverage:
+      OpenAPI:
+        successCriteria:
+          minThresholdPercentage: 0
+          maxMissedEndpointsInSpec: 0
+          enforce: false
