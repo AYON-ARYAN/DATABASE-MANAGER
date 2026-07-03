@@ -321,35 +321,49 @@ Flask App (app.py)
 ## Setup
 
 ### Prerequisites
-- Python 3.11+
-- [Ollama](https://ollama.com) (optional, for local AI)
-- Groq API key (free at [console.groq.com](https://console.groq.com))
+- **Python 3.11+**
+- **Node.js 18+** and npm (for the React frontend)
+- A **Groq API key** — free at [console.groq.com](https://console.groq.com) (powers the NL-to-SQL / AI features; the hardcoded DBMS commands work without it)
+- To run the contract tests: **Docker** (recommended — same as CI) *or* **Java 17+** (uses the bundled `specmatic.jar`)
 
-### Installation
+### 1 — Run the application
+
+The app is a **Flask API** plus a **React (Vite) frontend**.
 
 ```bash
-# Clone and enter
-cd "MINOR PROJECT"
-
-# Create virtual environment
-python3 -m venv venv
-source venv/bin/activate
-
-# Install dependencies
+# --- backend (terminal 1) ---
+python3 -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
+echo "GROQ_API_KEY=your_key_here" > .env      # needed for the AI features
+python app.py                                  # API on http://localhost:5001
+```
+> macOS: port 5000 is taken by AirPlay Receiver, so the app listens on **5001**.
 
-# Configure API key
-echo "GROQ_API_KEY=your_key_here" > .env
+```bash
+# --- frontend (terminal 2) ---
+cd meridian-frontend
+npm install
+npm run dev                                    # Vite on http://localhost:5173
+```
+Open **http://localhost:5173/app/** — Vite proxies `/api` to the backend on 5001, and the SPA router uses basename `/app`. The sample SQLite databases (Chinook, Northwind, …) ship in `db/`, so there is nothing to seed.
 
-# (Optional) Pull a local model
-ollama pull mistral
-
-# Run
-python app.py
+**Or run the whole stack with one command (Docker):**
+```bash
+python start.py            # builds if needed, starts backend + frontend, opens http://localhost:8080
+python start.py --stop     # stop it
 ```
 
-### Access
-Open `http://127.0.0.1:5000` in your browser.
+### 2 — Run all the Specmatic tests
+
+The contract suite runs the real API with its LLM dependency **virtualized** (a Specmatic stub of the LLM), so it is deterministic and spends **zero tokens**. One script starts the stub + app and runs all four test jobs (contract + resiliency for each app spec) plus the LLM-virtualization smoke test — it auto-uses Docker if present, else the bundled `specmatic.jar`:
+
+```bash
+bash scripts/run_specmatic_tests.sh
+```
+Every job reports **100% API coverage**; the HTML reports land in `build/reports/specmatic/test/html/` (and are committed under [`reports/`](reports/)). The same jobs run in CI on every push — see [`.github/workflows/contract.yml`](.github/workflows/contract.yml).
+
+### Access & demo accounts
+Open **http://localhost:5173/app/** (dev) or **http://localhost:8080** (Docker).
 
 **Demo accounts:**
 | Username | Password | Role |
