@@ -1,22 +1,22 @@
-# Web framework
-Flask==3.1.1
-flask-cors==5.0.1
-python-dotenv==1.0.0
+# Core runtime — everything needed to RUN the app (on the bundled SQLite databases)
+# and to run the full Specmatic test suite. Verified on Python 3.11 through 3.14.
+#
+# The external database drivers (Postgres, MySQL, MSSQL, Oracle, Mongo, Cassandra,
+# Redis) are OPTIONAL and live in requirements-optional.txt. They are all
+# lazy-imported by their adapters, so the app and the entire test suite run without
+# them — install requirements-optional.txt only if you want to connect those engines.
+# (Pinned loosely so a newer Python, e.g. 3.14, always resolves a compatible wheel.)
 
-# Database adapters
-psycopg2-binary==2.9.11
-pymysql==1.1.1
-pymssql==2.3.4
-oracledb==3.1.0
-pymongo==4.13.0
-cassandra-driver==3.30.0
-redis==6.2.0
+# Web framework
+Flask>=3.1,<4
+flask-cors>=5,<7
+python-dotenv>=1,<2
 
 # AI / LLM
-groq==0.25.0
+groq>=0.25,<1
 
 # Utilities
-requests==2.31.0
-cryptography==46.0.4
-python-pptx==1.0.2
-faker==40.13.0
+requests>=2.31,<3
+cryptography>=43
+python-pptx>=1,<2
+faker>=40

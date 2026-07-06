@@ -69,6 +69,50 @@ except ImportError:
 
 
 # ---------------------------------------------------
+# ACTUATOR MAPPING ENDPOINT (test-only)
+# ---------------------------------------------------
+# Specmatic reads a Spring-Boot-Actuator-style /actuator/mappings endpoint to learn the
+# app's ACTUAL routes, so its coverage report can distinguish "covered", "not covered",
+# and "not in spec" against what the app really exposes (not just against the contract).
+# Enabled only when SPECMATIC_TEST is set — never advertised in production.
+def _actuator_mappings():
+    servlets = []
+    for rule in app.url_map.iter_rules():
+        path = re.sub(r"<(?:[^:<>]+:)?([^<>]+)>", r"{\1}", rule.rule)  # Flask <x>/<int:y> -> {x}
+        if not path.startswith("/api"):
+            continue  # the contract only governs the /api surface
+        methods = sorted(m for m in (rule.methods or set()) if m not in ("HEAD", "OPTIONS"))
+        servlets.append({
+            "handler": rule.endpoint,
+            "predicate": "{%s %s}" % (",".join(methods), path),
+            "details": {"requestMappingConditions": {
+                "patterns": [path], "methods": methods,
+                "consumes": [], "produces": [], "headers": [], "params": [],
+            }},
+        })
+    return {"contexts": {"application": {"mappings": {"dispatcherServlets": {
+        "dispatcherServlet": servlets}}}}}
+
+
+@app.route("/actuator")
+def actuator_root():
+    if not os.environ.get("SPECMATIC_TEST"):
+        return jsonify({"error": "Not found"}), 404
+    base = request.url_root.rstrip("/")
+    return jsonify({"_links": {
+        "self": {"href": base + "/actuator", "templated": False},
+        "mappings": {"href": base + "/actuator/mappings", "templated": False},
+    }})
+
+
+@app.route("/actuator/mappings")
+def actuator_mappings():
+    if not os.environ.get("SPECMATIC_TEST"):
+        return jsonify({"error": "Not found"}), 404
+    return jsonify(_actuator_mappings())
+
+
+# ---------------------------------------------------
 # Demo Users
 # ---------------------------------------------------
 USERS = {
@@ -197,6 +241,10 @@ def require_login():
         return
     # React SPA handles its own auth via /api/auth/session
     if request.path == "/app" or request.path.startswith("/app/"):
+        return
+    # Specmatic reads the actuator mapping endpoint (unauthenticated) to compute ACTUAL
+    # API coverage — which of the app's real routes the contract exercised. Test-only.
+    if request.path == "/actuator" or request.path.startswith("/actuator/"):
         return
     # Test-only auth: lets Specmatic contract-test the PROTECTED endpoints (incl. the
     # LLM-calling /api/command) in CI. Enabled ONLY when SPECMATIC_TEST is set (never in

@@ -321,7 +321,7 @@ Flask App (app.py)
 ## Setup
 
 ### Prerequisites
-- **Python 3.11+**
+- **Python 3.11 – 3.14** (verified across all four)
 - **Node.js 18+** and npm (for the React frontend)
 - A **Groq API key** — free at [console.groq.com](https://console.groq.com) (powers the NL-to-SQL / AI features; the hardcoded DBMS commands work without it)
 - To run the contract tests: **Docker** (recommended — same as CI) *or* **Java 17+** (uses the bundled `specmatic.jar`)
@@ -333,10 +333,15 @@ The app is a **Flask API** plus a **React (Vite) frontend**.
 ```bash
 # --- backend (terminal 1) ---
 python3 -m venv venv && source venv/bin/activate
-pip install -r requirements.txt
+pip install -r requirements.txt                # core deps only — runs on the bundled SQLite DBs
 echo "GROQ_API_KEY=your_key_here" > .env      # needed for the AI features
 python app.py                                  # API on http://localhost:5001
 ```
+> **Database drivers are optional.** `requirements.txt` is the lean core that runs the app
+> and the whole test suite on the bundled SQLite databases (works on Python 3.11–3.14). The
+> external engine drivers (Postgres, MySQL, MSSQL, Oracle, Mongo, Cassandra, Redis) are
+> lazy-imported and live in `requirements-optional.txt` — install that **only** if you want
+> to connect one of those engines: `pip install -r requirements-optional.txt`.
 > macOS: port 5000 is taken by AirPlay Receiver, so the app listens on **5001**.
 
 ```bash

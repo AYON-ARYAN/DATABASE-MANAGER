@@ -1,0 +1,17 @@
+# Optional external database drivers — install ONLY if you want to connect Meridian
+# to that engine. All are lazy-imported, so the app + the full Specmatic test suite
+# run fine on the bundled SQLite databases without any of these.
+#
+#   pip install -r requirements-optional.txt
+#
+# Loose pins so newer Pythons (3.13/3.14) resolve a compatible wheel. In particular
+# pymssql is pinned >=2.3.7, the first release with cp313/cp314 wheels — older pins
+# (e.g. 2.3.4) fail to build from source on Python 3.14.
+
+psycopg2-binary>=2.9.9      # PostgreSQL
+pymysql>=1.1               # MySQL / MariaDB
+pymssql>=2.3.7             # MSSQL / Azure SQL  (>=2.3.7 ships 3.13/3.14 wheels)
+oracledb>=2                # Oracle
+pymongo>=4.6              # MongoDB
+cassandra-driver>=3.29     # Cassandra
+redis>=5                  # Redis
