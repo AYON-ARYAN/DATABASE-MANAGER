@@ -43,6 +43,10 @@ components:
       openapi:
         type: test
         baseUrl: http://localhost:5001
+        # App exposes a Spring-Actuator-style mapping endpoint (test-only) so Specmatic
+        # reads the real routes and reports ACTUAL coverage. Set explicitly (not just
+        # auto-probed) so every Specmatic version picks it up.
+        actuatorUrl: http://localhost:5001/actuator
     llmMock:
       openapi:
         type: mock

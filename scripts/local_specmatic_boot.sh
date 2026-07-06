@@ -3,8 +3,8 @@
 set -u
 REPO=/Volumes/BLACK_SHARK/MINOR_PROJECT
 cd "$REPO"
-STUB_PORT=9091
-APP_PORT=5002
+STUB_PORT=9090
+APP_PORT=5001
 
 # clean up any prior instances WE started on these ports
 for p in $STUB_PORT $APP_PORT; do

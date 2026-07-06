@@ -81,7 +81,7 @@ jobs:
       - name: Start LLM stub (Specmatic virtualizes the LLM provider)
         run: |
           docker run -d --rm --network host -v "${{ github.workspace }}:/specs" -w /specs \
-            specmatic/specmatic:latest stub llm_contract.yaml --port 9090
+            specmatic/specmatic:2.48.0 stub llm_contract.yaml --port 9090
           for i in $(seq 1 30); do curl -s -o /dev/null http://localhost:9090/ && break; sleep 2; done
 
       - name: Start Meridian Data API (LLM -> stub, gated test-auth on)
@@ -100,7 +100,7 @@ jobs:
         run: |
           docker run --rm --network host -e SPECMATIC_GENERATIVE_TESTS=${{ matrix.generative }} \
             -v "${{ github.workspace }}:/specs" -w /specs \
-            specmatic/specmatic:latest test ${{ matrix.spec }} ${{ matrix.examples }} \
+            specmatic/specmatic:2.48.0 test ${{ matrix.spec }} ${{ matrix.examples }} \
             --host localhost --port 5001
 
       - name: Upload Specmatic HTML report
@@ -127,7 +127,7 @@ jobs:
       - name: Start LLM stub
         run: |
           docker run -d --rm --network host -v "${{ github.workspace }}:/specs" -w /specs \
-            specmatic/specmatic:latest stub llm_contract.yaml --port 9090
+            specmatic/specmatic:2.48.0 stub llm_contract.yaml --port 9090
           for i in $(seq 1 30); do curl -s -o /dev/null http://localhost:9090/ && break; sleep 2; done
       - name: NL-to-SQL served by the stub (deterministic, 0-token)
         env:
