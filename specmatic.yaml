@@ -46,7 +46,14 @@ components:
         # App exposes a Spring-Actuator-style mapping endpoint (test-only) so Specmatic
         # reads the real routes and reports ACTUAL coverage. Set explicitly (not just
         # auto-probed) so every Specmatic version picks it up.
-        actuatorUrl: http://localhost:5001/actuator
+        actuatorUrl: http://localhost:5001/actuator/mappings
+        specs:
+          - spec:
+              id: api_contract.yaml
+              securitySchemes:
+                bearerAuth:
+                  type: bearer
+                  token: ${SPECMATIC_BEARER_TOKEN:specmatic-ci-token}
     llmMock:
       openapi:
         type: mock

@@ -333,15 +333,21 @@ The app is a **Flask API** plus a **React (Vite) frontend**.
 ```bash
 # --- backend (terminal 1) ---
 python3 -m venv venv && source venv/bin/activate
-pip install -r requirements.txt                # core deps only — runs on the bundled SQLite DBs
+python -m pip install -r requirements.txt      # core deps only — runs on the bundled SQLite DBs
 echo "GROQ_API_KEY=your_key_here" > .env      # needed for the AI features
 python app.py                                  # API on http://localhost:5001
 ```
+> **Use `python -m pip`, not bare `pip`/`pip3`.** On machines with several Pythons, `pip`
+> can point at a *different* interpreter than the one you'll run the app with (this is what
+> causes install-vs-run version mismatches). Inside the activated venv, `python -m pip`
+> always targets the venv's interpreter. Verified end-to-end on **Python 3.11, 3.12, 3.13
+> and 3.14**.
+>
 > **Database drivers are optional.** `requirements.txt` is the lean core that runs the app
-> and the whole test suite on the bundled SQLite databases (works on Python 3.11–3.14). The
-> external engine drivers (Postgres, MySQL, MSSQL, Oracle, Mongo, Cassandra, Redis) are
-> lazy-imported and live in `requirements-optional.txt` — install that **only** if you want
-> to connect one of those engines: `pip install -r requirements-optional.txt`.
+> and the whole test suite on the bundled SQLite databases. The external engine drivers
+> (Postgres, MySQL, MSSQL, Oracle, Mongo, Cassandra, Redis) are lazy-imported and live in
+> `requirements-optional.txt` — install that **only** to connect one of those engines:
+> `python -m pip install -r requirements-optional.txt`.
 > macOS: port 5000 is taken by AirPlay Receiver, so the app listens on **5001**.
 
 ```bash
@@ -365,7 +371,16 @@ The contract suite runs the real API with its LLM dependency **virtualized** (a 
 ```bash
 bash scripts/run_specmatic_tests.sh
 ```
-Every job reports **100% API coverage**; the HTML reports land in `build/reports/specmatic/test/html/` (and are committed under [`reports/`](reports/)). The same jobs run in CI on every push — see [`.github/workflows/contract.yml`](.github/workflows/contract.yml).
+Every job reports **100% API coverage** with the actuator enabled (actual coverage); the HTML reports land in `build/reports/specmatic/test/html/` (and are committed under [`reports/`](reports/)). The same jobs run in CI on every push — see [`.github/workflows/contract.yml`](.github/workflows/contract.yml).
+
+> **Authentication is handled for you — don't start the app yourself for testing.** The
+> protected endpoints use a `bearerAuth` security scheme. The bearer token is declared once
+> in [`specmatic.yaml`](specmatic.yaml) (`securitySchemes.bearerAuth.token`, overridable via
+> `SPECMATIC_BEARER_TOKEN`), and `run_specmatic_tests.sh` starts the app with the matching
+> test-auth token (`SPECMATIC_TEST`) so the authenticated **and** the `401` paths are both
+> exercised. Just run the script — it owns the app lifecycle and the auth wiring end to end.
+> (If you run the app manually with `python app.py` and no `SPECMATIC_TEST`, the protected
+> endpoints correctly return `401`, so a separately-started app is *not* how you run the tests.)
 
 ### Access & demo accounts
 Open **http://localhost:5173/app/** (dev) or **http://localhost:8080** (Docker).
