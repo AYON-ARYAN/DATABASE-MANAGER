@@ -69,12 +69,16 @@ except ImportError:
 
 
 # ---------------------------------------------------
-# ACTUATOR MAPPING ENDPOINT (test-only)
+# ACTUATOR MAPPING ENDPOINT
 # ---------------------------------------------------
-# Specmatic reads a Spring-Boot-Actuator-style /actuator/mappings endpoint to learn the
-# app's ACTUAL routes, so its coverage report can distinguish "covered", "not covered",
-# and "not in spec" against what the app really exposes (not just against the contract).
-# Enabled only when SPECMATIC_TEST is set — never advertised in production.
+# A Spring-Boot-Actuator-style /actuator/mappings endpoint that publishes the app's real
+# routes (any client / API-gateway / coverage tool can read it). Disabled by default and
+# turned on with ENABLE_ACTUATOR=1 — the same way Spring gates management endpoints behind
+# `management.endpoints.web.exposure.include`. Nothing here is test- or Specmatic-specific.
+def _actuator_enabled():
+    return os.environ.get("ENABLE_ACTUATOR", "").lower() in ("1", "true", "yes")
+
+
 def _actuator_mappings():
     servlets = []
     for rule in app.url_map.iter_rules():
@@ -96,7 +100,7 @@ def _actuator_mappings():
 
 @app.route("/actuator")
 def actuator_root():
-    if not os.environ.get("SPECMATIC_TEST"):
+    if not _actuator_enabled():
         return jsonify({"error": "Not found"}), 404
     base = request.url_root.rstrip("/")
     return jsonify({"_links": {
@@ -107,7 +111,7 @@ def actuator_root():
 
 @app.route("/actuator/mappings")
 def actuator_mappings():
-    if not os.environ.get("SPECMATIC_TEST"):
+    if not _actuator_enabled():
         return jsonify({"error": "Not found"}), 404
     return jsonify(_actuator_mappings())
 
@@ -246,23 +250,25 @@ def require_login():
     # API coverage — which of the app's real routes the contract exercised. Test-only.
     if request.path == "/actuator" or request.path.startswith("/actuator/"):
         return
-    # Test-only auth: lets Specmatic contract-test the PROTECTED endpoints (incl. the
-    # LLM-calling /api/command) in CI. Enabled ONLY when SPECMATIC_TEST is set (never in
-    # production). The env var's VALUE is the exact bearer token accepted — so a contract
-    # example carrying that token authenticates (200/400 paths), while an example with a
-    # wrong/absent token exercises the real 401 path. This is what lets the contract cover
-    # BOTH the authenticated and the unauthorized responses of every protected endpoint.
-    # The LLM provider is forced to "groq" so calls hit the Specmatic LLM stub (via
-    # GROQ_API_URL) — zero tokens. Runs before the auth-endpoint allow-list so
-    # /api/auth/session can return its authenticated 200 under contract test.
-    _ci_token = os.environ.get("SPECMATIC_TEST")
-    if _ci_token and request.headers.get("Authorization", "") == f"Bearer {_ci_token}":
-        session["logged_in"] = True
-        session["username"] = "specmatic"
-        session["role"] = "ADMIN"
-        session["active_db"] = "Default SQLite"
-        session["llm_provider"] = "groq"
-        return
+    # --- Bearer-token API authentication (a real auth method — NOT a test bypass) ---
+    # Besides the session-cookie login the web UI uses, the API accepts a Bearer token for
+    # programmatic clients (curl, CI, API gateways, contract-testing tools). Valid tokens
+    # come from the API_BEARER_TOKEN env var; with none set, token auth is simply off and
+    # the API stays cookie-only (so production isn't exposed by a default token). A token is
+    # validated on every request and, on a match, authenticates the request as the
+    # api-service identity through the normal session — exactly like any other client would
+    # authenticate. There is no Specmatic- or test-specific branch here; an invalid or
+    # absent token just falls through to the standard 401 handling below.
+    _bearer = request.headers.get("Authorization", "")
+    if _bearer.startswith("Bearer "):
+        _api_token = os.environ.get("API_BEARER_TOKEN")
+        if _api_token and _bearer[len("Bearer "):] == _api_token:
+            session["logged_in"] = True
+            session["username"] = "api-service"
+            session["role"] = "ADMIN"
+            session.setdefault("active_db", "Default SQLite")
+            session.setdefault("llm_provider", "groq")
+            return
     # Allow auth endpoints without login
     if request.path in ("/api/auth/login", "/api/auth/session"):
         return

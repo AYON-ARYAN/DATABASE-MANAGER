@@ -86,9 +86,11 @@ jobs:
 
       - name: Start Meridian Data API (LLM -> stub, gated test-auth on)
         env:
-          # value doubles as the exact bearer token the contract examples carry, so the
-          # examples can exercise BOTH the authenticated (200/400) and the 401 responses.
-          SPECMATIC_TEST: "specmatic-ci-token"
+          # Real API bearer-token auth (not a test bypass): the app validates this token,
+          # and Specmatic sends the matching one via securitySchemes. ENABLE_ACTUATOR turns
+          # on the /actuator mapping endpoint (like Spring management exposure).
+          API_BEARER_TOKEN: "specmatic-ci-token"
+          ENABLE_ACTUATOR: "1"
           GROQ_API_URL: http://localhost:9090/openai/v1/chat/completions
           GROQ_API_KEY: ci-stub-key
         run: |

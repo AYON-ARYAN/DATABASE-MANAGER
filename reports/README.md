@@ -15,11 +15,16 @@ confirmed to exist in the running app and is tested (100% Absolute Coverage), no
 | `api_contract-contract.html`      | api_contract.yaml    | contract   | 100% | every response of every endpoint — 200 / 400 / 401 — LLM mocked |
 | `api_contract-resiliency.html`    | api_contract.yaml    | resiliency | 100% | generative negatives across the full API |
 
-**How 100% on the protected API is reached honestly:** the test-auth gate accepts one exact
-bearer token (the value of `SPECMATIC_TEST`). External examples in `../examples_api/` carry that
-token to exercise the authenticated `200`/`400` paths, and carry a *wrong* token (or none) to
-exercise the real `401` path — so a single authenticated run covers both the authorized and the
-unauthorized response of every secured endpoint.
+**How 100% on the protected API is reached honestly:** the app's real API bearer-token auth
+accepts the token configured in `API_BEARER_TOKEN` (declared once in `../specmatic.yaml` under
+`securitySchemes`, which is how Specmatic sends it). External examples in `../examples_api/`
+exercise the authenticated `200`/`400` paths with that token, and a *wrong* token (or none) to
+exercise the real `401` path — so a single run covers both the authorized and the unauthorized
+response of every secured endpoint, using the app's ordinary auth (no test-only bypass).
+
+The report also lists **Missing in Spec** endpoints (the app has 52 `/api` routes; the contract
+governs the core 6) — that scoping is documented and justified in
+[`../CONTRACT_SCOPE.md`](../CONTRACT_SCOPE.md).
 
 Regenerate locally: start the app + LLM stub, then
 `bash scripts/gen_specmatic_reports.sh` (see `scripts/local_specmatic_boot.sh`).

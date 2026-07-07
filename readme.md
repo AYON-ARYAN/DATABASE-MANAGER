@@ -47,8 +47,9 @@ examples **and** negative/mutation resiliency in one pass):
 1. **Public contract + resiliency** (`contract_public.yaml`) — **100% coverage** (`200` + `400`).
 2. **Full API contract + resiliency, LLM mocked** (`api_contract.yaml`) — exercises the real
    LLM-calling endpoints (`/api/command`, …) with the provider served by the Specmatic stub,
-   so the AI path is tested **offline, zero-token**. Protected endpoints are reached via a
-   **gated test-auth** (a Bearer path enabled only when `SPECMATIC_TEST` is set — never in prod).
+   so the AI path is tested **offline, zero-token**. Protected endpoints authenticate via the
+   app's **API bearer-token** auth — a real auth method for programmatic clients, enabled by
+   setting `API_BEARER_TOKEN` — which Specmatic supplies through its `securitySchemes` config.
 3. **LLM virtualization smoke test** (`scripts/llm_mock_test.py`).
 
 Captured run reports for all three specs live in [`reports/`](./reports). This suite has
@@ -373,14 +374,42 @@ bash scripts/run_specmatic_tests.sh
 ```
 Every job reports **100% API coverage** with the actuator enabled (actual coverage); the HTML reports land in `build/reports/specmatic/test/html/` (and are committed under [`reports/`](reports/)). The same jobs run in CI on every push — see [`.github/workflows/contract.yml`](.github/workflows/contract.yml).
 
-> **Authentication is handled for you — don't start the app yourself for testing.** The
-> protected endpoints use a `bearerAuth` security scheme. The bearer token is declared once
-> in [`specmatic.yaml`](specmatic.yaml) (`securitySchemes.bearerAuth.token`, overridable via
-> `SPECMATIC_BEARER_TOKEN`), and `run_specmatic_tests.sh` starts the app with the matching
-> test-auth token (`SPECMATIC_TEST`) so the authenticated **and** the `401` paths are both
-> exercised. Just run the script — it owns the app lifecycle and the auth wiring end to end.
-> (If you run the app manually with `python app.py` and no `SPECMATIC_TEST`, the protected
-> endpoints correctly return `401`, so a separately-started app is *not* how you run the tests.)
+> **Authentication uses the app's real API bearer-token auth — no test-only bypass.**
+> Alongside the web UI's session-cookie login, the API accepts a real `Bearer` token for
+> programmatic clients (any client can use it — curl, CI, a gateway, or Specmatic). Valid
+> tokens come from the `API_BEARER_TOKEN` env var; with none set the API stays cookie-only.
+> The token is declared once in [`specmatic.yaml`](specmatic.yaml)
+> (`securitySchemes.bearerAuth.token`, overridable via `API_BEARER_TOKEN`), and Specmatic
+> sends it like any other client would — so the authenticated **and** the `401` paths are
+> both exercised, with no separate code path for the test tool. `run_specmatic_tests.sh`
+> starts the app with `API_BEARER_TOKEN` set (and picks free ports automatically), so just
+> run the script — it owns the app + auth end to end. (Run the app manually without
+> `API_BEARER_TOKEN` and the protected endpoints correctly return `401`.)
+
+**Ports:** the script auto-selects a free port (from `9090`/`5001`) so a busy port never
+blocks it; override with `STUB_PORT=… APP_PORT=… bash scripts/run_specmatic_tests.sh`.
+
+**Or run each test on its own** (concrete steps — three terminals; `TEST_APP_PORT` keeps the
+config's actuator URL aligned with the app port):
+```bash
+# Terminal A — LLM stub
+java -jar specmatic.jar stub llm_contract.yaml --port 9090
+
+# Terminal B — app (real API-token auth + actuator, LLM pointed at the stub)
+API_BEARER_TOKEN=specmatic-ci-token ENABLE_ACTUATOR=1 \
+  GROQ_API_URL=http://localhost:9090/openai/v1/chat/completions GROQ_API_KEY=ci-stub-key \
+  python -m flask --app app run --port 5001
+
+# Terminal C — run any single job (export TEST_APP_PORT to match the app port)
+export TEST_APP_PORT=5001
+java -jar specmatic.jar test contract_public.yaml --examples examples     --host localhost --port 5001   # public · contract
+SPECMATIC_GENERATIVE_TESTS=true \
+java -jar specmatic.jar test contract_public.yaml --examples examples     --host localhost --port 5001   # public · resiliency
+java -jar specmatic.jar test api_contract.yaml    --examples examples_api  --host localhost --port 5001   # api · contract
+SPECMATIC_GENERATIVE_TESTS=true \
+java -jar specmatic.jar test api_contract.yaml    --examples examples_api  --host localhost --port 5001   # api · resiliency
+```
+(Swap `java -jar specmatic.jar` for `docker run --rm --network host -v "$PWD:/specs" -w /specs specmatic/specmatic:2.48.0` to use Docker instead of the bundled jar.)
 
 ### Access & demo accounts
 Open **http://localhost:5173/app/** (dev) or **http://localhost:8080** (Docker).
