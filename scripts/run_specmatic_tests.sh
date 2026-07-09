@@ -2,7 +2,7 @@
 # Run ALL Specmatic tests locally, exactly as CI does — self-contained.
 # Starts the LLM stub + the app (LLM virtualized, gated test-auth), then runs the
 # 4 test jobs (contract + resiliency for each app spec) and the LLM smoke test.
-# Uses Docker if available, else the bundled specmatic.jar (needs Java 17+).
+# Uses Docker if available, else a configurable Specmatic jar (needs Java 17+).
 #
 #   bash scripts/run_specmatic_tests.sh
 #
@@ -12,6 +12,7 @@ cd "$(dirname "$0")/.."
 ROOT="$PWD"
 TOKEN="specmatic-ci-token"
 PY="${PYTHON:-python3}"; [ -x "./venv/bin/python" ] && PY="./venv/bin/python"
+SPECMATIC_JAR="${SPECMATIC_JAR:-$HOME/.specmatic/specmatic.jar}"
 
 # Pick a free port at/after a preferred one, so a busy 9090/5001 never blocks the run.
 free_port(){ local p="$1"; while lsof -nP -iTCP:"$p" -sTCP:LISTEN -t >/dev/null 2>&1; do p=$((p+1)); done; echo "$p"; }
@@ -24,23 +25,23 @@ IMG="specmatic/specmatic:2.48.0"
 
 if docker info >/dev/null 2>&1; then
   MODE=docker; echo "==> using Docker (specmatic/specmatic:latest)"
-elif command -v java >/dev/null 2>&1 && [ -f specmatic.jar ]; then
-  MODE=jar;    echo "==> using bundled specmatic.jar (Java $(java -version 2>&1|head -1))"
+elif command -v java >/dev/null 2>&1 && [ -f "$SPECMATIC_JAR" ]; then
+  MODE=jar;    echo "==> using Specmatic jar at $SPECMATIC_JAR (Java $(java -version 2>&1|head -1))"
 else
-  echo "ERROR: need either Docker or Java 17+ with specmatic.jar"; exit 1
+  echo "ERROR: need either Docker or Java 17+ with SPECMATIC_JAR set to a valid path"; exit 1
 fi
 
 stub()  { if [ "$MODE" = docker ]; then
             docker run -d --rm --name spec-stub --network host -v "$ROOT:/specs" -w /specs \
               "$IMG" stub llm_contract.yaml --port "$STUB_PORT" >/dev/null
-          else nohup java -jar specmatic.jar stub llm_contract.yaml --port "$STUB_PORT" >/tmp/spec_stub.log 2>&1 & fi; }
+          else nohup java -jar "$SPECMATIC_JAR" stub llm_contract.yaml --port "$STUB_PORT" >/tmp/spec_stub.log 2>&1 & fi; }
 runtest(){ # $1 spec  $2 generative(true|"")  $3 extra
           local gen=""; [ "$2" = true ] && gen="SPECMATIC_GENERATIVE_TESTS=true"
           if [ "$MODE" = docker ]; then
             docker run --rm --network host -e SPECMATIC_GENERATIVE_TESTS="${2:-false}" -e TEST_APP_PORT="$APP_PORT" \
               -e API_BEARER_TOKEN="$TOKEN" -v "$ROOT:/specs" -w /specs \
               "$IMG" test "$1" $3 --host localhost --port "$APP_PORT"
-          else eval "$gen TEST_APP_PORT=$APP_PORT java -jar specmatic.jar test $1 $3 --host localhost --port $APP_PORT"; fi; }
+          else eval "$gen TEST_APP_PORT=$APP_PORT java -jar \"$SPECMATIC_JAR\" test $1 $3 --host localhost --port $APP_PORT"; fi; }
 
 cleanup(){ docker rm -f spec-stub >/dev/null 2>&1 || true
            for p in "$STUB_PORT" "$APP_PORT"; do pid=$(lsof -nP -iTCP:$p -sTCP:LISTEN -t 2>/dev/null); [ -n "$pid" ] && kill $pid 2>/dev/null; done; }

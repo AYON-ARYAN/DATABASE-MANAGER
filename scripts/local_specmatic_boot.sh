@@ -5,6 +5,7 @@ REPO=/Volumes/BLACK_SHARK/MINOR_PROJECT
 cd "$REPO"
 STUB_PORT=9090
 APP_PORT=5001
+SPECMATIC_JAR="${SPECMATIC_JAR:-$HOME/.specmatic/specmatic.jar}"
 
 # clean up any prior instances WE started on these ports
 for p in $STUB_PORT $APP_PORT; do
@@ -14,7 +15,7 @@ done
 sleep 1
 
 echo "starting LLM stub on $STUB_PORT..."
-nohup java -jar specmatic.jar stub llm_contract.yaml --port $STUB_PORT > /tmp/spec_stub9091.log 2>&1 &
+nohup java -jar "$SPECMATIC_JAR" stub llm_contract.yaml --port $STUB_PORT > /tmp/spec_stub9091.log 2>&1 &
 for i in $(seq 1 40); do curl -s -o /dev/null http://localhost:$STUB_PORT/ && break; sleep 1; done
 echo "stub status: $(curl -s -o /dev/null -w '%{http_code}' http://localhost:$STUB_PORT/ || echo down)"
 
