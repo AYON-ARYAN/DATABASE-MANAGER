@@ -3,7 +3,9 @@ import os
 import uuid
 from datetime import datetime
 
-DASHBOARDS_FILE = "db/dashboards.json"
+from core.paths import db_path
+
+DASHBOARDS_FILE = db_path("dashboards.json")
 
 def _load_dashboards():
     if not os.path.exists(DASHBOARDS_FILE):
@@ -15,7 +17,7 @@ def _load_dashboards():
         return {"dashboards": []}
 
 def _save_dashboards(data):
-    os.makedirs(os.path.dirname(DASHBOARDS_FILE), exist_ok=True)
+    DASHBOARDS_FILE.parent.mkdir(parents=True, exist_ok=True)
     with open(DASHBOARDS_FILE, "w") as f:
         json.dump(data, f, indent=2)
 

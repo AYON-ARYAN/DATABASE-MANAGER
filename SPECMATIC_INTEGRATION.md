@@ -6,6 +6,11 @@ stub it for the frontend, so neither humans nor AI coding agents can silently dr
 
 > Prereq: **Docker Desktop running** (start it first), and the Meridian Data app running.
 
+Runtime note for this branch:
+- The app now resolves its `db/*` files from the repo root instead of the current working directory.
+- `db/connections.json` is recoverable if it is empty or invalid JSON, so startup no longer dies on a stale file.
+- SQLite databases, snapshots, dashboards, metrics, and sample installs all follow the same repo-root path convention.
+
 ## Files
 - `api_contract.yaml` — the OpenAPI 3.0 contract (single source of truth) for the `/api` blueprint
 - `specmatic.yaml` — Specmatic config pointing at the contract

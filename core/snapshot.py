@@ -9,11 +9,13 @@ import json
 import uuid
 from datetime import datetime
 
-SNAP_DIR = "db/snapshots"
-REGISTRY_FILE = "db/snapshots.json"
+from core.paths import db_path
+
+SNAP_DIR = db_path("snapshots")
+REGISTRY_FILE = db_path("snapshots.json")
 MAX_SNAPS_PER_DB = 5
 
-os.makedirs(SNAP_DIR, exist_ok=True)
+SNAP_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def _load_registry() -> list:
@@ -27,6 +29,7 @@ def _load_registry() -> list:
 
 
 def _save_registry(registry: list):
+    REGISTRY_FILE.parent.mkdir(parents=True, exist_ok=True)
     with open(REGISTRY_FILE, "w") as f:
         json.dump(registry, f, indent=2)
 
@@ -94,7 +97,7 @@ def take_snapshot(adapter, connection_name: str):
     filename = f"{connection_name}_{timestamp}_{snap_id}.{ext}"
     # Sanitizing filename just in case
     filename = filename.replace(" ", "_").replace("/", "-")
-    filepath = os.path.join(SNAP_DIR, filename)
+    filepath = os.path.join(str(SNAP_DIR), filename)
 
     success = adapter.take_snapshot(filepath)
     if success:

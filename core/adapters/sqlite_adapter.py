@@ -6,6 +6,15 @@ Wraps the existing SQLite logic into the adapter interface.
 import sqlite3
 import os
 from core.adapters.base import DatabaseAdapter
+from core.paths import db_path
+
+
+def _resolve_db_path(path: str) -> str:
+    if not path:
+        return str(db_path("main.db"))
+    if os.path.isabs(path):
+        return path
+    return str(db_path(path))
 
 
 class SQLiteAdapter(DatabaseAdapter):
@@ -22,7 +31,7 @@ class SQLiteAdapter(DatabaseAdapter):
     # Connection
     # --------------------------------------------------
     def connect(self):
-        path = self.config.get("db_path", "db/main.db")
+        path = _resolve_db_path(self.config.get("db_path", "db/main.db"))
         parent = os.path.dirname(path)
         if parent:
             os.makedirs(parent, exist_ok=True)
@@ -313,16 +322,16 @@ class SQLiteAdapter(DatabaseAdapter):
     # --------------------------------------------------
     def take_snapshot(self, filepath: str) -> bool:
         import shutil
-        db_path = self.config.get("db_path", "db/main.db")
-        if not os.path.exists(db_path):
+        source_path = _resolve_db_path(self.config.get("db_path", "db/main.db"))
+        if not os.path.exists(source_path):
             return False
-        shutil.copy(db_path, filepath)
+        shutil.copy(source_path, filepath)
         return True
 
     def restore_snapshot(self, filepath: str) -> bool:
         import shutil
-        db_path = self.config.get("db_path", "db/main.db")
+        target_path = _resolve_db_path(self.config.get("db_path", "db/main.db"))
         if not os.path.exists(filepath):
             return False
-        shutil.copy(filepath, db_path)
+        shutil.copy(filepath, target_path)
         return True

@@ -22,6 +22,7 @@ from core.metrics import get_summary
 from core.dashboards import list_dashboards, get_dashboard
 from core import llm_manager
 from core import join_center
+from core.paths import db_path
 
 import os
 
@@ -630,8 +631,8 @@ def api_create_database():
     try:
         if db_type == "sqlite":
             import sqlite3
-            path = f"db/{db_name}.db"
-            os.makedirs("db/", exist_ok=True)
+            path = str(db_path(f"{db_name}.db"))
+            db_path().mkdir(parents=True, exist_ok=True)
             conn = sqlite3.connect(path)
             try:
                 for tbl in tables:

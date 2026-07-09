@@ -2,7 +2,9 @@ import json
 import os
 import requests
 
-LLM_CONFIG_FILE = "db/llm_config.json"
+from core.paths import db_path
+
+LLM_CONFIG_FILE = db_path("llm_config.json")
 
 # Provider endpoints are env-overridable so tests can point the app at a
 # Specmatic stub (service virtualization) instead of the real Groq/Ollama.
@@ -50,7 +52,7 @@ def load_config():
         return _apply_env_overrides(json.loads(json.dumps(DEFAULT_CONFIG)))
 
 def save_config(config):
-    os.makedirs(os.path.dirname(LLM_CONFIG_FILE), exist_ok=True)
+    LLM_CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
     with open(LLM_CONFIG_FILE, "w") as f:
         json.dump(config, f, indent=2)
 
