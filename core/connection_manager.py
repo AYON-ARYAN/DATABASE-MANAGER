@@ -10,12 +10,13 @@ import base64
 from cryptography.fernet import Fernet
 
 from core.adapters import get_adapter, DB_TYPES
+from core.paths import db_path
 
 # ---------------------------------------------------
 # Paths
 # ---------------------------------------------------
-CONN_FILE = "db/connections.json"
-KEY_FILE = "db/.secret_key"
+CONN_FILE = db_path("connections.json")
+KEY_FILE = db_path(".secret_key")
 
 
 # ---------------------------------------------------
@@ -23,11 +24,11 @@ KEY_FILE = "db/.secret_key"
 # ---------------------------------------------------
 def _get_key():
     """Load or generate a Fernet encryption key."""
-    if os.path.exists(KEY_FILE):
+    if KEY_FILE.exists():
         with open(KEY_FILE, "rb") as f:
             return f.read()
     key = Fernet.generate_key()
-    os.makedirs(os.path.dirname(KEY_FILE), exist_ok=True)
+    KEY_FILE.parent.mkdir(parents=True, exist_ok=True)
     with open(KEY_FILE, "wb") as f:
         f.write(key)
     return key
@@ -51,14 +52,20 @@ def _decrypt(token: str) -> str:
 # Storage
 # ---------------------------------------------------
 def _load_connections() -> dict:
-    if not os.path.exists(CONN_FILE):
+    if not CONN_FILE.exists():
         return {}
-    with open(CONN_FILE, "r") as f:
-        return json.load(f)
+    try:
+        with open(CONN_FILE, "r") as f:
+            data = json.load(f)
+            return data if isinstance(data, dict) else {}
+    except json.JSONDecodeError:
+        return {}
+    except Exception:
+        return {}
 
 
 def _save_connections(data: dict):
-    os.makedirs(os.path.dirname(CONN_FILE), exist_ok=True)
+    CONN_FILE.parent.mkdir(parents=True, exist_ok=True)
     with open(CONN_FILE, "w") as f:
         json.dump(data, f, indent=2)
 
@@ -182,6 +189,6 @@ def ensure_default_sqlite():
     if "Default SQLite" not in conns:
         conns["Default SQLite"] = {
             "db_type": "sqlite",
-            "config": {"db_path": "db/main.db"},
+            "config": {"db_path": str(db_path("main.db"))},
         }
         _save_connections(conns)

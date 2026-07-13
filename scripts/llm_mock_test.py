@@ -3,7 +3,8 @@
 provider — deterministic, offline, zero real tokens.
 
 Run with the LLM stub up:
-  java -jar specmatic.jar stub llm_contract.yaml --port 9090 &
+  export SPECMATIC_JAR="$HOME/.specmatic/specmatic.jar"
+  "$SPECMATIC_JAR" stub llm_contract.yaml --port 9090 &
   GROQ_API_URL=http://localhost:9090/openai/v1/chat/completions \
   GROQ_API_KEY=stub-key \
   python scripts/llm_mock_test.py

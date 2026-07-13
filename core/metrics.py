@@ -3,14 +3,16 @@ import os
 import time
 from datetime import datetime
 
-METRICS_FILE = "db/usage_metrics.json"
+from core.paths import db_path
+
+METRICS_FILE = db_path("usage_metrics.json")
 
 def log_call(provider, model, latency, prompt_tokens=0, completion_tokens=0):
     """Logs an LLM call to the persistent metrics file."""
-    os.makedirs(os.path.dirname(METRICS_FILE), exist_ok=True)
+    METRICS_FILE.parent.mkdir(parents=True, exist_ok=True)
     
     metrics = []
-    if os.path.exists(METRICS_FILE):
+    if METRICS_FILE.exists():
         try:
             with open(METRICS_FILE, "r") as f:
                 metrics = json.load(f)
@@ -38,7 +40,7 @@ def log_call(provider, model, latency, prompt_tokens=0, completion_tokens=0):
 
 def get_summary():
     """Returns a summary of usage for the admin dashboard."""
-    if not os.path.exists(METRICS_FILE):
+    if not METRICS_FILE.exists():
         return {"total_calls": 0, "avg_latency": 0, "total_tokens": 0, "calls_by_provider": {}, "trends": {}}
     
     try:

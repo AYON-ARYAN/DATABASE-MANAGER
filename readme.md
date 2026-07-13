@@ -318,7 +318,7 @@ Flask App (app.py)
 - **Python 3.11 – 3.14** (verified across all four)
 - **Node.js 18+** and npm (for the React frontend)
 - A **Groq API key** — free at [console.groq.com](https://console.groq.com) (powers the NL-to-SQL / AI features; the hardcoded DBMS commands work without it)
-- To run the contract tests: **Docker** (recommended — same as CI) *or* **Java 17+** (uses the bundled `specmatic.jar`)
+- To run the contract tests: **Docker** (recommended — same as CI) *or* **Java 17+** with `SPECMATIC_JAR` pointing at a local `specmatic.jar`
 
 ### 1 — Run the application
 
@@ -362,7 +362,7 @@ python start.py --stop     # stop it
 
 The contract suite runs the real API with its LLM dependency **virtualized** (a Specmatic stub of the LLM), so it is deterministic and spends **zero tokens**. `specmatic.yaml` sets `schemaResiliencyTests: all`, so every spec's test run already covers conformance (examples) **and** resiliency (generative/boundary) in one pass — that's why there are only **two** spec-testing jobs, not four.
 
-One script starts the stub + app, runs both spec jobs plus the LLM-virtualization smoke test, and writes the HTML reports to `reports/` — it auto-uses Docker if present, else the bundled `specmatic.jar`:
+One script starts the stub + app, runs both spec jobs plus the LLM-virtualization smoke test, and writes the HTML reports to `reports/` — it auto-uses Docker if present, else a local `specmatic.jar` (repo root by default, or point `SPECMATIC_JAR` at any absolute path):
 
 ```bash
 bash scripts/run_specmatic_tests.sh
@@ -389,8 +389,7 @@ Every job reports **100% API coverage** with the actuator enabled (actual covera
 | `STUB_PORT` | `9090` | Port the LLM stub runs on |
 | `TEST_APP_PORT` | same as `APP_PORT` | Keeps `specmatic.yaml`'s `baseUrl`/`actuatorUrl` aligned with the app port |
 | `API_BEARER_TOKEN` | `specmatic-ci-token` | Bearer token the app + Specmatic both use |
-| `SPECMATIC_JAR` | `specmatic.jar` in repo root | Path to the Specmatic jar, if not using Docker |
-| `HOME` | your shell's `$HOME` | Only relevant if your jar lives outside the repo and is referenced relative to `$HOME` |
+| `SPECMATIC_JAR` | `specmatic.jar` in repo root | Absolute path to the Specmatic jar, if not using Docker or the jar lives elsewhere (e.g. `"$HOME/.specmatic/specmatic.jar"`) |
 | `GROQ_API_URL` / `GROQ_API_KEY` | stub URL / `ci-stub-key` | Where the app sends LLM calls in test mode |
 | `ENABLE_ACTUATOR` | `1` (on) | Exposes the test-only `/actuator/mappings` endpoint Specmatic reads for actual-coverage reporting |
 
@@ -399,23 +398,27 @@ Override any of them, e.g.: `SPECMATIC_JAR=/path/to/specmatic.jar STUB_PORT=9191
 **Or run each test on its own** (concrete steps — two terminals; `TEST_APP_PORT` keeps the
 config's actuator URL aligned with the app port):
 ```bash
+export SPECMATIC_JAR="${SPECMATIC_JAR:-specmatic.jar}"
+
 # Terminal A — LLM stub + app (one line each)
-java -jar ${SPECMATIC_JAR:-specmatic.jar} stub llm_contract.yaml --port 9090 &
-API_BEARER_TOKEN=specmatic-ci-token ENABLE_ACTUATOR=1 \
-  GROQ_API_URL=http://localhost:9090/openai/v1/chat/completions GROQ_API_KEY=ci-stub-key \
-  python -m flask --app app run --port 5001 &
+java -jar "$SPECMATIC_JAR" stub llm_contract.yaml --port "${STUB_PORT:-9090}" &
+API_BEARER_TOKEN="${API_BEARER_TOKEN:-specmatic-ci-token}" ENABLE_ACTUATOR=1 \
+  GROQ_API_URL="http://localhost:${STUB_PORT:-9090}/openai/v1/chat/completions" GROQ_API_KEY=ci-stub-key \
+  python -m flask --app app run --port "${APP_PORT:-5001}" &
 
 # Terminal B — run each spec job (schemaResiliencyTests: all in specmatic.yaml covers
 # conformance + resiliency in one run — no separate "resiliency mode" invocation needed)
-export TEST_APP_PORT=5001
-java -jar ${SPECMATIC_JAR:-specmatic.jar} test contract_public.yaml --examples examples     --host localhost --port 5001   # public
-java -jar ${SPECMATIC_JAR:-specmatic.jar} test api_contract.yaml    --examples examples_api --host localhost --port 5001   # full API, LLM mocked
+export TEST_APP_PORT="${APP_PORT:-5001}"
+java -jar "$SPECMATIC_JAR" test contract_public.yaml --examples examples     --host localhost --port "${APP_PORT:-5001}"   # public
+java -jar "$SPECMATIC_JAR" test api_contract.yaml    --examples examples_api --host localhost --port "${APP_PORT:-5001}"  # full API, LLM mocked
 ```
-(Swap `java -jar $SPECMATIC_JAR` for `docker run --rm --network host -v "$PWD:/specs" -w /specs specmatic/specmatic:2.48.0` to use Docker instead of the bundled jar.)
+(Swap `java -jar "$SPECMATIC_JAR"` for `docker run --rm --network host -v "$PWD:/specs" -w /specs specmatic/specmatic:2.48.0` to use Docker instead of a local jar.)
 
 **Missing-in-spec endpoints:** the app exposes 52 `/api` routes; the contract deliberately governs
 the 6 that form the external trust boundary. See [`CONTRACT_SCOPE.md`](./CONTRACT_SCOPE.md) for
-the full list, the reasoning, and how to promote an endpoint into the contract later.
+the full list and the reasoning. Compare the report's "Missing in Spec" section against that file
+— it's an intentional, documented scope, not an accident. If a feature endpoint becomes externally
+consumed later, promote it into `api_contract.yaml` and move it out of the backlog list.
 
 ### Access & demo accounts
 Open **http://localhost:5173/app/** (dev) or **http://localhost:8080** (Docker).

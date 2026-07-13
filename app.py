@@ -29,6 +29,7 @@ from core.dashboards import (
     delete_dashboard, add_widget, remove_widget
 )
 from core import llm_manager
+from core.paths import db_path, repo_path
 
 
 import os
@@ -1659,13 +1660,15 @@ def _build_sql_columns(columns, dialect="sqlite"):
 
 def _create_sqlite_db(db_name, path_prefix, tables):
     import sqlite3 as _sqlite3
-    path_prefix = path_prefix.strip() if path_prefix else "db/"
-    if not path_prefix.endswith("/"):
-        path_prefix += "/"
-    os.makedirs(path_prefix, exist_ok=True)
-    db_path = f"{path_prefix}{db_name}.db"
+    from pathlib import Path
 
-    conn = _sqlite3.connect(db_path)
+    prefix_path = Path(path_prefix.strip() if path_prefix else "db/")
+    if not prefix_path.is_absolute():
+        prefix_path = repo_path(prefix_path)
+    prefix_path.mkdir(parents=True, exist_ok=True)
+    db_file = prefix_path / f"{db_name}.db"
+
+    conn = _sqlite3.connect(str(db_file))
     try:
         for tbl in tables:
             if tbl["columns"]:

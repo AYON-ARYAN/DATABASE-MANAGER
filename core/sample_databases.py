@@ -18,9 +18,10 @@ from datetime import datetime, timedelta
 import requests
 
 from core.connection_manager import add_connection
+from core.paths import db_path
 
-SAMPLES_DIR = os.path.join("db", "samples")
-os.makedirs(SAMPLES_DIR, exist_ok=True)
+SAMPLES_DIR = db_path("samples")
+SAMPLES_DIR.mkdir(parents=True, exist_ok=True)
 
 
 # ---------------------------------------------------------------
@@ -235,7 +236,7 @@ SAMPLES = [
 # Utilities
 # ---------------------------------------------------------------
 def _db_path(sample_id: str) -> str:
-    return os.path.join(SAMPLES_DIR, f"{sample_id}.db")
+    return str(SAMPLES_DIR / f"{sample_id}.db")
 
 
 def _sample(sample_id: str):

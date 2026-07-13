@@ -1,18 +1,20 @@
 import sqlite3
 import os
 
+from core.paths import db_path, repo_path
+
 # ---------------------------------------------------
 # Paths
 # ---------------------------------------------------
-DB_PATH = "db/main.db"
-DB_DIR = "db"
+DB_PATH = db_path("main.db")
+DB_DIR = db_path()
 
 
 # ---------------------------------------------------
 # Connection
 # ---------------------------------------------------
 def get_connection():
-    os.makedirs(DB_DIR, exist_ok=True)
+    DB_DIR.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
@@ -46,7 +48,7 @@ def execute_sql(sql):
 # List database files
 # ---------------------------------------------------
 def list_db_files():
-    if not os.path.exists(DB_DIR):
+    if not DB_DIR.exists():
         return []
 
     return [
