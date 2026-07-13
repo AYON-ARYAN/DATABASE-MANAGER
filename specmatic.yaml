@@ -63,6 +63,13 @@ components:
 
 # --- v3 report configuration: text + HTML coverage reports ---
 specmatic:
+  settings:
+    # Replaces the deprecated SPECMATIC_GENERATIVE_TESTS env var: every `specmatic test` run
+    # against a spec now does BOTH example-driven conformance AND generative/boundary
+    # resiliency in a single pass, so CI needs one job per spec instead of two (contract +
+    # resiliency split).
+    test:
+      schemaResiliencyTests: all
   governance:
     report:
       formats:

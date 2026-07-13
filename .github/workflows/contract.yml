@@ -1,15 +1,13 @@
 name: API Contract Test (Specmatic)
 
-# Executable-contract guardrail. For EACH API spec we run TWO independent jobs:
-#   * contract   — value-checked conformance against inline + external examples
-#   * resiliency — generative negative/boundary tests (input-validation guardrail)
-# With two app specs (contract_public.yaml, api_contract.yaml) that is 4 test jobs,
-# kept deliberately separate so a contract regression and a resiliency regression
-# show up as distinct red checks. Each job emits a Specmatic HTML report artifact.
+# Executable-contract guardrail. specmatic.yaml sets schemaResiliencyTests: all, so ONE test
+# run per spec already covers both conformance (examples) and resiliency (generative/boundary)
+# — one job per app spec (contract_public.yaml, api_contract.yaml), each emitting a Specmatic
+# HTML report artifact.
 #
 # The LLM-calling endpoints (e.g. /api/command) are exercised with the LLM provider
 # virtualized by a Specmatic stub of llm_contract.yaml — deterministic, offline, 0-token.
-# A 5th job smoke-tests that virtualization directly.
+# A 3rd job smoke-tests that virtualization directly.
 
 on:
   push:
@@ -40,30 +38,18 @@ on:
   workflow_dispatch:
 
 jobs:
-  # ---- 4 test jobs: {contract_public, api_contract} x {contract, resiliency} ----
+  # ---- 2 test jobs, one per app spec — each covers conformance + resiliency in one run ----
   api-test:
-    name: ${{ matrix.spec }} · ${{ matrix.mode }}
+    name: ${{ matrix.spec }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         include:
           - spec: contract_public.yaml
-            mode: contract
             examples: "--examples examples"
-            generative: "false"
-          - spec: contract_public.yaml
-            mode: resiliency
-            examples: "--examples examples"
-            generative: "true"
           - spec: api_contract.yaml
-            mode: contract
             examples: "--examples examples_api"
-            generative: "false"
-          - spec: api_contract.yaml
-            mode: resiliency
-            examples: "--examples examples_api"
-            generative: "true"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -97,10 +83,10 @@ jobs:
           python -m flask --app app run --port 5001 &
           for i in $(seq 1 30); do curl -s -o /dev/null http://localhost:5001/api/auth/session && break; sleep 2; done
 
-      - name: ${{ matrix.mode }} test — ${{ matrix.spec }} (LLM mocked)
-        # specmatic.yaml (committed) configures text + HTML report output.
+      - name: Test — ${{ matrix.spec }} (conformance + resiliency, LLM mocked)
+        # specmatic.yaml (committed) sets schemaResiliencyTests: all and configures HTML report output.
         run: |
-          docker run --rm --network host -e SPECMATIC_GENERATIVE_TESTS=${{ matrix.generative }} \
+          docker run --rm --network host \
             -v "${{ github.workspace }}:/specs" -w /specs \
             specmatic/specmatic:2.48.0 test ${{ matrix.spec }} ${{ matrix.examples }} \
             --host localhost --port 5001
@@ -109,7 +95,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: report-${{ matrix.spec }}-${{ matrix.mode }}
+          name: report-${{ matrix.spec }}
           path: build/reports/specmatic/test/html
 
   # ---- LLM virtualization smoke test (the AI path runs offline / zero-token) ----
