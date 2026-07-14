@@ -45,10 +45,12 @@ python start.py
 ```
 Opens **http://localhost:8080**. Stop it with `python start.py --stop`.
 
-> The command above is for **normal app usage**. To run the app for **Specmatic testing**, use
-> the app-run command in the next section instead — it sets the auth token and enables the
-> actuator endpoint that testing needs.
->
+**For Specmatic testing** (instead of the plain `python app.py` above — needs the LLM stub from
+[Run the Specmatic tests](#2--run-the-specmatic-tests) already running first):
+```bash
+API_BEARER_TOKEN=specmatic-ci-token ENABLE_ACTUATOR=1 GROQ_API_URL=http://localhost:9090/openai/v1/chat/completions GROQ_API_KEY=ci-stub-key python -m flask --app app run --port 5001
+```
+
 > **Use `python -m pip`, not bare `pip`/`pip3`** — inside the activated venv it always targets
 > the right interpreter, avoiding install-vs-run mismatches (verified on 3.11–3.14).
 > `requirements.txt` is the lean core (bundled SQLite only); install
@@ -59,22 +61,20 @@ Opens **http://localhost:8080**. Stop it with `python start.py --stop`.
 
 **Terminal 1 — LLM stub:**
 ```bash
-java -jar specmatic.jar stub llm_contract.yaml --port 9090
+java -jar ${SPECMATIC_JAR:-specmatic.jar} stub llm_contract.yaml --port 9090
 ```
 
-**Terminal 2 — the app, configured for testing:**
-```bash
-API_BEARER_TOKEN=specmatic-ci-token ENABLE_ACTUATOR=1 GROQ_API_URL=http://localhost:9090/openai/v1/chat/completions GROQ_API_KEY=ci-stub-key python -m flask --app app run --port 5001
-```
+**Terminal 2 — the app, configured for testing:** see [Run the application → For Specmatic
+testing](#1--run-the-application) above.
 
 **Terminal 3 — the public contract test:**
 ```bash
-TEST_APP_PORT=5001 java -jar specmatic.jar test contract_public.yaml --examples examples --host localhost --port 5001
+TEST_APP_PORT=5001 java -jar ${SPECMATIC_JAR:-specmatic.jar} test contract_public.yaml --examples examples --host localhost --port 5001
 ```
 
 **Terminal 3 again — the full API contract test:**
 ```bash
-TEST_APP_PORT=5001 java -jar specmatic.jar test api_contract.yaml --examples examples_api --host localhost --port 5001
+TEST_APP_PORT=5001 java -jar ${SPECMATIC_JAR:-specmatic.jar} test api_contract.yaml --examples examples_api --host localhost --port 5001
 ```
 
 Both report **100% API coverage**, actuator enabled (actual, not just matched, coverage). The same four commands run in CI on every push — see [`.github/workflows/contract.yml`](.github/workflows/contract.yml). HTML reports land in `build/reports/specmatic/test/html/`; committed snapshots are in [`reports/`](reports/).
@@ -82,8 +82,8 @@ Both report **100% API coverage**, actuator enabled (actual, not just matched, c
 <details>
 <summary>More context (ports, Docker, auth, scope) — not required to run the tests above</summary>
 
-- **Using Docker instead of a local jar:** swap `java -jar specmatic.jar` for `docker run --rm --network host -v "$PWD:/specs" -w /specs specmatic/specmatic:2.48.0` in each command above.
-- **Jar not at the repo root?** Replace `specmatic.jar` with the full path in each command.
+- **Using Docker instead of a local jar:** swap `java -jar ${SPECMATIC_JAR:-specmatic.jar}` for `docker run --rm --network host -v "$PWD:/specs" -w /specs specmatic/specmatic:2.48.0` in each command above.
+- **Jar not at the repo root?** `export SPECMATIC_JAR=/path/to/specmatic.jar` before running the commands above — they already fall back to `specmatic.jar` in the repo root if it's unset.
 - **Different ports?** Change `9090`/`5001` consistently across all four commands (stub port, app port, and `--port`/`TEST_APP_PORT` on the test commands must all agree).
 - **Auth:** the API accepts a real `Bearer` token (`API_BEARER_TOKEN`, off by default so production stays cookie-only) alongside the web UI's session-cookie login — any client can use it, including Specmatic via `securitySchemes` in [`specmatic.yaml`](specmatic.yaml). No test-only bypass; run the app without `API_BEARER_TOKEN` and protected endpoints correctly return `401`.
 - **Missing-in-spec endpoints:** the app exposes 52 `/api` routes; the contract deliberately governs the 6 that form the external trust boundary. See [`CONTRACT_SCOPE.md`](./CONTRACT_SCOPE.md) for the full list and reasoning — an intentional, documented scope, not an accident.
