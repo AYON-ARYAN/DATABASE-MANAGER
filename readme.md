@@ -10,11 +10,103 @@ Built for students, teachers, and analysts who want to explore databases without
 
 ---
 
+## Run it locally
+
+### Prerequisites
+- **Python 3.11 – 3.14** (verified across all four)
+- **Node.js 18+** and npm (for the React frontend)
+- A **Groq API key** — free at [console.groq.com](https://console.groq.com) (powers the NL-to-SQL / AI features; the hardcoded DBMS commands work without it)
+- To run the Specmatic tests: **Docker** *or* **Java 17+** with a local `specmatic.jar`
+
+### 1 — Run the application
+
+```bash
+python3 -m venv venv && source venv/bin/activate
+python -m pip install -r requirements.txt
+```
+
+```bash
+echo "GROQ_API_KEY=your_key_here" > .env
+```
+
+```bash
+python app.py
+```
+The API is now on **http://localhost:5001** (macOS: port 5000 is taken by AirPlay Receiver).
+
+```bash
+cd meridian-frontend && npm install && npm run dev
+```
+Open **http://localhost:5173/app/** — Vite proxies `/api` to the backend, and the SPA router uses basename `/app`. Sample SQLite databases (Chinook, Northwind, …) ship in `db/`, so there's nothing to seed.
+
+Or the whole stack in one command via Docker:
+```bash
+python start.py
+```
+Opens **http://localhost:8080**. Stop it with `python start.py --stop`.
+
+> The command above is for **normal app usage**. To run the app for **Specmatic testing**, use
+> the app-run command in the next section instead — it sets the auth token and enables the
+> actuator endpoint that testing needs.
+>
+> **Use `python -m pip`, not bare `pip`/`pip3`** — inside the activated venv it always targets
+> the right interpreter, avoiding install-vs-run mismatches (verified on 3.11–3.14).
+> `requirements.txt` is the lean core (bundled SQLite only); install
+> `requirements-optional.txt` only if you need to connect Postgres/MySQL/MSSQL/Oracle/Mongo/
+> Cassandra/Redis.
+
+### 2 — Run the Specmatic tests
+
+**Terminal 1 — LLM stub:**
+```bash
+java -jar specmatic.jar stub llm_contract.yaml --port 9090
+```
+
+**Terminal 2 — the app, configured for testing:**
+```bash
+API_BEARER_TOKEN=specmatic-ci-token ENABLE_ACTUATOR=1 GROQ_API_URL=http://localhost:9090/openai/v1/chat/completions GROQ_API_KEY=ci-stub-key python -m flask --app app run --port 5001
+```
+
+**Terminal 3 — the public contract test:**
+```bash
+TEST_APP_PORT=5001 java -jar specmatic.jar test contract_public.yaml --examples examples --host localhost --port 5001
+```
+
+**Terminal 3 again — the full API contract test:**
+```bash
+TEST_APP_PORT=5001 java -jar specmatic.jar test api_contract.yaml --examples examples_api --host localhost --port 5001
+```
+
+Both report **100% API coverage**, actuator enabled (actual, not just matched, coverage). The same four commands run in CI on every push — see [`.github/workflows/contract.yml`](.github/workflows/contract.yml). HTML reports land in `build/reports/specmatic/test/html/`; committed snapshots are in [`reports/`](reports/).
+
+<details>
+<summary>More context (ports, Docker, auth, scope) — not required to run the tests above</summary>
+
+- **Using Docker instead of a local jar:** swap `java -jar specmatic.jar` for `docker run --rm --network host -v "$PWD:/specs" -w /specs specmatic/specmatic:2.48.0` in each command above.
+- **Jar not at the repo root?** Replace `specmatic.jar` with the full path in each command.
+- **Different ports?** Change `9090`/`5001` consistently across all four commands (stub port, app port, and `--port`/`TEST_APP_PORT` on the test commands must all agree).
+- **Auth:** the API accepts a real `Bearer` token (`API_BEARER_TOKEN`, off by default so production stays cookie-only) alongside the web UI's session-cookie login — any client can use it, including Specmatic via `securitySchemes` in [`specmatic.yaml`](specmatic.yaml). No test-only bypass; run the app without `API_BEARER_TOKEN` and protected endpoints correctly return `401`.
+- **Missing-in-spec endpoints:** the app exposes 52 `/api` routes; the contract deliberately governs the 6 that form the external trust boundary. See [`CONTRACT_SCOPE.md`](./CONTRACT_SCOPE.md) for the full list and reasoning — an intentional, documented scope, not an accident.
+
+</details>
+
+### Access & demo accounts
+Open **http://localhost:5173/app/** (dev) or **http://localhost:8080** (Docker).
+
+| Username | Password | Role |
+|----------|----------|------|
+| `admin1` | `admin123` | ADMIN (full access) |
+| `editor1` | `editor123` | EDITOR (read + write) |
+| `viewer1` | `viewer123` | VIEWER (read only) |
+
+---
+
 ## Spec-Driven Development with Specmatic
 
 Meridian uses **[Specmatic](https://specmatic.io)** executable contracts as a guardrail for
 AI-generated code — catching silent API drift, and even **virtualizing the LLM provider** so
-AI-dependent tests run offline and token-free.
+AI-dependent tests run offline and token-free. For the run commands, see
+[Run it locally → Run the Specmatic tests](#2--run-the-specmatic-tests) above.
 
 ### The three contracts — what each is and why it exists
 
@@ -42,24 +134,17 @@ Meridian consumes** (Meridian as *consumer*). Different role, different contract
 
 ### CI (`.github/workflows/contract.yml`)
 
-On every push/PR touching the API, `specmatic.yaml`'s `schemaResiliencyTests: all` setting means
-each spec's single test run already covers **both** conformance (examples) **and** resiliency
-(generative/boundary) — so there are just two spec-testing jobs plus the LLM smoke test:
+`specmatic.yaml`'s `schemaResiliencyTests: all` setting means each spec's single test run already
+covers **both** conformance (examples) **and** resiliency (generative/boundary) — so there are
+just two spec-testing jobs plus the LLM smoke test:
 1. **`contract_public.yaml`** — **100% coverage** (`200` + `400`).
 2. **`api_contract.yaml`**, LLM mocked — exercises the real LLM-calling endpoints (`/api/command`, …)
    with the provider served by the Specmatic stub, so the AI path is tested **offline, zero-token**.
-   Protected endpoints authenticate via the app's **API bearer-token** auth — a real auth method
-   for programmatic clients, enabled by setting `API_BEARER_TOKEN` — which Specmatic supplies
-   through its `securitySchemes` config.
 3. **LLM virtualization smoke test** (`scripts/llm_mock_test.py`).
 
-Captured run reports for all three specs live in [`reports/`](./reports). This suite has
-already caught real bugs — a `500` crash on malformed `/api/command` input, an undocumented
-`config` leak in `/api/connections`, an ambiguous error `oneOf` — see the blog learnings.
-
-For the exact commands to run these tests yourself, see **[Setup → Run all the Specmatic
-tests](#2--run-all-the-specmatic-tests)** below — that section is the single source of truth
-for run instructions.
+This suite has already caught real bugs — a `500` crash on malformed `/api/command` input, an
+undocumented `config` leak in `/api/connections`, an ambiguous error `oneOf` — see the blog
+learnings.
 
 ---
 
@@ -309,118 +394,6 @@ Flask App (app.py)
 | POST | `/snapshots/restore` | Restore from snapshot |
 | POST | `/snapshots/delete` | Delete snapshot |
 | POST | `/undo` | Undo last write operation |
-
----
-
-## Setup
-
-### Prerequisites
-- **Python 3.11 – 3.14** (verified across all four)
-- **Node.js 18+** and npm (for the React frontend)
-- A **Groq API key** — free at [console.groq.com](https://console.groq.com) (powers the NL-to-SQL / AI features; the hardcoded DBMS commands work without it)
-- To run the contract tests: **Docker** (recommended — same as CI) *or* **Java 17+** with `SPECMATIC_JAR` pointing at a local `specmatic.jar`
-
-### 1 — Run the application
-
-The app is a **Flask API** plus a **React (Vite) frontend**.
-
-```bash
-# --- backend (terminal 1) ---
-python3 -m venv venv && source venv/bin/activate
-python -m pip install -r requirements.txt      # core deps only — runs on the bundled SQLite DBs
-echo "GROQ_API_KEY=your_key_here" > .env      # needed for the AI features
-python app.py                                  # API on http://localhost:5001
-```
-> **This is for normal app usage.** To run it for **Specmatic testing** instead, use the
-> commands in [Setup → Run all the Specmatic tests](#2--run-all-the-specmatic-tests) below —
-> that path needs `API_BEARER_TOKEN` and `ENABLE_ACTUATOR=1` set, which the plain command above
-> does not set.
-
-> **Use `python -m pip`, not bare `pip`/`pip3`.** On machines with several Pythons, `pip`
-> can point at a *different* interpreter than the one you'll run the app with (this is what
-> causes install-vs-run version mismatches). Inside the activated venv, `python -m pip`
-> always targets the venv's interpreter. Verified end-to-end on **Python 3.11, 3.12, 3.13
-> and 3.14**.
->
-> **Database drivers are optional.** `requirements.txt` is the lean core that runs the app
-> and the whole test suite on the bundled SQLite databases. The external engine drivers
-> (Postgres, MySQL, MSSQL, Oracle, Mongo, Cassandra, Redis) are lazy-imported and live in
-> `requirements-optional.txt` — install that **only** to connect one of those engines:
-> `python -m pip install -r requirements-optional.txt`.
-> macOS: port 5000 is taken by AirPlay Receiver, so the app listens on **5001**.
-
-```bash
-# --- frontend (terminal 2) ---
-cd meridian-frontend
-npm install
-npm run dev                                    # Vite on http://localhost:5173
-```
-Open **http://localhost:5173/app/** — Vite proxies `/api` to the backend on 5001, and the SPA router uses basename `/app`. The sample SQLite databases (Chinook, Northwind, …) ship in `db/`, so there is nothing to seed.
-
-**Or run the whole stack with one command (Docker):**
-```bash
-python start.py            # builds if needed, starts backend + frontend, opens http://localhost:8080
-python start.py --stop     # stop it
-```
-
-### 2 — Run all the Specmatic tests
-
-The contract suite runs the real API with its LLM dependency **virtualized** (a Specmatic stub of the LLM), so it is deterministic and spends **zero tokens**. `specmatic.yaml` sets `schemaResiliencyTests: all`, so every spec's test run already covers conformance (examples) **and** resiliency (generative/boundary) in one pass — that's why there are only **two** spec-testing jobs, not four.
-
-> **Authentication uses the app's real API bearer-token auth — no test-only bypass.**
-> Alongside the web UI's session-cookie login, the API accepts a real `Bearer` token for
-> programmatic clients (any client can use it — curl, CI, a gateway, or Specmatic). Valid
-> tokens come from the `API_BEARER_TOKEN` env var; with none set the API stays cookie-only.
-> The token is declared once in [`specmatic.yaml`](specmatic.yaml)
-> (`securitySchemes.bearerAuth.token`, overridable via `API_BEARER_TOKEN`), and Specmatic
-> sends it like any other client would — so the authenticated **and** the `401` paths are
-> both exercised, with no separate code path for the test tool. (Run the app without
-> `API_BEARER_TOKEN` set and the protected endpoints correctly return `401`.)
-
-**Configurable variables** (all optional, sensible defaults baked in):
-
-| Variable | Default | Purpose |
-|---|---|---|
-| `API_BEARER_TOKEN` | `specmatic-ci-token` | Bearer token the app + Specmatic both use |
-| `ENABLE_ACTUATOR` | unset (off) | Set to `1` to expose the test-only `/actuator/mappings` endpoint Specmatic reads for actual-coverage reporting — **required for Specmatic testing** |
-| `GROQ_API_URL` / `GROQ_API_KEY` | real Groq | Point these at the LLM stub below to test the AI-calling endpoints offline/zero-token |
-| `SPECMATIC_JAR` | — | Absolute path to a local Specmatic jar, if not using Docker (e.g. `specmatic.jar` in repo root, or `"$HOME/.specmatic/specmatic.jar"`) |
-
-**Run the tests — two terminals** (`TEST_APP_PORT` keeps `specmatic.yaml`'s `baseUrl`/`actuatorUrl` aligned with the app port):
-```bash
-export SPECMATIC_JAR="${SPECMATIC_JAR:-specmatic.jar}"   # or point this at your own jar
-
-# Terminal A — LLM stub, then the app WITH the test env vars
-java -jar "$SPECMATIC_JAR" stub llm_contract.yaml --port 9090 &
-API_BEARER_TOKEN=specmatic-ci-token ENABLE_ACTUATOR=1 \
-  GROQ_API_URL=http://localhost:9090/openai/v1/chat/completions GROQ_API_KEY=ci-stub-key \
-  python -m flask --app app run --port 5001
-
-# Terminal B — run each spec job (schemaResiliencyTests: all in specmatic.yaml covers
-# conformance + resiliency in one run — no separate "resiliency mode" invocation needed)
-export TEST_APP_PORT=5001
-java -jar "$SPECMATIC_JAR" test contract_public.yaml --examples examples     --host localhost --port 5001   # public
-java -jar "$SPECMATIC_JAR" test api_contract.yaml    --examples examples_api --host localhost --port 5001   # full API, LLM mocked
-```
-(Swap `java -jar "$SPECMATIC_JAR"` for `docker run --rm --network host -v "$PWD:/specs" -w /specs specmatic/specmatic:2.48.0` to use Docker instead of a local jar.)
-
-Every job reports **100% API coverage** with the actuator enabled (actual coverage); HTML reports land in `build/reports/specmatic/test/html/` (committed snapshots live in [`reports/`](reports/)). The same two commands run in CI on every push — see [`.github/workflows/contract.yml`](.github/workflows/contract.yml).
-
-**Missing-in-spec endpoints:** the app exposes 52 `/api` routes; the contract deliberately governs
-the 6 that form the external trust boundary. See [`CONTRACT_SCOPE.md`](./CONTRACT_SCOPE.md) for
-the full list and the reasoning. Compare the report's "Missing in Spec" section against that file
-— it's an intentional, documented scope, not an accident. If a feature endpoint becomes externally
-consumed later, promote it into `api_contract.yaml` and move it out of the backlog list.
-
-### Access & demo accounts
-Open **http://localhost:5173/app/** (dev) or **http://localhost:8080** (Docker).
-
-**Demo accounts:**
-| Username | Password | Role |
-|----------|----------|------|
-| `admin1` | `admin123` | ADMIN (full access) |
-| `editor1` | `editor123` | EDITOR (read + write) |
-| `viewer1` | `viewer123` | VIEWER (read only) |
 
 ---
 

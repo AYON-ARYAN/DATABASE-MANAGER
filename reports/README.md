@@ -28,7 +28,7 @@ The report also lists **Missing in Spec** endpoints (the app has 52 `/api` route
 governs the core 6) — that scoping is documented and justified in
 [`../CONTRACT_SCOPE.md`](../CONTRACT_SCOPE.md).
 
-Regenerate locally: run the commands in [Setup → Run all the Specmatic tests](../readme.md#2--run-all-the-specmatic-tests),
+Regenerate locally: run the commands in [Run it locally → Run the Specmatic tests](../readme.md#2--run-the-specmatic-tests),
 then copy `build/reports/specmatic/test/html/index.html` to `contract_public.html` or
 `api_contract.html` here after each job. In CI each job also uploads its
 `build/reports/specmatic/test/html` as an artifact.
