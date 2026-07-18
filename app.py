@@ -117,6 +117,11 @@ def actuator_mappings():
     return jsonify(_actuator_mappings())
 
 
+@app.context_processor
+def inject_actuator_flag():
+    return {"actuator_enabled": _actuator_enabled()}
+
+
 # ---------------------------------------------------
 # Demo Users
 # ---------------------------------------------------
@@ -2870,4 +2875,8 @@ def serve_react(path=''):
 # Run
 # ---------------------------------------------------
 if __name__ == "__main__":
+    # Actuator is opt-in for production (gunicorn/Docker never hits this block),
+    # but a plain `python app.py` dev run should show it without needing to
+    # remember an env var — mirrors FastAPI's automatic /docs being just-there.
+    os.environ.setdefault("ENABLE_ACTUATOR", "1")
     app.run(debug=True, port=5001)

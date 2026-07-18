@@ -94,6 +94,12 @@
 {% block content %}{% endblock %}
 {% endblock %}
 
+{% if actuator_enabled %}
+<footer style="text-align:center; padding:12px; font-size:0.7rem; color:var(--text-dim);">
+    <a href="/actuator" style="color:inherit;">/actuator</a> — live route map (this deployment only; opt-in via ENABLE_ACTUATOR)
+</footer>
+{% endif %}
+
 {% block scripts %}{% endblock %}
 
 <script>
