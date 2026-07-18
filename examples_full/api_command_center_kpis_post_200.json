@@ -1,0 +1,1 @@
+{"http-request": {"method": "POST", "path": "/api/command-center/kpis", "headers": {"Authorization": "Bearer specmatic-ci-token"}, "body": {}}, "http-response": {"status": 200}}

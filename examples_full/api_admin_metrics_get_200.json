@@ -1,0 +1,1 @@
+{"http-request": {"method": "GET", "path": "/api/admin/metrics", "headers": {"Authorization": "Bearer specmatic-ci-token"}}, "http-response": {"status": 200}}

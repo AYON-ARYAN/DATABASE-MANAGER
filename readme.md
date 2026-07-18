@@ -77,7 +77,12 @@ TEST_APP_PORT=5001 java -jar ${SPECMATIC_JAR:-specmatic.jar} test contract_publi
 TEST_APP_PORT=5001 java -jar ${SPECMATIC_JAR:-specmatic.jar} test api_contract.yaml --examples examples_api --host localhost --port 5001
 ```
 
-Both report **100% API coverage**, actuator enabled (actual, not just matched, coverage). The same four commands run in CI on every push — see [`.github/workflows/contract.yml`](.github/workflows/contract.yml). HTML reports land in `build/reports/specmatic/test/html/`; committed snapshots are in [`reports/`](reports/).
+**Terminal 3 again — the full-surface contract test (all 45 remaining `/api` operations, auto-generated):**
+```bash
+TEST_APP_PORT=5001 java -jar ${SPECMATIC_JAR:-specmatic.jar} test full_api_contract.yaml --examples examples_full --host localhost --port 5001
+```
+
+The first two report **100% API coverage** on the 6 hand-curated endpoints (actuator enabled — actual, not just matched, coverage). The third exercises every other `/api` operation the app exposes — see [`CONTRACT_SCOPE.md`](./CONTRACT_SCOPE.md) for what it does and doesn't assert. All commands run in CI on every push — see [`.github/workflows/contract.yml`](.github/workflows/contract.yml). HTML reports land in `build/reports/specmatic/test/html/`; committed snapshots are in [`reports/`](reports/).
 
 <details>
 <summary>More context (ports, Docker, auth, scope) — not required to run the tests above</summary>
