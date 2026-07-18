@@ -637,7 +637,18 @@ def index():
         query, explanation = generate_query_with_explanation(
             user_cmd, dialect, schema, llm_provider, history=conversation_context
         )
-        
+
+        if query is None:
+            return render_template(
+                "index.html",
+                error=explanation,
+                history=session.get("history", []),
+                db_info=db_info,
+                connections=connections,
+                llm_provider=llm_provider,
+                analysis_enabled=analysis_enabled,
+            )
+
         # Update context (last 5 - pruned for performance)
         conversation_context.append({"user": user_cmd, "assistant": query})
         if len(conversation_context) > 5:
@@ -959,7 +970,10 @@ def refine_query():
 - No markdown, no explanation, no code fences
 """
         )
-        
+
+        if new_sql is None:
+            return jsonify({"success": False, "error": explanation})
+
         # Update session with new query for potential execution
         session["last_sql"] = new_sql
         session["last_explanation"] = explanation

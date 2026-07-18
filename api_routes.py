@@ -376,6 +376,9 @@ def api_command():
         user_cmd, dialect, schema, llm_provider, history=conversation_context
     )
 
+    if query is None:
+        return jsonify({"error": explanation})
+
     conversation_context.append({"user": user_cmd, "assistant": query})
     if len(conversation_context) > 5:
         conversation_context.pop(0)

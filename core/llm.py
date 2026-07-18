@@ -208,7 +208,8 @@ def _get_system_prompt(dialect: str, schema: str) -> str:
 # Core generation
 # ---------------------------------------------------
 def _call_groq(context, history, user_command, p_config):
-    """Try Groq. Returns cleaned SQL string on success, raises on failure."""
+    """Try Groq. Returns cleaned SQL string on success, raises on failure
+    (including an empty/malformed response — never returns silently-bad output)."""
     api_key = p_config.get("api_key")
     model = p_config.get("model", "llama-3.3-70b-versatile")
     url = p_config.get("url", GROQ_API_URL)
@@ -228,14 +229,21 @@ def _call_groq(context, history, user_command, p_config):
         timeout=60)
     res.raise_for_status()
     data = res.json()
+    choices = data.get("choices")
+    if not choices:
+        raise ValueError("Groq response had no choices")
+    content = (choices[0].get("message") or {}).get("content", "")
+    if not content or not content.strip():
+        raise ValueError("Groq response had empty content")
     usage = data.get("usage", {})
     log_call("groq", data.get("model", model), time.time() - start,
              usage.get("prompt_tokens", 0), usage.get("completion_tokens", 0))
-    return clean_sql(data["choices"][0]["message"]["content"])
+    return clean_sql(content)
 
 
 def _call_ollama(full_prompt, p_config, options=None):
-    """Try Ollama. Returns cleaned SQL string on success, raises on failure."""
+    """Try Ollama. Returns cleaned SQL string on success, raises on failure
+    (including an empty/malformed response — never returns silently-bad output)."""
     ollama_url = p_config.get("url", OLLAMA_URL)
     ollama_model = p_config.get("model", "mistral")
     default_options = {"num_thread": 4, "num_ctx": 2048, "temperature": 0.1}
@@ -249,17 +257,21 @@ def _call_ollama(full_prompt, p_config, options=None):
         timeout=60)
     res.raise_for_status()
     data = res.json()
+    content = data.get("response", "")
+    if not content or not content.strip():
+        raise ValueError("Ollama response was empty")
     log_call("mistral", ollama_model, time.time() - start,
              data.get("prompt_eval_count", 0), data.get("eval_count", 0))
-    return clean_sql(data["response"])
+    return clean_sql(content)
 
 
 def generate_query(user_command: str, dialect: str = "sqlite", schema: str = "",
                    provider: str = None, history: list = None,
-                   system_prompt: str = None, options: dict = None) -> str:
+                   system_prompt: str = None, options: dict = None) -> str | None:
     """
     Generate a query using the active provider, with automatic fallback
     to the other provider if the primary is unreachable or errors out.
+    Returns None if every provider failed or returned an unusable response.
     """
     from core import llm_manager
     full_config = llm_manager.load_config()
@@ -293,7 +305,8 @@ def generate_query(user_command: str, dialect: str = "sqlite", schema: str = "",
             errors.append(f"{name}: {e}")
             print(f"[LLM] {name} failed — {e}")
 
-    return f"ERROR: all providers failed ({'; '.join(errors)})"
+    print(f"[LLM] all providers failed — {'; '.join(errors)}")
+    return None
 
 
 def generate_query_with_explanation(
@@ -335,6 +348,9 @@ EXPLANATION: <short_bulleted_explanation_without_tech_jargon>
         system_prompt=merged_prompt,
         options={"num_predict": 512} # Limit length to save resources
     )
+
+    if raw_response is None:
+        return None, "Could not generate a query — the AI provider(s) returned no usable response. Please try again or rephrase."
 
     # 2. Parse results
     query = ""
