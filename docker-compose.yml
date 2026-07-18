@@ -7,8 +7,11 @@ services:
     restart: unless-stopped
     environment:
       - GROQ_API_KEY=${GROQ_API_KEY:-}
+      - OLLAMA_API_URL=http://ollama:11434/api/generate
       - FLASK_ENV=production
       - PYTHONUNBUFFERED=1
+    depends_on:
+      - ollama
     volumes:
       - meridian-db:/app/db
     expose:
@@ -31,10 +34,42 @@ services:
     networks:
       - meridian-net
 
+  ollama:
+    image: ollama/ollama:latest
+    container_name: meridian-ollama
+    restart: unless-stopped
+    volumes:
+      - ollama-data:/root/.ollama
+    expose:
+      - "11434"
+    networks:
+      - meridian-net
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  ollama-pull:
+    image: ollama/ollama:latest
+    container_name: meridian-ollama-pull
+    depends_on:
+      ollama:
+        condition: service_healthy
+    environment:
+      - OLLAMA_HOST=ollama:11434
+    entrypoint: ["ollama", "pull", "mistral"]
+    networks:
+      - meridian-net
+    restart: "no"
+
 networks:
   meridian-net:
     driver: bridge
 
 volumes:
   meridian-db:
+    driver: local
+  ollama-data:
     driver: local

@@ -254,7 +254,13 @@ def _call_ollama(full_prompt, p_config, options=None):
     res = requests.post(ollama_url,
         json={"model": ollama_model, "prompt": full_prompt,
               "stream": False, "options": default_options},
-        timeout=60)
+        # CPU-only local inference (no GPU) can take several minutes on a cold
+        # model load plus a real schema+instructions prompt — 60s was tuned for
+        # a warm/GPU setup and gave up before a patient first run could ever
+        # succeed locally, always falling back to Groq instead. 240s lets a
+        # genuinely slow local run finish; the Groq fallback below still
+        # covers anything slower or truly unreachable.
+        timeout=240)
     res.raise_for_status()
     data = res.json()
     content = data.get("response", "")

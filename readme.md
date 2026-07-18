@@ -39,11 +39,18 @@ cd meridian-frontend && npm install && npm run dev
 ```
 Open **http://localhost:5173/app/** — Vite proxies `/api` to the backend, and the SPA router uses basename `/app`. Sample SQLite databases (Chinook, Northwind, …) ship in `db/`, so there's nothing to seed.
 
-Or the whole stack in one command via Docker:
+Or the whole stack in one command via Docker — backend, frontend, **and a local
+Ollama LLM** (`mistral`, auto-pulled on first run — no cloud API key needed to
+see the AI features work):
 ```bash
 python start.py
 ```
-Opens **http://localhost:8080**. Stop it with `python start.py --stop`.
+Opens **http://localhost:8080**. First run pulls the Ollama model in the
+background (a few minutes, ~4GB) — the app is usable immediately for the
+hardcoded DBMS commands, and AI query generation works as soon as the pull
+finishes. Stop it with `python start.py --stop`. Set `GROQ_API_KEY` in `.env`
+first if you'd rather use Groq's cloud API instead of (or as a fallback to)
+the bundled local Ollama.
 
 **For Specmatic testing** (instead of the plain `python app.py` above — needs the LLM stub from
 [Run the Specmatic tests](#2--run-the-specmatic-tests) already running first):

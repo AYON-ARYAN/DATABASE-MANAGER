@@ -16,3 +16,18 @@ meridian-frontend/dist/
 Screenshot*.png
 report_prompt.md
 pass_test.txt
+
+# Host-generated runtime state — never bake this into the image. It reflects
+# whoever last ran the app locally (LLM provider/model choice, saved
+# connections, dashboards, snapshots, usage history), not a fresh install.
+# Found the hard way: a stale db/llm_config.json selecting a model that was
+# never pulled into the bundled Ollama container caused silent 404s on every
+# AI query. The image should only ship the static seed databases in db/
+# (chinook.db, main.db, northwind.db, samples/) — everything below is
+# per-deployment state, generated fresh by each container/volume instead.
+db/llm_config.json
+db/connections.json
+db/dashboards.json
+db/snapshots.json
+db/usage_metrics.json
+db/snapshots/
