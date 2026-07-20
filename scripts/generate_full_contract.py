@@ -1,29 +1,31 @@
 #!/usr/bin/env python3
-"""Auto-generates full_api_contract.yaml — an OpenAPI 3.0 contract covering
-every real /api route in the app, not just the 6 hand-curated ones in
-api_contract.yaml.
+"""Regenerates the auto-generated tail of api_contract.yaml — every real /api
+route the hand-authored 6 endpoints don't already cover.
 
-Broad coverage, not deep fidelity: request bodies are permissive (any JSON
-object) and only the two response shapes the app's own auth guard actually
-guarantees are asserted — 401 Unauthorized (exact schema; every /api route
-enforces this identically via app.py's require_login()) and 200 (permissive
-schema, since real body shapes vary per endpoint and this layer trades
-per-endpoint fidelity for full route breadth). See CONTRACT_SCOPE.md for the
-two-tier rationale — api_contract.yaml stays the deep, hand-curated layer for
-the 6 endpoints external consumers actually depend on.
+Originally this wrote a separate full_api_contract.yaml, kept alongside the
+hand-curated api_contract.yaml as a second, broader-but-shallower contract.
+That produced a confusing "missing in spec" split: each file reported the
+other file's endpoints as untested, even though every operation really was
+covered somewhere. Merged into ONE spec instead — api_contract.yaml now
+governs all ~52 /api operations directly, so a report against it has nothing
+left to report as missing.
 
-Also writes examples_full/ — one generic 200 + 401 example JSON per
-operation. Specmatic will not exercise a securitySchemes-gated 200/401 pair
-without at least one example to anchor the token substitution on (confirmed
-empirically: a schema-only run against this contract got 0/80, every "200"
-case receiving 401 and every "401" case skipped with "Examples Required").
-The examples are mechanically generated (placeholder path params, empty
-bodies), not hand-authored — same broad-not-deep tradeoff as the contract
-itself.
+The merge is done via a marked block so re-running this script is safe: it
+replaces everything between the AUTO-GENERATED markers and leaves the
+hand-authored paths/components above and below untouched.
+
+Broad coverage, not deep fidelity for the auto-generated block specifically:
+request bodies are permissive (any JSON object) and only the two response
+shapes the app's own auth guard actually guarantees are asserted — 401
+Unauthorized (exact schema; every /api route enforces this identically via
+app.py's require_login()) and 200 (permissive schema, since real body shapes
+vary per endpoint and this block trades per-endpoint fidelity for full route
+breadth). The 6 hand-authored endpoints keep their full, precise contracts.
 
 Run:
     python scripts/generate_full_contract.py
-Writes: full_api_contract.yaml, examples_full/*.json (repo root)
+Writes: api_contract.yaml (in place), examples_api/*.json (new files only —
+never overwrites an existing hand-authored example)
 """
 import json
 import os
@@ -35,33 +37,53 @@ os.environ.setdefault("GROQ_API_KEY", "contract-generation-placeholder")
 
 from app import app  # noqa: E402  (import after sys.path/env setup, matches app.py's own style)
 
-# Exact paths only — do NOT use startswith, "/api/command" is a prefix of
-# "/api/command-center/execute-raw" which must NOT be excluded.
-GOVERNED_PATHS = {
-    "/api/auth/login",
-    "/api/auth/session",
-    "/api/connections",
-    "/api/command",
-    "/api/execute",
-    "/api/undo",
+# Exact (path, method) pairs only — do NOT exclude by path alone. /api/connections
+# supports both GET and POST in the app, but the hand-authored contract only
+# documents GET; excluding the whole path silently dropped POST from BOTH the
+# hand-authored section and the auto-generated block (found via a live run
+# showing it as "missing in spec*"). Also do NOT use startswith — "/api/command"
+# is a prefix of "/api/command-center/execute-raw" which must NOT be excluded.
+HAND_AUTHORED_OPERATIONS = {
+    ("/api/auth/login", "POST"),
+    ("/api/auth/session", "GET"),
+    ("/api/connections", "GET"),
+    ("/api/command", "POST"),
+    ("/api/execute", "POST"),
+    ("/api/undo", "POST"),
 }
+
+START_MARKER = "  # === AUTO-GENERATED (scripts/generate_full_contract.py) — regenerate, do not hand-edit below ===\n"
+END_MARKER = "  # === END AUTO-GENERATED ===\n"
+
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+CONTRACT_PATH = os.path.join(REPO_ROOT, "api_contract.yaml")
+EXAMPLES_DIR = os.path.join(REPO_ROOT, "examples_api")
 
 
 def flask_path_to_openapi(rule):
     return re.sub(r"<(?:[^:<>]+:)?([^<>]+)>", r"{\1}", rule)
 
 
+HAND_AUTHORED_PATHS = {path for path, _method in HAND_AUTHORED_OPERATIONS}
+
+
 def collect_routes():
+    """Returns (new_paths, partial_paths): new_paths are paths with zero hand-authored
+    operations (safe to append as a whole new top-level path block); partial_paths are
+    paths that already have a hand-authored block for SOME methods but are missing
+    others (must be spliced into the existing block, not appended as a duplicate key)."""
     routes = {}
     for rule in app.url_map.iter_rules():
         if not rule.rule.startswith("/api"):
             continue
         path = flask_path_to_openapi(rule.rule)
-        if path in GOVERNED_PATHS:
-            continue
         methods = sorted(m for m in (rule.methods or set()) if m not in ("HEAD", "OPTIONS"))
-        routes.setdefault(path, set()).update(methods)
-    return dict(sorted(routes.items()))
+        methods = [m for m in methods if (path, m) not in HAND_AUTHORED_OPERATIONS]
+        if methods:
+            routes.setdefault(path, set()).update(methods)
+    new_paths = {p: m for p, m in routes.items() if p not in HAND_AUTHORED_PATHS}
+    partial_paths = {p: m for p, m in routes.items() if p in HAND_AUTHORED_PATHS}
+    return dict(sorted(new_paths.items())), dict(sorted(partial_paths.items()))
 
 
 def path_params(path):
@@ -71,11 +93,6 @@ def path_params(path):
 def emit_operation(method, path):
     lines = [f"    {method.lower()}:"]
     lines.append(f'      summary: "{method} {path}"')
-    # Per-operation security (not a document-root default) — matches api_contract.yaml's
-    # proven pattern. A root-level `security:` key was tried first and Specmatic's test
-    # engine did not inject the configured bearer token for the positive-auth case with it
-    # (every "200" test got 401 instead) — confirmed by comparing against api_contract.yaml,
-    # which declares `security: [{ bearerAuth: [] }]` on every operation individually.
     lines.append("      security:")
     lines.append("        - bearerAuth: []")
     params = path_params(path)
@@ -87,10 +104,10 @@ def emit_operation(method, path):
             lines.append("          required: true")
             lines.append("          schema: { type: string }")
     if method in ("POST", "PUT", "DELETE", "PATCH"):
-        # required: true (not false) — Flask's request.json 415s on a body-less
-        # request on nearly every handler in this app, so `required: false` just
-        # invites Specmatic to generate a "body omitted" boundary case that fails
-        # for a reason unrelated to auth/routing. Every real client sends a body.
+        # required: true — Flask's request.json 415s on a body-less request on
+        # nearly every handler in this app, so `required: false` just invites
+        # Specmatic to generate a "body omitted" boundary case that fails for a
+        # reason unrelated to auth/routing. Every real client sends a body.
         lines.append("      requestBody:")
         lines.append("        required: true")
         lines.append("        content:")
@@ -99,7 +116,7 @@ def emit_operation(method, path):
         lines.append("              type: object")
     lines.append("      responses:")
     lines.append('        "200":')
-    lines.append("          description: Success (shape varies by endpoint — see api_contract.yaml for hand-curated deep contracts)")
+    lines.append("          description: Success (shape varies by endpoint — see the hand-authored endpoints above for precise contracts)")
     lines.append("          content:")
     lines.append("            application/json:")
     lines.append("              schema: {}")
@@ -115,6 +132,57 @@ def emit_operation(method, path):
     return "\n".join(lines)
 
 
+def build_block(new_paths):
+    out = [START_MARKER.rstrip("\n")]
+    for path, methods in new_paths.items():
+        out.append(f"  {path}:")
+        for method in sorted(methods):
+            out.append(emit_operation(method, path))
+    out.append(END_MARKER.rstrip("\n"))
+    return "\n".join(out) + "\n"
+
+
+def splice_partial_path(text, path, methods):
+    """Path already has a hand-authored `  {path}:` block for some methods —
+    insert the missing method(s) at the end of that same block instead of
+    appending a duplicate top-level key (which would silently orphan one of
+    the two blocks under YAML's last-key-wins duplicate-key handling)."""
+    path_key = f"  {path}:\n"
+    start = text.index(path_key) + len(path_key)
+    end = start
+    lines = text[start:].splitlines(keepends=True)
+    for line in lines:
+        # A line that isn't blank and isn't indented at least 4 spaces (i.e. isn't
+        # part of this path's own operation blocks) marks the end of this block.
+        if line.strip() and not line.startswith("    "):
+            break
+        end += len(line)
+    new_ops = "".join(emit_operation(m, path) + "\n" for m in sorted(methods))
+    return text[:end] + new_ops + text[end:]
+
+
+def splice_into_contract(new_paths, partial_paths):
+    with open(CONTRACT_PATH) as f:
+        text = f.read()
+
+    for path, methods in partial_paths.items():
+        text = splice_partial_path(text, path, methods)
+
+    block = build_block(new_paths)
+    if START_MARKER in text and END_MARKER in text:
+        start = text.index(START_MARKER)
+        end = text.index(END_MARKER) + len(END_MARKER)
+        text = text[:start] + block + text[end:]
+    else:
+        # First run: insert right before the top-level `components:` section.
+        marker = "\ncomponents:\n"
+        idx = text.index(marker)
+        text = text[:idx] + "\n" + block + text[idx:]
+
+    with open(CONTRACT_PATH, "w") as f:
+        f.write(text)
+
+
 def slugify(method, path):
     name = path.strip("/").replace("/", "_")
     name = re.sub(r"[{}]", "", name)
@@ -126,9 +194,9 @@ def concrete_path(path):
     return re.sub(r"\{[^}]+\}", "1", path)
 
 
-def write_examples(routes, examples_dir):
-    os.makedirs(examples_dir, exist_ok=True)
-    count = 0
+def write_examples(routes):
+    os.makedirs(EXAMPLES_DIR, exist_ok=True)
+    written = 0
     for path, methods in routes.items():
         for method in sorted(methods):
             slug = slugify(method, path)
@@ -137,59 +205,39 @@ def write_examples(routes, examples_dir):
             if method in ("POST", "PUT", "DELETE", "PATCH"):
                 request["body"] = {}
 
-            ok = {"http-request": request, "http-response": {"status": 200}}
-            with open(os.path.join(examples_dir, f"{slug}_200.json"), "w") as f:
-                json.dump(ok, f)
-                f.write("\n")
+            ok_path = os.path.join(EXAMPLES_DIR, f"{slug}_200.json")
+            if not os.path.exists(ok_path):
+                ok = {"http-request": request, "http-response": {"status": 200}}
+                with open(ok_path, "w") as f:
+                    json.dump(ok, f)
+                    f.write("\n")
+                written += 1
 
-            bad_request = dict(request, headers={"Authorization": "Bearer not-the-ci-token"})
-            unauthorized = {"http-request": bad_request,
-                             "http-response": {"status": 401, "body": {"error": "Unauthorized"}}}
-            with open(os.path.join(examples_dir, f"{slug}_401.json"), "w") as f:
-                json.dump(unauthorized, f)
-                f.write("\n")
-            count += 2
-    return count
+            bad_path = os.path.join(EXAMPLES_DIR, f"{slug}_401.json")
+            if not os.path.exists(bad_path):
+                bad_request = dict(request, headers={"Authorization": "Bearer not-the-ci-token"})
+                unauthorized = {"http-request": bad_request,
+                                 "http-response": {"status": 401, "body": {"error": "Unauthorized"}}}
+                with open(bad_path, "w") as f:
+                    json.dump(unauthorized, f)
+                    f.write("\n")
+                written += 1
+    return written
 
 
 def main():
-    routes = collect_routes()
+    new_paths, partial_paths = collect_routes()
+    splice_into_contract(new_paths, partial_paths)
 
-    out = []
-    out.append("openapi: 3.0.3")
-    out.append("info:")
-    out.append("  title: Meridian Data — Full API Surface (auto-generated)")
-    out.append('  version: "1.0.0"')
-    out.append("  description: >")
-    out.append("    Auto-generated from the live Flask route table (app.url_map) by")
-    out.append("    scripts/generate_full_contract.py. Covers every /api route so contract")
-    out.append("    testing exercises the FULL attack surface, not just the 6 hand-curated")
-    out.append("    endpoints in api_contract.yaml. Broad coverage, not deep fidelity — see")
-    out.append("    CONTRACT_SCOPE.md for the two-tier rationale. Regenerate after adding or")
-    out.append("    removing routes: python scripts/generate_full_contract.py")
-    out.append("paths:")
-    for path, methods in routes.items():
-        out.append(f"  {path}:")
-        for method in sorted(methods):
-            out.append(emit_operation(method, path))
-    out.append("components:")
-    out.append("  securitySchemes:")
-    out.append("    bearerAuth:")
-    out.append("      type: http")
-    out.append("      scheme: bearer")
+    all_routes = dict(new_paths)
+    for path, methods in partial_paths.items():
+        all_routes.setdefault(path, set()).update(methods)
+    example_count = write_examples(all_routes)
 
-    text = "\n".join(out) + "\n"
-    repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    out_path = os.path.join(repo_root, "full_api_contract.yaml")
-    with open(out_path, "w") as f:
-        f.write(text)
-    op_count = sum(len(m) for m in routes.values())
-
-    examples_dir = os.path.join(repo_root, "examples_full")
-    example_count = write_examples(routes, examples_dir)
-
-    print(f"Wrote {out_path} — {len(routes)} paths, {op_count} operations")
-    print(f"Wrote {example_count} example files to {examples_dir}")
+    op_count = sum(len(m) for m in all_routes.values())
+    print(f"Merged {len(new_paths)} new paths + {len(partial_paths)} partial paths "
+          f"({op_count} operations total) into {CONTRACT_PATH}")
+    print(f"Wrote {example_count} new example files to {EXAMPLES_DIR}")
 
 
 if __name__ == "__main__":

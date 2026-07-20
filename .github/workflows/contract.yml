@@ -2,15 +2,16 @@ name: API Contract Test (Specmatic)
 
 # Executable-contract guardrail. specmatic.yaml sets schemaResiliencyTests: all, so ONE test
 # run per spec already covers both conformance (examples) and resiliency (generative/boundary)
-# — one job per app spec (contract_public.yaml, api_contract.yaml, full_api_contract.yaml),
-# each emitting a Specmatic HTML report artifact. full_api_contract.yaml is auto-generated
-# (scripts/generate_full_contract.py) and covers the other 45 /api operations beyond the 6
-# hand-curated ones in api_contract.yaml — see CONTRACT_SCOPE.md for what it does and doesn't
-# assert.
+# — one job per app spec (contract_public.yaml, api_contract.yaml), each emitting a Specmatic
+# HTML report artifact. api_contract.yaml governs ALL ~52 /api operations directly: 6 are
+# hand-authored with precise contracts, the rest are auto-generated
+# (scripts/generate_full_contract.py) into the same file — a single spec, so a report against
+# it has nothing left to report as "missing in spec". See CONTRACT_SCOPE.md for what the
+# auto-generated block does and doesn't assert.
 #
 # The LLM-calling endpoints (e.g. /api/command) are exercised with the LLM provider
 # virtualized by a Specmatic stub of llm_contract.yaml — deterministic, offline, 0-token.
-# A 4th job smoke-tests that virtualization directly, plus fault-injects empty/malformed
+# A 3rd job smoke-tests that virtualization directly, plus fault-injects empty/malformed
 # provider responses to prove the app fails clean instead of executing the failure text.
 
 on:
@@ -22,12 +23,10 @@ on:
       - "core/**"
       - "api_contract.yaml"
       - "contract_public.yaml"
-      - "full_api_contract.yaml"
       - "llm_contract.yaml"
       - "specmatic.yaml"
       - "examples/**"
       - "examples_api/**"
-      - "examples_full/**"
       - "scripts/llm_mock_test.py"
       - "scripts/llm_fault_injection_test.py"
       - "scripts/generate_full_contract.py"
@@ -39,27 +38,17 @@ on:
       - "core/**"
       - "api_contract.yaml"
       - "contract_public.yaml"
-      - "full_api_contract.yaml"
       - "llm_contract.yaml"
       - "specmatic.yaml"
       - "examples/**"
       - "examples_api/**"
-      - "examples_full/**"
   workflow_dispatch:
 
 jobs:
-  # ---- 3 test jobs, one per app spec — each covers conformance + resiliency in one run ----
+  # ---- 2 test jobs, one per app spec — each covers conformance + resiliency in one run ----
   api-test:
     name: ${{ matrix.spec }}
     runs-on: ubuntu-latest
-    # full_api_contract.yaml is a broad-not-deep diagnostic layer (auto-generated,
-    # generic request bodies) with a known, documented baseline of 9/125 failures —
-    # endpoints needing real business-specific data, not auth/routing/crash bugs. See
-    # CONTRACT_SCOPE.md. Specmatic's CLI exits non-zero on any test failure, so without
-    # this the whole workflow would go red on every push even with zero regressions.
-    # api_contract.yaml and contract_public.yaml (the deep, must-be-100% layer) still
-    # block normally.
-    continue-on-error: ${{ matrix.spec == 'full_api_contract.yaml' }}
     strategy:
       fail-fast: false
       matrix:
@@ -68,8 +57,6 @@ jobs:
             examples: "--examples examples"
           - spec: api_contract.yaml
             examples: "--examples examples_api"
-          - spec: full_api_contract.yaml
-            examples: "--examples examples_full"
     steps:
       - name: Checkout
         uses: actions/checkout@v4

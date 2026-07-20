@@ -98,6 +98,31 @@ paths:
                   db_info:      { type: object }
                   llm_provider: { type: string }
 
+    post:
+      summary: "POST /api/connections"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Success (shape varies by endpoint — see the hand-authored endpoints above for precise contracts)
+          content:
+            application/json:
+              schema: {}
+        "401":
+          description: Unauthorized (no or invalid credentials)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
   /api/command:
     post:
       summary: Run a natural-language command (NL-to-SQL). Reads return rows; writes return for review. (requires auth)
@@ -197,6 +222,1155 @@ paths:
                       success: { type: boolean }
                       message: { type: string }
                   - $ref: "#/components/schemas/Failure"
+
+  # === AUTO-GENERATED (scripts/generate_full_contract.py) — regenerate, do not hand-edit below ===
+  /api/admin/metrics:
+    get:
+      summary: "GET /api/admin/metrics"
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Success (shape varies by endpoint — see the hand-authored endpoints above for precise contracts)
+          content:
+            application/json:
+              schema: {}
+        "401":
+          description: Unauthorized (no or invalid credentials)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
+  /api/analyze-direct:
+    post:
+      summary: "POST /api/analyze-direct"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Success (shape varies by endpoint — see the hand-authored endpoints above for precise contracts)
+          content:
+            application/json:
+              schema: {}
+        "401":
+          description: Unauthorized (no or invalid credentials)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
+  /api/analyze-full:
+    post:
+      summary: "POST /api/analyze-full"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Success (shape varies by endpoint — see the hand-authored endpoints above for precise contracts)
+          content:
+            application/json:
+              schema: {}
+        "401":
+          description: Unauthorized (no or invalid credentials)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
+  /api/analyze-full/status/{job_id}:
+    get:
+      summary: "GET /api/analyze-full/status/{job_id}"
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: job_id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Success (shape varies by endpoint — see the hand-authored endpoints above for precise contracts)
+          content:
+            application/json:
+              schema: {}
+        "401":
+          description: Unauthorized (no or invalid credentials)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
+  /api/ask:
+    post:
+      summary: "POST /api/ask"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Success (shape varies by endpoint — see the hand-authored endpoints above for precise contracts)
+          content:
+            application/json:
+              schema: {}
+        "401":
+          description: Unauthorized (no or invalid credentials)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
+  /api/auth/logout:
+    post:
+      summary: "POST /api/auth/logout"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Success (shape varies by endpoint — see the hand-authored endpoints above for precise contracts)
+          content:
+            application/json:
+              schema: {}
+        "401":
+          description: Unauthorized (no or invalid credentials)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
+  /api/command-center/anomalies:
+    post:
+      summary: "POST /api/command-center/anomalies"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Success (shape varies by endpoint — see the hand-authored endpoints above for precise contracts)
+          content:
+            application/json:
+              schema: {}
+        "401":
+          description: Unauthorized (no or invalid credentials)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
+  /api/command-center/answer-ppt:
+    post:
+      summary: "POST /api/command-center/answer-ppt"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Success (shape varies by endpoint — see the hand-authored endpoints above for precise contracts)
+          content:
+            application/json:
+              schema: {}
+        "401":
+          description: Unauthorized (no or invalid credentials)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
+  /api/command-center/auto-insights:
+    post:
+      summary: "POST /api/command-center/auto-insights"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Success (shape varies by endpoint — see the hand-authored endpoints above for precise contracts)
+          content:
+            application/json:
+              schema: {}
+        "401":
+          description: Unauthorized (no or invalid credentials)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
+  /api/command-center/data-health:
+    post:
+      summary: "POST /api/command-center/data-health"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Success (shape varies by endpoint — see the hand-authored endpoints above for precise contracts)
+          content:
+            application/json:
+              schema: {}
+        "401":
+          description: Unauthorized (no or invalid credentials)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
+  /api/command-center/deep-ask:
+    post:
+      summary: "POST /api/command-center/deep-ask"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Success (shape varies by endpoint — see the hand-authored endpoints above for precise contracts)
+          content:
+            application/json:
+              schema: {}
+        "401":
+          description: Unauthorized (no or invalid credentials)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
+  /api/command-center/execute-raw:
+    post:
+      summary: "POST /api/command-center/execute-raw"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Success (shape varies by endpoint — see the hand-authored endpoints above for precise contracts)
+          content:
+            application/json:
+              schema: {}
+        "401":
+          description: Unauthorized (no or invalid credentials)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
+  /api/command-center/kpis:
+    post:
+      summary: "POST /api/command-center/kpis"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Success (shape varies by endpoint — see the hand-authored endpoints above for precise contracts)
+          content:
+            application/json:
+              schema: {}
+        "401":
+          description: Unauthorized (no or invalid credentials)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
+  /api/command-center/smart-ppt:
+    post:
+      summary: "POST /api/command-center/smart-ppt"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Success (shape varies by endpoint — see the hand-authored endpoints above for precise contracts)
+          content:
+            application/json:
+              schema: {}
+        "401":
+          description: Unauthorized (no or invalid credentials)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
+  /api/command/paginate:
+    get:
+      summary: "GET /api/command/paginate"
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Success (shape varies by endpoint — see the hand-authored endpoints above for precise contracts)
+          content:
+            application/json:
+              schema: {}
+        "401":
+          description: Unauthorized (no or invalid credentials)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
+  /api/connections/select:
+    post:
+      summary: "POST /api/connections/select"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Success (shape varies by endpoint — see the hand-authored endpoints above for precise contracts)
+          content:
+            application/json:
+              schema: {}
+        "401":
+          description: Unauthorized (no or invalid credentials)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
+  /api/connections/{name}:
+    delete:
+      summary: "DELETE /api/connections/{name}"
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Success (shape varies by endpoint — see the hand-authored endpoints above for precise contracts)
+          content:
+            application/json:
+              schema: {}
+        "401":
+          description: Unauthorized (no or invalid credentials)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
+  /api/create-database:
+    post:
+      summary: "POST /api/create-database"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Success (shape varies by endpoint — see the hand-authored endpoints above for precise contracts)
+          content:
+            application/json:
+              schema: {}
+        "401":
+          description: Unauthorized (no or invalid credentials)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
+  /api/dashboards:
+    get:
+      summary: "GET /api/dashboards"
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Success (shape varies by endpoint — see the hand-authored endpoints above for precise contracts)
+          content:
+            application/json:
+              schema: {}
+        "401":
+          description: Unauthorized (no or invalid credentials)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
+    post:
+      summary: "POST /api/dashboards"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Success (shape varies by endpoint — see the hand-authored endpoints above for precise contracts)
+          content:
+            application/json:
+              schema: {}
+        "401":
+          description: Unauthorized (no or invalid credentials)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
+  /api/dashboards/auto-generate:
+    post:
+      summary: "POST /api/dashboards/auto-generate"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Success (shape varies by endpoint — see the hand-authored endpoints above for precise contracts)
+          content:
+            application/json:
+              schema: {}
+        "401":
+          description: Unauthorized (no or invalid credentials)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
+  /api/dashboards/{dash_id}:
+    delete:
+      summary: "DELETE /api/dashboards/{dash_id}"
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: dash_id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Success (shape varies by endpoint — see the hand-authored endpoints above for precise contracts)
+          content:
+            application/json:
+              schema: {}
+        "401":
+          description: Unauthorized (no or invalid credentials)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
+    get:
+      summary: "GET /api/dashboards/{dash_id}"
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: dash_id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Success (shape varies by endpoint — see the hand-authored endpoints above for precise contracts)
+          content:
+            application/json:
+              schema: {}
+        "401":
+          description: Unauthorized (no or invalid credentials)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
+  /api/dashboards/{dash_id}/widgets:
+    post:
+      summary: "POST /api/dashboards/{dash_id}/widgets"
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: dash_id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Success (shape varies by endpoint — see the hand-authored endpoints above for precise contracts)
+          content:
+            application/json:
+              schema: {}
+        "401":
+          description: Unauthorized (no or invalid credentials)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
+  /api/dashboards/{dash_id}/widgets/{widget_id}:
+    delete:
+      summary: "DELETE /api/dashboards/{dash_id}/widgets/{widget_id}"
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: dash_id
+          in: path
+          required: true
+          schema: { type: string }
+        - name: widget_id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Success (shape varies by endpoint — see the hand-authored endpoints above for precise contracts)
+          content:
+            application/json:
+              schema: {}
+        "401":
+          description: Unauthorized (no or invalid credentials)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
+  /api/db-types:
+    get:
+      summary: "GET /api/db-types"
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Success (shape varies by endpoint — see the hand-authored endpoints above for precise contracts)
+          content:
+            application/json:
+              schema: {}
+        "401":
+          description: Unauthorized (no or invalid credentials)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
+  /api/er-diagram:
+    post:
+      summary: "POST /api/er-diagram"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Success (shape varies by endpoint — see the hand-authored endpoints above for precise contracts)
+          content:
+            application/json:
+              schema: {}
+        "401":
+          description: Unauthorized (no or invalid credentials)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
+  /api/insights:
+    post:
+      summary: "POST /api/insights"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Success (shape varies by endpoint — see the hand-authored endpoints above for precise contracts)
+          content:
+            application/json:
+              schema: {}
+        "401":
+          description: Unauthorized (no or invalid credentials)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
+  /api/intelligence/explain:
+    post:
+      summary: "POST /api/intelligence/explain"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Success (shape varies by endpoint — see the hand-authored endpoints above for precise contracts)
+          content:
+            application/json:
+              schema: {}
+        "401":
+          description: Unauthorized (no or invalid credentials)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
+  /api/join/execute:
+    post:
+      summary: "POST /api/join/execute"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Success (shape varies by endpoint — see the hand-authored endpoints above for precise contracts)
+          content:
+            application/json:
+              schema: {}
+        "401":
+          description: Unauthorized (no or invalid credentials)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
+  /api/join/preview:
+    post:
+      summary: "POST /api/join/preview"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Success (shape varies by endpoint — see the hand-authored endpoints above for precise contracts)
+          content:
+            application/json:
+              schema: {}
+        "401":
+          description: Unauthorized (no or invalid credentials)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
+  /api/join/schema:
+    get:
+      summary: "GET /api/join/schema"
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Success (shape varies by endpoint — see the hand-authored endpoints above for precise contracts)
+          content:
+            application/json:
+              schema: {}
+        "401":
+          description: Unauthorized (no or invalid credentials)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
+  /api/join/suggest:
+    post:
+      summary: "POST /api/join/suggest"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Success (shape varies by endpoint — see the hand-authored endpoints above for precise contracts)
+          content:
+            application/json:
+              schema: {}
+        "401":
+          description: Unauthorized (no or invalid credentials)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
+  /api/overview:
+    post:
+      summary: "POST /api/overview"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Success (shape varies by endpoint — see the hand-authored endpoints above for precise contracts)
+          content:
+            application/json:
+              schema: {}
+        "401":
+          description: Unauthorized (no or invalid credentials)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
+  /api/overview/query:
+    post:
+      summary: "POST /api/overview/query"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Success (shape varies by endpoint — see the hand-authored endpoints above for precise contracts)
+          content:
+            application/json:
+              schema: {}
+        "401":
+          description: Unauthorized (no or invalid credentials)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
+  /api/query:
+    post:
+      summary: "POST /api/query"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Success (shape varies by endpoint — see the hand-authored endpoints above for precise contracts)
+          content:
+            application/json:
+              schema: {}
+        "401":
+          description: Unauthorized (no or invalid credentials)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
+  /api/samples:
+    get:
+      summary: "GET /api/samples"
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Success (shape varies by endpoint — see the hand-authored endpoints above for precise contracts)
+          content:
+            application/json:
+              schema: {}
+        "401":
+          description: Unauthorized (no or invalid credentials)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
+  /api/samples/install:
+    post:
+      summary: "POST /api/samples/install"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Success (shape varies by endpoint — see the hand-authored endpoints above for precise contracts)
+          content:
+            application/json:
+              schema: {}
+        "401":
+          description: Unauthorized (no or invalid credentials)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
+  /api/set-provider:
+    post:
+      summary: "POST /api/set-provider"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Success (shape varies by endpoint — see the hand-authored endpoints above for precise contracts)
+          content:
+            application/json:
+              schema: {}
+        "401":
+          description: Unauthorized (no or invalid credentials)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
+  /api/snapshots:
+    get:
+      summary: "GET /api/snapshots"
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Success (shape varies by endpoint — see the hand-authored endpoints above for precise contracts)
+          content:
+            application/json:
+              schema: {}
+        "401":
+          description: Unauthorized (no or invalid credentials)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
+    post:
+      summary: "POST /api/snapshots"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Success (shape varies by endpoint — see the hand-authored endpoints above for precise contracts)
+          content:
+            application/json:
+              schema: {}
+        "401":
+          description: Unauthorized (no or invalid credentials)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
+  /api/snapshots/restore:
+    post:
+      summary: "POST /api/snapshots/restore"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Success (shape varies by endpoint — see the hand-authored endpoints above for precise contracts)
+          content:
+            application/json:
+              schema: {}
+        "401":
+          description: Unauthorized (no or invalid credentials)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
+  /api/snapshots/{snap_id}:
+    delete:
+      summary: "DELETE /api/snapshots/{snap_id}"
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: snap_id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Success (shape varies by endpoint — see the hand-authored endpoints above for precise contracts)
+          content:
+            application/json:
+              schema: {}
+        "401":
+          description: Unauthorized (no or invalid credentials)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
+  /api/table-preview:
+    post:
+      summary: "POST /api/table-preview"
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Success (shape varies by endpoint — see the hand-authored endpoints above for precise contracts)
+          content:
+            application/json:
+              schema: {}
+        "401":
+          description: Unauthorized (no or invalid credentials)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
+  /api/tables-list:
+    get:
+      summary: "GET /api/tables-list"
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Success (shape varies by endpoint — see the hand-authored endpoints above for precise contracts)
+          content:
+            application/json:
+              schema: {}
+        "401":
+          description: Unauthorized (no or invalid credentials)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
+  # === END AUTO-GENERATED ===
 
 components:
   securitySchemes:

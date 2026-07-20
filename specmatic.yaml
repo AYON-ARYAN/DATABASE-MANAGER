@@ -27,7 +27,6 @@ components:
             specs:
               - contract_public.yaml
               - api_contract.yaml
-              - full_api_contract.yaml
       runOptions:
         $ref: "#/components/runOptions/meridianTest"
     llmProvider:
@@ -53,12 +52,6 @@ components:
         specs:
           - spec:
               id: api_contract.yaml
-              securitySchemes:
-                bearerAuth:
-                  type: bearer
-                  token: ${API_BEARER_TOKEN:specmatic-ci-token}
-          - spec:
-              id: full_api_contract.yaml
               securitySchemes:
                 bearerAuth:
                   type: bearer

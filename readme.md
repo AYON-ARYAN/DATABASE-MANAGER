@@ -88,17 +88,12 @@ testing](#1--run-the-application) above.
 TEST_APP_PORT=5001 java -jar ${SPECMATIC_JAR:-specmatic.jar} test contract_public.yaml --examples examples --host localhost --port 5001
 ```
 
-**Terminal 3 again — the full API contract test:**
+**Terminal 3 again — the API contract test (all 52 `/api` operations — 6 hand-curated + 46 auto-generated, one spec):**
 ```bash
 TEST_APP_PORT=5001 java -jar ${SPECMATIC_JAR:-specmatic.jar} test api_contract.yaml --examples examples_api --host localhost --port 5001
 ```
 
-**Terminal 3 again — the full-surface contract test (all 45 remaining `/api` operations, auto-generated):**
-```bash
-TEST_APP_PORT=5001 java -jar ${SPECMATIC_JAR:-specmatic.jar} test full_api_contract.yaml --examples examples_full --host localhost --port 5001
-```
-
-The first two report **100% API coverage** on the 6 hand-curated endpoints (actuator enabled — actual, not just matched, coverage). The third exercises every other `/api` operation the app exposes — see [`CONTRACT_SCOPE.md`](./CONTRACT_SCOPE.md) for what it does and doesn't assert. All commands run in CI on every push — see [`.github/workflows/contract.yml`](.github/workflows/contract.yml). HTML reports land in `build/reports/specmatic/test/html/`; committed snapshots are in [`reports/`](reports/).
+The public contract reports **100% API coverage** on its 2 endpoints; the API contract covers every real `/api` operation the app exposes — zero "missing in spec" — with the 6 core endpoints at full request/response fidelity and the rest asserting the auth boundary (see [`CONTRACT_SCOPE.md`](./CONTRACT_SCOPE.md) for exactly what each layer does and doesn't assert). Both commands run in CI on every push — see [`.github/workflows/contract.yml`](.github/workflows/contract.yml). HTML reports land in `build/reports/specmatic/test/html/`; committed snapshots are in [`reports/`](reports/).
 
 <details>
 <summary>More context (ports, Docker, auth, scope) — not required to run the tests above</summary>
@@ -107,7 +102,7 @@ The first two report **100% API coverage** on the 6 hand-curated endpoints (actu
 - **Jar not at the repo root?** `export SPECMATIC_JAR=/path/to/specmatic.jar` before running the commands above — they already fall back to `specmatic.jar` in the repo root if it's unset.
 - **Different ports?** Change `9090`/`5001` consistently across all four commands (stub port, app port, and `--port`/`TEST_APP_PORT` on the test commands must all agree).
 - **Auth:** the API accepts a real `Bearer` token (`API_BEARER_TOKEN`, off by default so production stays cookie-only) alongside the web UI's session-cookie login — any client can use it, including Specmatic via `securitySchemes` in [`specmatic.yaml`](specmatic.yaml). No test-only bypass; run the app without `API_BEARER_TOKEN` and protected endpoints correctly return `401`.
-- **Missing-in-spec endpoints:** the app exposes 52 `/api` routes; the contract deliberately governs the 6 that form the external trust boundary. See [`CONTRACT_SCOPE.md`](./CONTRACT_SCOPE.md) for the full list and reasoning — an intentional, documented scope, not an accident.
+- **Contract layers:** `api_contract.yaml` governs all 52 `/api` routes — 6 hand-authored with full request/response fidelity, the rest auto-generated (`scripts/generate_full_contract.py`) asserting the auth boundary. See [`CONTRACT_SCOPE.md`](./CONTRACT_SCOPE.md) for what each layer covers and why.
 
 </details>
 
