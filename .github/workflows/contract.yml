@@ -142,10 +142,14 @@ jobs:
             --filter "PATH='/api/auth/login' || PATH='/api/auth/session' || PATH='/api/connections' || PATH='/api/command' || PATH='/api/execute' || PATH='/api/undo'"
 
       - name: Preserve core-endpoints report before the second pass overwrites it
+        # build/reports/ is written by the Specmatic docker container (root), so the
+        # runner's own user needs sudo to create a sibling directory there — passwordless
+        # sudo is available on GitHub-hosted runners.
         if: always()
         run: |
-          mkdir -p build/reports/specmatic/test/html-core
-          cp -r build/reports/specmatic/test/html/. build/reports/specmatic/test/html-core/ 2>/dev/null || true
+          sudo mkdir -p build/reports/specmatic/test/html-core
+          sudo cp -r build/reports/specmatic/test/html/. build/reports/specmatic/test/html-core/
+          sudo chown -R $(id -u):$(id -g) build/reports/specmatic/test/html-core
 
       - name: Test — api_contract.yaml, auto-generated 46 endpoints (known 9/125 baseline, non-blocking)
         continue-on-error: true
