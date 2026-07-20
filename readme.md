@@ -83,24 +83,19 @@ java -jar ${SPECMATIC_JAR:-specmatic.jar} stub llm_contract.yaml --port 9090
 **Terminal 2 — the app, configured for testing:** see [Run the application → For Specmatic
 testing](#1--run-the-application) above.
 
-**Terminal 3 — the public contract test:**
-```bash
-TEST_APP_PORT=5001 java -jar ${SPECMATIC_JAR:-specmatic.jar} test contract_public.yaml --examples examples --host localhost --port 5001
-```
-
-**Terminal 3 again — the API contract test (all 52 `/api` operations — 6 hand-curated + 46 auto-generated, one spec):**
+**Terminal 3 — the API contract test (all 52 `/api` operations, including `/api/auth/login` — 6 hand-curated + 46 auto-generated, ONE spec):**
 ```bash
 TEST_APP_PORT=5001 java -jar ${SPECMATIC_JAR:-specmatic.jar} test api_contract.yaml --examples examples_api --host localhost --port 5001
 ```
 
-The public contract reports **100% API coverage** on its 2 endpoints; the API contract covers every real `/api` operation the app exposes — zero "missing in spec" — with the 6 core endpoints at full request/response fidelity and the rest asserting the auth boundary (see [`CONTRACT_SCOPE.md`](./CONTRACT_SCOPE.md) for exactly what each layer does and doesn't assert). Both commands run in CI on every push — see [`.github/workflows/contract.yml`](.github/workflows/contract.yml). HTML reports land in `build/reports/specmatic/test/html/`; committed snapshots are in [`reports/`](reports/).
+`api_contract.yaml` covers every real `/api` operation the app exposes — zero "missing in spec" — with the 6 core endpoints at full request/response fidelity and the rest asserting the auth boundary (see [`CONTRACT_SCOPE.md`](./CONTRACT_SCOPE.md) for exactly what each layer does and doesn't assert). This command runs in CI on every push — see [`.github/workflows/contract.yml`](.github/workflows/contract.yml). HTML reports land in `build/reports/specmatic/test/html/`; committed snapshots are in [`reports/`](reports/).
 
 <details>
 <summary>More context (ports, Docker, auth, scope) — not required to run the tests above</summary>
 
 - **Using Docker instead of a local jar:** swap `java -jar ${SPECMATIC_JAR:-specmatic.jar}` for `docker run --rm --network host -v "$PWD:/specs" -w /specs specmatic/specmatic:2.48.0` in each command above.
 - **Jar not at the repo root?** `export SPECMATIC_JAR=/path/to/specmatic.jar` before running the commands above — they already fall back to `specmatic.jar` in the repo root if it's unset.
-- **Different ports?** Change `9090`/`5001` consistently across all four commands (stub port, app port, and `--port`/`TEST_APP_PORT` on the test commands must all agree).
+- **Different ports?** Change `9090`/`5001` consistently across all three commands (stub port, app port, and `--port`/`TEST_APP_PORT` on the test command must all agree).
 - **Auth:** the API accepts a real `Bearer` token (`API_BEARER_TOKEN`, off by default so production stays cookie-only) alongside the web UI's session-cookie login — any client can use it, including Specmatic via `securitySchemes` in [`specmatic.yaml`](specmatic.yaml). No test-only bypass; run the app without `API_BEARER_TOKEN` and protected endpoints correctly return `401`.
 - **Contract layers:** `api_contract.yaml` governs all 52 `/api` routes — 6 hand-authored with full request/response fidelity, the rest auto-generated (`scripts/generate_full_contract.py`) asserting the auth boundary. See [`CONTRACT_SCOPE.md`](./CONTRACT_SCOPE.md) for what each layer covers and why.
 
@@ -124,15 +119,14 @@ AI-generated code — catching silent API drift, and even **virtualizing the LLM
 AI-dependent tests run offline and token-free. For the run commands, see
 [Run it locally → Run the Specmatic tests](#2--run-the-specmatic-tests) above.
 
-### The three contracts — what each is and why it exists
+### The two contracts — what each is and why it exists
 
 | Contract | Describes | Why it exists |
 |---|---|---|
-| **`api_contract.yaml`** | The full `/api` surface (auth, connections, `command`, `execute`, `undo`), incl. the `/api/command` `oneOf` union (READ result / write-needs-review / error) and `401`s on protected endpoints. | **Single source of truth** for the API. Specmatic uses it to (a) **stub** the backend so the React frontend can develop in parallel, and (b) pin the real shapes (with `examples`) so humans/AI agents can't silently drift them. |
-| **`contract_public.yaml`** | The **unauthenticated public surface** (`POST /api/auth/login`, incl. the `400` for malformed input). | This is what runs in **CI**. The full API is behind a Flask **session cookie**, which Specmatic's test mode can't drive (it supports header/bearer/oauth2, not cookies) — so CI tests the cookie-free surface, with inline + external **examples** and **generative resiliency** tests. |
+| **`api_contract.yaml`** | The full `/api` surface — every one of the 52 real operations, including auth/login, connections, `command`, `execute`, `undo`, and every feature-surface endpoint (Command Center, Dashboards, Join Center, snapshots, samples, …). 6 are hand-curated at full fidelity (incl. the `/api/command` `oneOf` union: READ result / write-needs-review / error); the rest are auto-generated (`scripts/generate_full_contract.py`) asserting the auth boundary. `401`s are verified on every protected endpoint. | **Single source of truth** for the API. Specmatic uses it to (a) **stub** the backend so the React frontend can develop in parallel, and (b) pin the real shapes (with `examples`) so humans/AI agents can't silently drift them. Zero "missing in spec" — see [`CONTRACT_SCOPE.md`](./CONTRACT_SCOPE.md). |
 | **`llm_contract.yaml`** | The **upstream LLM provider** Meridian consumes — Groq's OpenAI-compatible `POST /openai/v1/chat/completions`. | Lets Specmatic **stub the LLM** in tests (service virtualization). See [`LLM_CONTRACT_NOTES.md`](./LLM_CONTRACT_NOTES.md) for every deviation from the real OpenAI/Groq spec and why. |
 
-External example files live in [`examples/`](./examples) (loaded via `--examples`).
+External example files live in [`examples_api/`](./examples_api) (loaded via `--examples`).
 
 ### How the LLM mock is used (and why it's a separate CI step)
 
@@ -151,12 +145,15 @@ Meridian consumes** (Meridian as *consumer*). Different role, different contract
 ### CI (`.github/workflows/contract.yml`)
 
 `specmatic.yaml`'s `schemaResiliencyTests: all` setting means each spec's single test run already
-covers **both** conformance (examples) **and** resiliency (generative/boundary) — so there are
-just two spec-testing jobs plus the LLM smoke test:
-1. **`contract_public.yaml`** — **100% coverage** (`200` + `400`).
-2. **`api_contract.yaml`**, LLM mocked — exercises the real LLM-calling endpoints (`/api/command`, …)
+covers **both** conformance (examples) **and** resiliency (generative/boundary). One spec, two
+jobs:
+1. **`api_contract.yaml`**, run twice with `--filter` — once scoped to the 6 hand-curated core
+   endpoints (blocks the pipeline on real regressions), once scoped to the other 46
+   (continue-on-error — a documented baseline of endpoints needing real business data, not a
+   regression signal). LLM mocked — exercises the real LLM-calling endpoints (`/api/command`, …)
    with the provider served by the Specmatic stub, so the AI path is tested **offline, zero-token**.
-3. **LLM virtualization smoke test** (`scripts/llm_mock_test.py`).
+2. **LLM virtualization smoke test** (`scripts/llm_mock_test.py`) + fault injection
+   (`scripts/llm_fault_injection_test.py`).
 
 This suite has already caught real bugs — a `500` crash on malformed `/api/command` input, an
 undocumented `config` leak in `/api/connections`, an ambiguous error `oneOf` — see the blog

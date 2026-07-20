@@ -25,7 +25,6 @@ components:
             source:
               $ref: "#/components/sources/local"
             specs:
-              - contract_public.yaml
               - api_contract.yaml
       runOptions:
         $ref: "#/components/runOptions/meridianTest"

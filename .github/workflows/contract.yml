@@ -2,21 +2,24 @@ name: API Contract Test (Specmatic)
 
 # Executable-contract guardrail. specmatic.yaml sets schemaResiliencyTests: all, so ONE test
 # run per spec already covers both conformance (examples) and resiliency (generative/boundary).
-# api_contract.yaml governs ALL ~52 /api operations directly: 6 are hand-authored with precise
-# contracts, the rest are auto-generated (scripts/generate_full_contract.py) into the same
-# file — a single spec, so a report against it has nothing left to report as "missing in
-# spec". See CONTRACT_SCOPE.md for what the auto-generated block does and doesn't assert.
+# api_contract.yaml is the ONLY spec — it governs ALL ~52 /api operations directly, including
+# /api/auth/login (contract_public.yaml used to test that one endpoint separately; retired
+# because a second file meant a second report that showed every other endpoint as "missing in
+# spec", which was confusing even though everything really was covered somewhere). 6 endpoints
+# are hand-authored with precise contracts, the rest are auto-generated
+# (scripts/generate_full_contract.py) into the same file. One spec, one report, nothing shows
+# as missing. See CONTRACT_SCOPE.md for what the auto-generated block does and doesn't assert.
 #
-# Because both layers now live in one file, the api-contract-test job runs it TWICE with
-# --filter: once scoped to the 6 hand-authored core paths (blocks the workflow — these are
-# real regressions), once scoped to everything else (continue-on-error — a known, documented
-# 9/125 baseline of endpoints needing real business data, not a regression signal). Splitting
-# by filter instead of by file keeps the "one spec" property while preserving real blocking
-# power for the endpoints that matter most.
+# Both layers live in one file, so the api-contract-test job runs it TWICE with --filter: once
+# scoped to the 6 hand-authored core paths (blocks the workflow — these are real regressions),
+# once scoped to everything else (continue-on-error — a known, documented 9/125 baseline of
+# endpoints needing real business data, not a regression signal). Splitting by filter instead
+# of by file keeps the "one spec" property while preserving real blocking power for the
+# endpoints that matter most.
 #
 # The LLM-calling endpoints (e.g. /api/command) are exercised with the LLM provider
 # virtualized by a Specmatic stub of llm_contract.yaml — deterministic, offline, 0-token.
-# A 3rd job smoke-tests that virtualization directly, plus fault-injects empty/malformed
+# A 2nd job smoke-tests that virtualization directly, plus fault-injects empty/malformed
 # provider responses to prove the app fails clean instead of executing the failure text.
 
 on:
@@ -27,10 +30,8 @@ on:
       - "app.py"
       - "core/**"
       - "api_contract.yaml"
-      - "contract_public.yaml"
       - "llm_contract.yaml"
       - "specmatic.yaml"
-      - "examples/**"
       - "examples_api/**"
       - "scripts/llm_mock_test.py"
       - "scripts/llm_fault_injection_test.py"
@@ -42,61 +43,12 @@ on:
       - "app.py"
       - "core/**"
       - "api_contract.yaml"
-      - "contract_public.yaml"
       - "llm_contract.yaml"
       - "specmatic.yaml"
-      - "examples/**"
       - "examples_api/**"
   workflow_dispatch:
 
 jobs:
-  # ---- public contract — single file, single filter, must be 100% ----
-  contract-public-test:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-
-      - name: Start LLM stub (Specmatic virtualizes the LLM provider)
-        run: |
-          docker run -d --rm --network host -v "${{ github.workspace }}:/specs" -w /specs \
-            specmatic/specmatic:2.48.0 stub llm_contract.yaml --port 9090
-          for i in $(seq 1 30); do curl -s -o /dev/null http://localhost:9090/ && break; sleep 2; done
-
-      - name: Start Meridian Data API (LLM -> stub, gated test-auth on)
-        env:
-          API_BEARER_TOKEN: "specmatic-ci-token"
-          ENABLE_ACTUATOR: "1"
-          GROQ_API_URL: http://localhost:9090/openai/v1/chat/completions
-          GROQ_API_KEY: ci-stub-key
-        run: |
-          python -m flask --app app run --port 5001 &
-          for i in $(seq 1 30); do curl -s -o /dev/null http://localhost:5001/api/auth/session && break; sleep 2; done
-
-      - name: Test — contract_public.yaml (conformance + resiliency, LLM mocked)
-        run: |
-          docker run --rm --network host \
-            -v "${{ github.workspace }}:/specs" -w /specs \
-            specmatic/specmatic:2.48.0 test contract_public.yaml --examples examples \
-            --host localhost --port 5001
-
-      - name: Upload Specmatic HTML report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: report-contract_public.yaml
-          path: build/reports/specmatic/test/html
-
   # ---- api contract — one file, two filtered passes: core (blocking) + auto-generated (not) ----
   api-contract-test:
     runs-on: ubuntu-latest
