@@ -55,6 +55,15 @@ the bundled local Ollama.
 **For Specmatic testing** (instead of the plain `python app.py` above — needs the LLM stub from
 [Run the Specmatic tests](#2--run-the-specmatic-tests) already running first):
 ```bash
+python scripts/run_for_specmatic_testing.py
+```
+Sets `API_BEARER_TOKEN`, `ENABLE_ACTUATOR`, and the LLM-stub env vars in Python
+before starting the app, so it works identically on every OS/shell — no
+env-var syntax to get wrong. (The equivalent one-liner below only works on
+bash/zsh — `VAR=value command` is shell syntax that Windows cmd.exe/PowerShell
+silently ignore, leaving actuator disabled and every bearer-gated endpoint
+401ing. Use the script above unless you know your shell supports this form:)
+```bash
 API_BEARER_TOKEN=specmatic-ci-token ENABLE_ACTUATOR=1 GROQ_API_URL=http://localhost:9090/openai/v1/chat/completions GROQ_API_KEY=ci-stub-key python -m flask --app app run --port 5001
 ```
 
