@@ -1,1 +1,1 @@
-{"http-request": {"method": "POST", "path": "/api/dashboards/auto-generate", "headers": {"Authorization": "Bearer specmatic-ci-token"}, "body": {}}, "http-response": {"status": 200}}
+{"http-request": {"method": "POST", "path": "/api/dashboards/auto-generate", "headers": {"Authorization": "Bearer specmatic-ci-token"}, "body": {"prompt": "show me sales trends"}}, "http-response": {"status": 200}}

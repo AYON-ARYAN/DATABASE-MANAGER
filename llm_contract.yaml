@@ -26,6 +26,11 @@ paths:
               properties:
                 model: { type: string }
                 temperature: { type: number }
+                response_format:
+                  type: object
+                  description: "OpenAI-compatible structured-output hint (e.g. {\"type\": \"json_object\"}) — sent by app.py's dashboard auto-generate call for reliable JSON output."
+                  properties:
+                    type: { type: string }
                 messages:
                   type: array
                   items:

@@ -414,7 +414,7 @@ paths:
         "200":
           description: Success (shape varies by endpoint — see the hand-authored endpoints above for precise contracts)
           content:
-            application/json:
+            application/vnd.openxmlformats-officedocument.presentationml.presentation:
               schema: {}
         "401":
           description: Unauthorized (no or invalid credentials)
@@ -740,6 +740,9 @@ paths:
           application/json:
             schema:
               type: object
+              required: [prompt]
+              properties:
+                prompt: { type: string }
       responses:
         "200":
           description: Success (shape varies by endpoint — see the hand-authored endpoints above for precise contracts)
@@ -796,11 +799,15 @@ paths:
           required: true
           schema: { type: string }
       responses:
-        "200":
-          description: Success (shape varies by endpoint — see the hand-authored endpoints above for precise contracts)
+        "404":
+          description: Not found (a placeholder ID that doesn't exist correctly 404s)
           content:
             application/json:
-              schema: {}
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
         "401":
           description: Unauthorized (no or invalid credentials)
           content:
@@ -959,6 +966,9 @@ paths:
           application/json:
             schema:
               type: object
+              required: [command]
+              properties:
+                command: { type: string }
       responses:
         "200":
           description: Success (shape varies by endpoint — see the hand-authored endpoints above for precise contracts)
@@ -985,6 +995,13 @@ paths:
           application/json:
             schema:
               type: object
+              required: [base_table]
+              properties:
+                base_table: { type: string }
+                joins:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/JoinSpecJoin'
       responses:
         "200":
           description: Success (shape varies by endpoint — see the hand-authored endpoints above for precise contracts)
@@ -1011,6 +1028,13 @@ paths:
           application/json:
             schema:
               type: object
+              required: [base_table]
+              properties:
+                base_table: { type: string }
+                joins:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/JoinSpecJoin'
       responses:
         "200":
           description: Success (shape varies by endpoint — see the hand-authored endpoints above for precise contracts)
@@ -1057,6 +1081,10 @@ paths:
           application/json:
             schema:
               type: object
+              required: [left_table, right_table]
+              properties:
+                left_table: { type: string }
+                right_table: { type: string }
       responses:
         "200":
           description: Success (shape varies by endpoint — see the hand-authored endpoints above for precise contracts)
@@ -1109,6 +1137,9 @@ paths:
           application/json:
             schema:
               type: object
+              required: [query]
+              properties:
+                query: { type: string }
       responses:
         "200":
           description: Success (shape varies by endpoint — see the hand-authored endpoints above for precise contracts)
@@ -1135,6 +1166,10 @@ paths:
           application/json:
             schema:
               type: object
+              required: [query]
+              properties:
+                query: { type: string }
+                db_name: { type: string }
       responses:
         "200":
           description: Success (shape varies by endpoint — see the hand-authored endpoints above for precise contracts)
@@ -1378,6 +1413,28 @@ components:
       type: http
       scheme: bearer
   schemas:
+    JoinSpecJoin:
+      type: object
+      required: [table, on]
+      properties:
+        table: { type: string }
+        type: { type: string }
+        alias: { type: string }
+        on:
+          type: array
+          minItems: 1
+          items:
+            type: object
+            required: [left_table, left_column, right_table, right_column]
+            properties:
+              left_table: { type: string }
+              left_column: { type: string }
+              right_table: { type: string }
+              right_column: { type: string }
+              op: { type: string }
+        columns:
+          type: array
+          items: {}
     LoginOk:
       type: object
       required: [success, username, role]

@@ -1,1 +1,1 @@
-{"http-request": {"method": "POST", "path": "/api/query", "headers": {"Authorization": "Bearer specmatic-ci-token"}, "body": {}}, "http-response": {"status": 200}}
+{"http-request": {"method": "POST", "path": "/api/query", "headers": {"Authorization": "Bearer specmatic-ci-token"}, "body": {"query": "SELECT * FROM Album LIMIT 5", "db_name": "Default SQLite"}}, "http-response": {"status": 200}}

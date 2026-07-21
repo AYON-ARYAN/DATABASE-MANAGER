@@ -52,6 +52,69 @@ HAND_AUTHORED_OPERATIONS = {
     ("/api/undo", "POST"),
 }
 
+# A handful of the auto-generated operations don't fit the generic "generic body
+# in, 200 JSON out" template — found by actually running the generic examples
+# against the live app and reading what came back, not guessed up front:
+# - answer-ppt returns a binary .pptx file, not JSON — declaring an
+#   application/json 200 response caused a content-type mismatch even though
+#   the endpoint was genuinely returning 200.
+# - GET .../{dash_id} on a placeholder ID that doesn't exist correctly 404s —
+#   the generic "expect 200" template was asserting the WRONG status for what
+#   this endpoint actually and correctly does.
+RESPONSE_CONTENT_TYPE_OVERRIDES = {
+    ("/api/command-center/answer-ppt", "POST"): (
+        "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+    ),
+}
+NOT_FOUND_FOR_PLACEHOLDER_ID = {
+    ("/api/dashboards/{dash_id}", "GET"),
+}
+
+# A fully generic `type: object` request schema (no declared required fields) is
+# technically satisfied by `{}` too — so Specmatic's schema-resiliency engine
+# generates its OWN empty-body positive test for these operations independent of
+# the hand-picked example, and that empty body 400s for real (these 7 handlers
+# genuinely need a specific field to do anything). Declaring each field the real
+# example actually sends (with the one truly-required one marked as such) stops
+# Specmatic from treating `{}` as a valid instance, and stops it rejecting the
+# example's own extra fields as "unknown property" (properties not listed here
+# are implicitly disallowed once ANY properties are declared).
+REQUEST_SCHEMA_OVERRIDES = {
+    ("/api/query", "POST"): {
+        "required": ["query"],
+        "properties": {"query": "string", "db_name": "string"},
+    },
+    ("/api/overview/query", "POST"): {
+        "required": ["query"],
+        "properties": {"query": "string"},
+    },
+    ("/api/join/suggest", "POST"): {
+        # Both are required (core/join_center.py's api_join_suggest 400s if either
+        # is missing) — leaving right_table optional let schema-resiliency generate
+        # a "mandatory keys only" test that dropped it and got a real 400.
+        "required": ["left_table", "right_table"],
+        "properties": {"left_table": "string", "right_table": "string"},
+    },
+    ("/api/join/preview", "POST"): {
+        # joins is genuinely optional — core/join_center.py's build_join_sql does
+        # `spec.get("joins") or []`, a single-table query with no joins is valid.
+        "required": ["base_table"],
+        "properties": {"base_table": "string", "joins": "join_array"},
+    },
+    ("/api/join/execute", "POST"): {
+        "required": ["base_table"],
+        "properties": {"base_table": "string", "joins": "join_array"},
+    },
+    ("/api/intelligence/explain", "POST"): {
+        "required": ["command"],
+        "properties": {"command": "string"},
+    },
+    ("/api/dashboards/auto-generate", "POST"): {
+        "required": ["prompt"],
+        "properties": {"prompt": "string"},
+    },
+}
+
 START_MARKER = "  # === AUTO-GENERATED (scripts/generate_full_contract.py) — regenerate, do not hand-edit below ===\n"
 END_MARKER = "  # === END AUTO-GENERATED ===\n"
 
@@ -113,13 +176,47 @@ def emit_operation(method, path):
         lines.append("        content:")
         lines.append("          application/json:")
         lines.append("            schema:")
-        lines.append("              type: object")
+        schema_override = REQUEST_SCHEMA_OVERRIDES.get((path, method))
+        if schema_override:
+            lines.append("              type: object")
+            lines.append(f"              required: [{', '.join(schema_override['required'])}]")
+            lines.append("              properties:")
+            for prop_name, prop_type in schema_override["properties"].items():
+                if prop_type == "join_array":
+                    # Real nested shape from core/join_center.py's build_join_sql, defined
+                    # once as components/schemas/JoinSpecJoin (hand-authored, not touched by
+                    # this script's regeneration) and referenced by $ref here — inline, a
+                    # fully-permissive items schema let Specmatic's own schema-resiliency
+                    # mutator drop the nested `on` field despite it being `required`, which
+                    # 400s for real; $ref keeps the item schema as one deep-fidelity unit.
+                    lines.append(f"                {prop_name}:")
+                    lines.append("                  type: array")
+                    lines.append("                  items:")
+                    lines.append("                    $ref: '#/components/schemas/JoinSpecJoin'")
+                elif prop_type == "array":
+                    lines.append(f"                {prop_name}: {{ type: array, items: {{}} }}")
+                else:
+                    lines.append(f"                {prop_name}: {{ type: {prop_type} }}")
+        else:
+            lines.append("              type: object")
     lines.append("      responses:")
-    lines.append('        "200":')
-    lines.append("          description: Success (shape varies by endpoint — see the hand-authored endpoints above for precise contracts)")
-    lines.append("          content:")
-    lines.append("            application/json:")
-    lines.append("              schema: {}")
+    if (path, method) in NOT_FOUND_FOR_PLACEHOLDER_ID:
+        lines.append('        "404":')
+        lines.append("          description: Not found (a placeholder ID that doesn't exist correctly 404s)")
+        lines.append("          content:")
+        lines.append("            application/json:")
+        lines.append("              schema:")
+        lines.append("                type: object")
+        lines.append("                required: [error]")
+        lines.append("                properties:")
+        lines.append("                  error: { type: string }")
+    else:
+        content_type = RESPONSE_CONTENT_TYPE_OVERRIDES.get((path, method), "application/json")
+        lines.append('        "200":')
+        lines.append("          description: Success (shape varies by endpoint — see the hand-authored endpoints above for precise contracts)")
+        lines.append("          content:")
+        lines.append(f"            {content_type}:")
+        lines.append("              schema: {}")
     lines.append('        "401":')
     lines.append("          description: Unauthorized (no or invalid credentials)")
     lines.append("          content:")
@@ -157,6 +254,13 @@ def splice_partial_path(text, path, methods):
         if line.strip() and not line.startswith("    "):
             break
         end += len(line)
+    block_text = text[start:end]
+    # Idempotent: skip methods already present in this block (e.g. a prior run
+    # already spliced them in) so rerunning never produces a duplicate `post:`
+    # (or similar) key under the same path.
+    methods = [m for m in methods if f"    {m.lower()}:\n" not in block_text]
+    if not methods:
+        return text
     new_ops = "".join(emit_operation(m, path) + "\n" for m in sorted(methods))
     return text[:end] + new_ops + text[end:]
 
@@ -205,9 +309,20 @@ def write_examples(routes):
             if method in ("POST", "PUT", "DELETE", "PATCH"):
                 request["body"] = {}
 
-            ok_path = os.path.join(EXAMPLES_DIR, f"{slug}_200.json")
+            if (path, method) in NOT_FOUND_FOR_PLACEHOLDER_ID:
+                stale_ok_path = os.path.join(EXAMPLES_DIR, f"{slug}_200.json")
+                if os.path.exists(stale_ok_path):
+                    os.remove(stale_ok_path)
+                ok_path = os.path.join(EXAMPLES_DIR, f"{slug}_404.json")
+                ok_status, ok_body = 404, {"error": "Dashboard not found"}
+            else:
+                ok_path = os.path.join(EXAMPLES_DIR, f"{slug}_200.json")
+                ok_status, ok_body = 200, None
             if not os.path.exists(ok_path):
-                ok = {"http-request": request, "http-response": {"status": 200}}
+                ok_response = {"status": ok_status}
+                if ok_body is not None:
+                    ok_response["body"] = ok_body
+                ok = {"http-request": request, "http-response": ok_response}
                 with open(ok_path, "w") as f:
                     json.dump(ok, f)
                     f.write("\n")

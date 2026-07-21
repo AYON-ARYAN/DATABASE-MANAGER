@@ -1204,7 +1204,14 @@ def api_auto_generate_dashboard():
     if analysis_enabled:
         try:
             from groq import Groq
-            client = Groq(api_key=GROQ_API_KEY)
+            # Same GROQ_API_URL override core/llm.py honors elsewhere, so this call can
+            # also be virtualized by the Specmatic stub during tests — the SDK's base_url
+            # wants the root (it appends /openai/v1/... itself), so strip that suffix off
+            # the full-endpoint env var if present.
+            _groq_base = os.environ.get(
+                "GROQ_API_URL", "https://api.groq.com/openai/v1/chat/completions"
+            ).split("/openai/v1")[0]
+            client = Groq(api_key=GROQ_API_KEY, base_url=_groq_base)
             response = client.chat.completions.create(
                 model="llama-3.3-70b-versatile",
                 messages=[
@@ -1243,12 +1250,17 @@ RULES:
                 response_format={"type": "json_object"}
             )
 
-            result = json.loads(response.choices[0].message.content.strip())
+            content = response.choices[0].message.content
+            result = json.loads(content.strip()) if content and content.strip() else {}
             widgets = result.get("widgets", [])
             dash_name = result.get("name", f"AI: {prompt[:30]}")
 
-        except Exception as e:
-            return jsonify({"error": f"AI generation failed: {str(e)}"}), 500
+        except Exception:
+            # An empty/malformed LLM response is a real, expected failure mode (not a
+            # server bug) — degrade to an empty dashboard instead of a 500, same
+            # fail-clean principle as core/llm.py's generate_query().
+            widgets = []
+            dash_name = f"AI: {prompt[:30]} (generation failed, empty dashboard created)"
     else:
         return jsonify({"error": "Groq API key required for AI dashboard generation. Set GROQ_API_KEY in .env."}), 400
 

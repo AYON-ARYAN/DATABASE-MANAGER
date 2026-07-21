@@ -1,1 +1,1 @@
-{"http-request": {"method": "POST", "path": "/api/join/preview", "headers": {"Authorization": "Bearer specmatic-ci-token"}, "body": {}}, "http-response": {"status": 200}}
+{"http-request": {"method": "POST", "path": "/api/join/preview", "headers": {"Authorization": "Bearer specmatic-ci-token"}, "body": {"base_table": "Album", "joins": [{"table": "Artist", "type": "INNER", "on": [{"left_table": "Album", "left_column": "ArtistId", "right_table": "Artist", "right_column": "ArtistId"}]}]}}, "http-response": {"status": 200}}

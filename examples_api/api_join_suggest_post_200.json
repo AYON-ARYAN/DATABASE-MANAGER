@@ -1,1 +1,1 @@
-{"http-request": {"method": "POST", "path": "/api/join/suggest", "headers": {"Authorization": "Bearer specmatic-ci-token"}, "body": {}}, "http-response": {"status": 200}}
+{"http-request": {"method": "POST", "path": "/api/join/suggest", "headers": {"Authorization": "Bearer specmatic-ci-token"}, "body": {"left_table": "Album", "right_table": "Artist"}}, "http-response": {"status": 200}}

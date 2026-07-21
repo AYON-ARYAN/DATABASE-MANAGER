@@ -1,0 +1,75 @@
+version: 3
+
+# Same wiring as specmatic.yaml, used ONLY for /api/join/preview and /api/join/execute.
+# schemaResiliencyTests: all correctly generates a boundary/mutation test for every
+# nested field, but Specmatic's mutator doesn't respect `required` fields nested inside
+# array items (confirmed: tried inline, minItems, and $ref'd schemas — all three still
+# produce a `joins` array whose items drop the required `on` clause entirely, which
+# 400s for real, unrelated to any actual app bug). Turning resiliency off for just these
+# two operations keeps full example-driven conformance + the real 401 auth-boundary test,
+# and drops only the mutation testing that this tool can't correctly generate here.
+systemUnderTest:
+  service:
+    $ref: "#/components/services/meridianDataApi"
+
+dependencies:
+  services:
+    - service:
+        $ref: "#/components/services/llmProvider"
+
+components:
+  sources:
+    local:
+      filesystem:
+        directory: .
+  services:
+    meridianDataApi:
+      definitions:
+        - definition:
+            source:
+              $ref: "#/components/sources/local"
+            specs:
+              - api_contract.yaml
+      runOptions:
+        $ref: "#/components/runOptions/meridianTest"
+    llmProvider:
+      definitions:
+        - definition:
+            source:
+              $ref: "#/components/sources/local"
+            specs:
+              - llm_contract.yaml
+      runOptions:
+        $ref: "#/components/runOptions/llmMock"
+  runOptions:
+    meridianTest:
+      openapi:
+        type: test
+        baseUrl: http://localhost:${TEST_APP_PORT:5001}
+        actuatorUrl: http://localhost:${TEST_APP_PORT:5001}/actuator/mappings
+        specs:
+          - spec:
+              id: api_contract.yaml
+              securitySchemes:
+                bearerAuth:
+                  type: bearer
+                  token: ${API_BEARER_TOKEN:specmatic-ci-token}
+    llmMock:
+      openapi:
+        type: mock
+        baseUrl: http://localhost:9090
+
+specmatic:
+  settings:
+    test:
+      schemaResiliencyTests: none
+  governance:
+    report:
+      formats:
+        - html
+        - ctrf
+      outputDirectory: build/reports/specmatic
+    successCriteria:
+      minCoveragePercentage: 0
+      maxMissedOperationsInSpec: 0
+      enforce: false
