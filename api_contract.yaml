@@ -1415,7 +1415,7 @@ components:
   schemas:
     JoinSpecJoin:
       type: object
-      required: [table, on]
+      required: [table, "on"]
       properties:
         table: { type: string }
         type: { type: string }
