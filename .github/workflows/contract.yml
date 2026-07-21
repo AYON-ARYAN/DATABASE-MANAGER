@@ -73,6 +73,9 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Seed the default SQLite DB (db/*.db is gitignored — a fresh checkout has none)
+        run: python scripts/seed_contract_test_db.py
+
       - name: Start LLM stub (Specmatic virtualizes the LLM provider)
         run: |
           docker run -d --rm --network host -v "${{ github.workspace }}:/specs" -w /specs \

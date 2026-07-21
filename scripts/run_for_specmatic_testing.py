@@ -10,7 +10,10 @@ endpoint (e.g. /api/execute, /api/undo) 401s instead of returning its real
 status — found by reproducing exactly this locally after Saachi reported it.
 
 This script sets the same env vars in Python instead, so it behaves
-identically on every OS/shell.
+identically on every OS/shell. It also seeds db/main.db ("Default SQLite")
+with the minimal Album/Artist tables some contract examples need — db/*.db
+is gitignored, so a fresh clone has none of it (unmodified/idempotent if
+you've already installed a sample database with the same table names).
 
 Run:
     python scripts/run_for_specmatic_testing.py
@@ -19,6 +22,7 @@ Override any default by setting the real env var before running this script
 (os.environ.setdefault below only fills in what isn't already set).
 """
 import os
+import subprocess
 import sys
 
 os.environ.setdefault("API_BEARER_TOKEN", "specmatic-ci-token")
@@ -26,7 +30,10 @@ os.environ.setdefault("ENABLE_ACTUATOR", "1")
 os.environ.setdefault("GROQ_API_URL", "http://localhost:9090/openai/v1/chat/completions")
 os.environ.setdefault("GROQ_API_KEY", "ci-stub-key")
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+subprocess.run([sys.executable, os.path.join(REPO_ROOT, "scripts", "seed_contract_test_db.py")], check=True)
+
+sys.path.insert(0, REPO_ROOT)
 from app import app  # noqa: E402  (import after env vars are set, matches app.py's own style)
 
 if __name__ == "__main__":
