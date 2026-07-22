@@ -185,12 +185,16 @@ def emit_operation(method, path):
                 if prop_type == "join_array":
                     # Real nested shape from core/join_center.py's build_join_sql, defined
                     # once as components/schemas/JoinSpecJoin (hand-authored, not touched by
-                    # this script's regeneration) and referenced by $ref here — inline, a
-                    # fully-permissive items schema let Specmatic's own schema-resiliency
-                    # mutator drop the nested `on` field despite it being `required`, which
-                    # 400s for real; $ref keeps the item schema as one deep-fidelity unit.
+                    # this script's regeneration) and referenced by $ref here. The example
+                    # for this operation must reference two genuinely distinct, non-colliding
+                    # tables (Track -> Album -> Artist, not two joins to the same table) —
+                    # array-boundary resiliency testing exercises 2+ items, and with only one
+                    # distinct table in the example it duplicates it, producing an unaliased
+                    # self-join that 400s for real ("Duplicate alias") — a correct app
+                    # rejection, not a bug, but the wrong one to hand the mutator.
                     lines.append(f"                {prop_name}:")
                     lines.append("                  type: array")
+                    lines.append("                  uniqueItems: true")
                     lines.append("                  items:")
                     lines.append("                    $ref: '#/components/schemas/JoinSpecJoin'")
                 elif prop_type == "array":

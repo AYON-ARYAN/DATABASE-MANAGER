@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
-"""Seeds db/main.db ("Default SQLite") with the minimal Album/Artist tables
-examples_api's /api/query, /api/overview/query, and /api/join/* examples
-need to get a real 200 instead of a 500 (table doesn't exist).
+"""Seeds db/main.db ("Default SQLite") with the minimal Artist/Album/Track
+tables examples_api's /api/query, /api/overview/query, and /api/join/*
+examples need to get a real 200 instead of a 500 (table doesn't exist). Track
+exists so a multi-join example (Track -> Album -> Artist) has two genuinely
+distinct, non-colliding tables to reference.
 
 db/*.db is gitignored (real user data, not fixtures) — a fresh checkout (like
 CI's) has none of it, unlike a local dev environment that's already installed
@@ -35,11 +37,20 @@ try:
             ArtistId INTEGER NOT NULL REFERENCES Artist(ArtistId)
         )
     """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS Track (
+            TrackId INTEGER PRIMARY KEY,
+            Name TEXT NOT NULL,
+            AlbumId INTEGER REFERENCES Album(AlbumId)
+        )
+    """)
     conn.execute("INSERT OR IGNORE INTO Artist (ArtistId, Name) VALUES (1, 'Metallica'), (2, 'Accept')")
     conn.execute("INSERT OR IGNORE INTO Album (AlbumId, Title, ArtistId) VALUES "
                  "(1, 'For Those About To Rock We Salute You', 1), (2, 'Balls to the Wall', 2)")
+    conn.execute("INSERT OR IGNORE INTO Track (TrackId, Name, AlbumId) VALUES "
+                 "(1, 'For Those About To Rock (We Salute You)', 1), (2, 'Balls to the Wall', 2)")
     conn.commit()
 finally:
     conn.close()
 
-print(f"Seeded {DB_PATH} with Artist/Album tables (2 rows each).")
+print(f"Seeded {DB_PATH} with Artist/Album/Track tables (2 rows each).")

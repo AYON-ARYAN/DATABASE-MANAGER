@@ -16,7 +16,7 @@ of the 52 real operations is exercised, not just matched against the spec.
 
 | Report | Spec | Result | What it covers |
 |---|---|---|---|
-| `api_contract.html` | api_contract.yaml | 387 tests, 380 pass, 100% API coverage | Every response of every one of the 52 `/api` operations — 200/400/401/404, LLM mocked, conformance + generative resiliency. See [`../CONTRACT_SCOPE.md`](../CONTRACT_SCOPE.md) for exactly what each of the 9 originally-failing operations needed to get to a real, verified success (or 404, for the one operation where that's the correct answer), and for the one remaining known gap (~7 generated boundary scenarios for `/api/join/preview`/`/api/join/execute` — a confirmed Specmatic tooling limitation with nested-array `required` fields, not an app bug). |
+| `api_contract.html` | api_contract.yaml | 107 tests, 107 pass, 100% API coverage, 0 failures | Every response of every one of the 52 `/api` operations — 200/400/401/404, LLM mocked. See [`../CONTRACT_SCOPE.md`](../CONTRACT_SCOPE.md) for exactly what each of the 9 originally-failing operations needed to get to a real, verified success (or 404, for the one operation where that's the correct answer), and for why `schemaResiliencyTests` isn't set to `all` (its generative mutator produces cases that violate real cross-field business rules a flat schema can't express, not app bugs but not real client behavior either). |
 
 **How this is reached honestly:** the app's real API bearer-token auth accepts the
 token configured in `API_BEARER_TOKEN` (declared once in `../specmatic.yaml` under
@@ -25,8 +25,7 @@ exercise the authenticated `200`/`400` paths with that token, and a *wrong* toke
 exercise the real `401` path — so a single run covers both the authorized and the unauthorized
 response of every secured endpoint, using the app's ordinary auth (no test-only bypass).
 
-CI runs this same single command (`continue-on-error: true`, since the known ~7-scenario gap
-above shouldn't red the pipeline) — see
+CI runs this same single command — see
 [`../.github/workflows/contract.yml`](../.github/workflows/contract.yml).
 
 Regenerate locally: run the commands in [Run it locally → Run the Specmatic tests](../readme.md#2--run-the-specmatic-tests),

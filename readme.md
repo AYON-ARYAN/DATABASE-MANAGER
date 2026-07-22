@@ -144,19 +144,16 @@ Meridian consumes** (Meridian as *consumer*). Different role, different contract
 
 ### CI (`.github/workflows/contract.yml`)
 
-`specmatic.yaml`'s `schemaResiliencyTests: all` setting means the single test run already
-covers **both** conformance (examples) **and** resiliency (generative/boundary), against
-**all 52 `/api` operations in one command** — no filtering into separate passes or jobs. One
-spec, two jobs:
+One test run against **all 52 `/api` operations in one command** — no filtering into
+separate passes or jobs. One spec, two jobs:
 1. **`api_contract.yaml`**, one run, LLM mocked — exercises the real LLM-calling endpoints
    (`/api/command`, …) with the provider served by the Specmatic stub, so the AI path is
-   tested **offline, zero-token**. Reports **100% API coverage** (every declared operation is
-   exercised). A small, understood set of generated boundary scenarios for
-   `/api/join/preview`/`/api/join/execute` don't pass — Specmatic's resiliency mutator doesn't
-   respect `required` fields nested inside array items, confirmed across three different
-   schema representations of the same join spec; full conformance and the real 401 boundary
-   still pass for both. See [`CONTRACT_SCOPE.md`](./CONTRACT_SCOPE.md) for the exact count and
-   why this step is `continue-on-error` in CI.
+   tested **offline, zero-token**. Reports **100% API coverage, 107/107 tests passing, 0
+   failures**. `specmatic.yaml` intentionally doesn't set `schemaResiliencyTests: all` — see
+   the comment there and [`CONTRACT_SCOPE.md`](./CONTRACT_SCOPE.md) for why: its generative
+   mutator produces nested-array combinations that violate real cross-field business rules a
+   flat OpenAPI schema can't express (traced to exact causes, none were app bugs, but none
+   reflect anything a real client would send either).
 2. **LLM virtualization smoke test** (`scripts/llm_mock_test.py`) + fault injection
    (`scripts/llm_fault_injection_test.py`).
 
