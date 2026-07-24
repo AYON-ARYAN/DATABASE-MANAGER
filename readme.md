@@ -90,6 +90,18 @@ TEST_APP_PORT=5001 java -jar ${SPECMATIC_JAR:-specmatic.jar} test api_contract.y
 
 `api_contract.yaml` covers every real `/api` operation the app exposes — zero "missing in spec" — with the 6 core endpoints at full request/response fidelity and the rest asserting the auth boundary (see [`CONTRACT_SCOPE.md`](./CONTRACT_SCOPE.md) for exactly what each layer does and doesn't assert). This command runs in CI on every push — see [`.github/workflows/contract.yml`](.github/workflows/contract.yml). HTML reports land in `build/reports/specmatic/test/html/`; committed snapshots are in [`reports/`](reports/).
 
+**Or run the entire Specmatic test loop in Docker Compose (no local Java/Python setup needed):**
+
+1. Bring up the app configured for testing (connected to the Specmatic LLM mock on port 9090, with actuator enabled on port 5001):
+```bash
+docker compose up -d backend-test llm-stub
+```
+
+2. Run the contract tests:
+```bash
+docker compose run contract-tests
+```
+
 <details>
 <summary>More context (ports, Docker, auth, scope) — not required to run the tests above</summary>
 

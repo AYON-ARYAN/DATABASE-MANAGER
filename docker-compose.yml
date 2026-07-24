@@ -64,6 +64,57 @@ services:
       - meridian-net
     restart: "no"
 
+  llm-stub:
+    image: specmatic/specmatic:2.48.0
+    container_name: meridian-llm-stub
+    restart: unless-stopped
+    volumes:
+      - .:/app
+    working_dir: /app
+    command: stub llm_contract.yaml --host 0.0.0.0 --port 9090
+    ports:
+      - "9090:9090"
+    networks:
+      - meridian-net
+
+  backend-test:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: meridian-backend-test
+    restart: unless-stopped
+    environment:
+      - GROQ_API_KEY=specmatic-ci-token
+      - GROQ_API_URL=http://llm-stub:9090/openai/v1/chat/completions
+      - ENABLE_ACTUATOR=1
+      - TEST_APP_PORT=5001
+      - FLASK_ENV=production
+      - PYTHONUNBUFFERED=1
+    depends_on:
+      - llm-stub
+    volumes:
+      - meridian-db:/app/db
+    ports:
+      - "5001:5001"
+    networks:
+      - meridian-net
+
+  contract-tests:
+    image: specmatic/specmatic:2.48.0
+    container_name: meridian-contract-tests
+    depends_on:
+      backend-test:
+        condition: service_started
+    volumes:
+      - .:/app
+    working_dir: /app
+    environment:
+      - TEST_APP_PORT=5001
+      - API_BEARER_TOKEN=specmatic-ci-token
+    command: test api_contract.yaml --examples examples_api --host backend-test --port 5001
+    networks:
+      - meridian-net
+
 networks:
   meridian-net:
     driver: bridge
