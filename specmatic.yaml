@@ -72,6 +72,9 @@ components:
 # client would ever send. Conformance testing against the hand-authored examples in
 # examples_api/ is the right bar: 100% API coverage, 107/107 tests passing.
 specmatic:
+  settings:
+    test:
+      schemaResiliencyTests: all
   governance:
     report:
       formats:

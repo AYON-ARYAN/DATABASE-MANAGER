@@ -114,6 +114,15 @@ paths:
           content:
             application/json:
               schema: {}
+        "400":
+          description: Bad Request (validation error)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
         "401":
           description: Unauthorized (no or invalid credentials)
           content:
@@ -235,6 +244,15 @@ paths:
           content:
             application/json:
               schema: {}
+        "400":
+          description: Bad Request (validation error)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
         "401":
           description: Unauthorized (no or invalid credentials)
           content:
@@ -261,6 +279,15 @@ paths:
           content:
             application/json:
               schema: {}
+        "400":
+          description: Bad Request (validation error)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
         "401":
           description: Unauthorized (no or invalid credentials)
           content:
@@ -287,6 +314,15 @@ paths:
           content:
             application/json:
               schema: {}
+        "400":
+          description: Bad Request (validation error)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
         "401":
           description: Unauthorized (no or invalid credentials)
           content:
@@ -312,6 +348,15 @@ paths:
           content:
             application/json:
               schema: {}
+        "400":
+          description: Bad Request (validation error)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
         "401":
           description: Unauthorized (no or invalid credentials)
           content:
@@ -338,6 +383,15 @@ paths:
           content:
             application/json:
               schema: {}
+        "400":
+          description: Bad Request (validation error)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
         "401":
           description: Unauthorized (no or invalid credentials)
           content:
@@ -364,6 +418,15 @@ paths:
           content:
             application/json:
               schema: {}
+        "400":
+          description: Bad Request (validation error)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
         "401":
           description: Unauthorized (no or invalid credentials)
           content:
@@ -390,6 +453,15 @@ paths:
           content:
             application/json:
               schema: {}
+        "400":
+          description: Bad Request (validation error)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
         "401":
           description: Unauthorized (no or invalid credentials)
           content:
@@ -442,6 +514,15 @@ paths:
           content:
             application/json:
               schema: {}
+        "400":
+          description: Bad Request (validation error)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
         "401":
           description: Unauthorized (no or invalid credentials)
           content:
@@ -468,6 +549,15 @@ paths:
           content:
             application/json:
               schema: {}
+        "400":
+          description: Bad Request (validation error)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
         "401":
           description: Unauthorized (no or invalid credentials)
           content:
@@ -494,6 +584,15 @@ paths:
           content:
             application/json:
               schema: {}
+        "400":
+          description: Bad Request (validation error)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
         "401":
           description: Unauthorized (no or invalid credentials)
           content:
@@ -520,6 +619,15 @@ paths:
           content:
             application/json:
               schema: {}
+        "400":
+          description: Bad Request (validation error)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
         "401":
           description: Unauthorized (no or invalid credentials)
           content:
@@ -546,6 +654,15 @@ paths:
           content:
             application/json:
               schema: {}
+        "400":
+          description: Bad Request (validation error)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
         "401":
           description: Unauthorized (no or invalid credentials)
           content:
@@ -572,6 +689,15 @@ paths:
           content:
             application/json:
               schema: {}
+        "400":
+          description: Bad Request (validation error)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
         "401":
           description: Unauthorized (no or invalid credentials)
           content:
@@ -592,6 +718,15 @@ paths:
           content:
             application/json:
               schema: {}
+        "400":
+          description: Bad Request (validation error)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
         "401":
           description: Unauthorized (no or invalid credentials)
           content:
@@ -618,6 +753,15 @@ paths:
           content:
             application/json:
               schema: {}
+        "400":
+          description: Bad Request (validation error)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
         "401":
           description: Unauthorized (no or invalid credentials)
           content:
@@ -649,6 +793,15 @@ paths:
           content:
             application/json:
               schema: {}
+        "400":
+          description: Bad Request (validation error)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
         "401":
           description: Unauthorized (no or invalid credentials)
           content:
@@ -675,6 +828,15 @@ paths:
           content:
             application/json:
               schema: {}
+        "400":
+          description: Bad Request (validation error)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
         "401":
           description: Unauthorized (no or invalid credentials)
           content:
@@ -695,6 +857,15 @@ paths:
           content:
             application/json:
               schema: {}
+        "400":
+          description: Bad Request (validation error)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
         "401":
           description: Unauthorized (no or invalid credentials)
           content:
@@ -720,6 +891,15 @@ paths:
           content:
             application/json:
               schema: {}
+        "400":
+          description: Bad Request (validation error)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
         "401":
           description: Unauthorized (no or invalid credentials)
           content:
@@ -749,6 +929,15 @@ paths:
           content:
             application/json:
               schema: {}
+        "400":
+          description: Bad Request (validation error)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
         "401":
           description: Unauthorized (no or invalid credentials)
           content:
@@ -780,6 +969,15 @@ paths:
           content:
             application/json:
               schema: {}
+        "400":
+          description: Bad Request (validation error)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
         "401":
           description: Unauthorized (no or invalid credentials)
           content:
@@ -839,6 +1037,15 @@ paths:
           content:
             application/json:
               schema: {}
+        "400":
+          description: Bad Request (validation error)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
         "401":
           description: Unauthorized (no or invalid credentials)
           content:
@@ -874,6 +1081,15 @@ paths:
           content:
             application/json:
               schema: {}
+        "400":
+          description: Bad Request (validation error)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
         "401":
           description: Unauthorized (no or invalid credentials)
           content:
@@ -894,6 +1110,15 @@ paths:
           content:
             application/json:
               schema: {}
+        "400":
+          description: Bad Request (validation error)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
         "401":
           description: Unauthorized (no or invalid credentials)
           content:
@@ -920,6 +1145,15 @@ paths:
           content:
             application/json:
               schema: {}
+        "400":
+          description: Bad Request (validation error)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
         "401":
           description: Unauthorized (no or invalid credentials)
           content:
@@ -946,6 +1180,15 @@ paths:
           content:
             application/json:
               schema: {}
+        "400":
+          description: Bad Request (validation error)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
         "401":
           description: Unauthorized (no or invalid credentials)
           content:
@@ -975,6 +1218,15 @@ paths:
           content:
             application/json:
               schema: {}
+        "400":
+          description: Bad Request (validation error)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
         "401":
           description: Unauthorized (no or invalid credentials)
           content:
@@ -997,9 +1249,10 @@ paths:
               type: object
               required: [base_table]
               properties:
-                base_table: { type: string }
+                base_table: { type: string, enum: ["Track"], example: "Track" }
                 joins:
                   type: array
+                  maxItems: 1
                   uniqueItems: true
                   items:
                     $ref: '#/components/schemas/JoinSpecJoin'
@@ -1009,6 +1262,15 @@ paths:
           content:
             application/json:
               schema: {}
+        "400":
+          description: Bad Request (validation error)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
         "401":
           description: Unauthorized (no or invalid credentials)
           content:
@@ -1031,9 +1293,10 @@ paths:
               type: object
               required: [base_table]
               properties:
-                base_table: { type: string }
+                base_table: { type: string, enum: ["Track"], example: "Track" }
                 joins:
                   type: array
+                  maxItems: 1
                   uniqueItems: true
                   items:
                     $ref: '#/components/schemas/JoinSpecJoin'
@@ -1043,6 +1306,15 @@ paths:
           content:
             application/json:
               schema: {}
+        "400":
+          description: Bad Request (validation error)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
         "401":
           description: Unauthorized (no or invalid credentials)
           content:
@@ -1063,6 +1335,15 @@ paths:
           content:
             application/json:
               schema: {}
+        "400":
+          description: Bad Request (validation error)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
         "401":
           description: Unauthorized (no or invalid credentials)
           content:
@@ -1093,6 +1374,15 @@ paths:
           content:
             application/json:
               schema: {}
+        "400":
+          description: Bad Request (validation error)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
         "401":
           description: Unauthorized (no or invalid credentials)
           content:
@@ -1119,6 +1409,15 @@ paths:
           content:
             application/json:
               schema: {}
+        "400":
+          description: Bad Request (validation error)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
         "401":
           description: Unauthorized (no or invalid credentials)
           content:
@@ -1148,6 +1447,15 @@ paths:
           content:
             application/json:
               schema: {}
+        "400":
+          description: Bad Request (validation error)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
         "401":
           description: Unauthorized (no or invalid credentials)
           content:
@@ -1178,6 +1486,15 @@ paths:
           content:
             application/json:
               schema: {}
+        "400":
+          description: Bad Request (validation error)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
         "401":
           description: Unauthorized (no or invalid credentials)
           content:
@@ -1198,6 +1515,15 @@ paths:
           content:
             application/json:
               schema: {}
+        "400":
+          description: Bad Request (validation error)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
         "401":
           description: Unauthorized (no or invalid credentials)
           content:
@@ -1224,6 +1550,15 @@ paths:
           content:
             application/json:
               schema: {}
+        "400":
+          description: Bad Request (validation error)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
         "401":
           description: Unauthorized (no or invalid credentials)
           content:
@@ -1250,6 +1585,15 @@ paths:
           content:
             application/json:
               schema: {}
+        "400":
+          description: Bad Request (validation error)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
         "401":
           description: Unauthorized (no or invalid credentials)
           content:
@@ -1270,6 +1614,15 @@ paths:
           content:
             application/json:
               schema: {}
+        "400":
+          description: Bad Request (validation error)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
         "401":
           description: Unauthorized (no or invalid credentials)
           content:
@@ -1295,6 +1648,15 @@ paths:
           content:
             application/json:
               schema: {}
+        "400":
+          description: Bad Request (validation error)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
         "401":
           description: Unauthorized (no or invalid credentials)
           content:
@@ -1321,6 +1683,15 @@ paths:
           content:
             application/json:
               schema: {}
+        "400":
+          description: Bad Request (validation error)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
         "401":
           description: Unauthorized (no or invalid credentials)
           content:
@@ -1352,6 +1723,15 @@ paths:
           content:
             application/json:
               schema: {}
+        "400":
+          description: Bad Request (validation error)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
         "401":
           description: Unauthorized (no or invalid credentials)
           content:
@@ -1378,6 +1758,15 @@ paths:
           content:
             application/json:
               schema: {}
+        "400":
+          description: Bad Request (validation error)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
         "401":
           description: Unauthorized (no or invalid credentials)
           content:
@@ -1398,6 +1787,15 @@ paths:
           content:
             application/json:
               schema: {}
+        "400":
+          description: Bad Request (validation error)
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [error]
+                properties:
+                  error: { type: string }
         "401":
           description: Unauthorized (no or invalid credentials)
           content:
@@ -1419,24 +1817,25 @@ components:
       type: object
       required: [table, "on"]
       properties:
-        table: { type: string }
+        table: { type: string, example: "Album" }
         # CROSS excluded: it requires an empty "on" (build_join_sql rejects a non-empty
         # one for CROSS), a different shape than the other 4 types, which all require a
         # non-empty "on" — a cross-field constraint this flat schema doesn't express, and
         # not what the one hand-authored example demonstrates.
-        type: { type: string, enum: ["INNER", "LEFT", "RIGHT", "FULL"] }
+        type: { type: string, enum: ["INNER", "LEFT", "RIGHT", "FULL"], example: "INNER" }
         on:
           type: array
           minItems: 1
+          maxItems: 1
           items:
             type: object
             required: [left_table, left_column, right_table, right_column]
             properties:
-              left_table: { type: string }
-              left_column: { type: string }
-              right_table: { type: string }
-              right_column: { type: string }
-              op: { type: string, enum: ["=", "!=", "<>", "<", "<=", ">", ">="] }
+              left_table: { type: string, example: "Track" }
+              left_column: { type: string, example: "AlbumId" }
+              right_table: { type: string, example: "Album" }
+              right_column: { type: string, example: "AlbumId" }
+              op: { type: string, enum: ["=", "!=", "<>", "<", "<=", ">", ">="], example: "=" }
     LoginOk:
       type: object
       required: [success, username, role]

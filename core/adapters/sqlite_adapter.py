@@ -14,6 +14,8 @@ def _resolve_db_path(path: str) -> str:
         return str(db_path("main.db"))
     if os.path.isabs(path):
         return path
+    if path.startswith("db/"):
+        path = path[3:]
     return str(db_path(path))
 
 
