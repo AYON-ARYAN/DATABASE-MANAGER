@@ -110,6 +110,7 @@ services:
       - .:/app
     working_dir: /app
     environment:
+      - TEST_APP_HOST=backend-test
       - TEST_APP_PORT=5001
       - API_BEARER_TOKEN=specmatic-ci-token
     command: test api_contract.yaml --examples examples_api --host backend-test --port 5001

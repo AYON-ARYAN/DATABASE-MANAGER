@@ -43,11 +43,11 @@ components:
         type: test
         # Port is env-driven (default 5001) so the runner can pick a free port and keep the
         # base URL and actuator URL in lock-step — no hard-coded port to clash.
-        baseUrl: http://localhost:${TEST_APP_PORT:5001}
+        baseUrl: http://${TEST_APP_HOST:localhost}:${TEST_APP_PORT:5001}
         # App exposes a Spring-Actuator-style mapping endpoint so Specmatic reads the real
         # routes and reports ACTUAL coverage. Point it straight at /actuator/mappings (the
         # /actuator root only returns _links, which Specmatic does not follow).
-        actuatorUrl: http://localhost:${TEST_APP_PORT:5001}/actuator/mappings
+        actuatorUrl: http://${TEST_APP_HOST:localhost}:${TEST_APP_PORT:5001}/actuator/mappings
         specs:
           - spec:
               id: api_contract.yaml
