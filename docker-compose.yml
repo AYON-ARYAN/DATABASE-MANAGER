@@ -89,6 +89,7 @@ services:
       - GROQ_API_URL=http://llm-stub:9090/openai/v1/chat/completions
       - ENABLE_ACTUATOR=1
       - TEST_APP_PORT=5001
+      - API_BEARER_TOKEN=specmatic-ci-token
       - FLASK_ENV=production
       - PYTHONUNBUFFERED=1
     depends_on:
