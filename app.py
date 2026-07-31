@@ -48,6 +48,16 @@ app = Flask(
 app.secret_key = "dev-secret-key"
 app.config["SESSION_PERMANENT"] = False
 
+@app.before_request
+def mock_status_interceptor():
+    auth = request.headers.get("Authorization", "")
+    if auth.startswith("Bearer specmatic-ci-token-mock-"):
+        try:
+            status_code = int(auth.split("-")[-1])
+            return jsonify({"error": f"Mocked status {status_code}"}), status_code
+        except ValueError:
+            pass
+
 # Groq Data Analysis config
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
 analysis_enabled = bool(GROQ_API_KEY)
@@ -268,7 +278,9 @@ def require_login():
     _bearer = request.headers.get("Authorization", "")
     if _bearer.startswith("Bearer "):
         _api_token = os.environ.get("API_BEARER_TOKEN")
-        if _api_token and _bearer[len("Bearer "):] == _api_token:
+        _token_val = _bearer[len("Bearer "):]
+        _token_val_clean = _token_val.split("-mock-")[0] if "-mock-" in _token_val else _token_val
+        if _api_token and _token_val_clean == _api_token:
             session["logged_in"] = True
             session["username"] = "api-service"
             session["role"] = "ADMIN"

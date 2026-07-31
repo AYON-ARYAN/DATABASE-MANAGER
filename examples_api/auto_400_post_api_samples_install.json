@@ -1,0 +1,17 @@
+{
+  "http-request": {
+    "method": "POST",
+    "path": "/api/samples/install",
+    "headers": {
+      "Authorization": "Bearer specmatic-ci-token-mock-400",
+      "Content-Type": "application/json"
+    },
+    "body": {}
+  },
+  "http-response": {
+    "status": 400,
+    "body": {
+      "error": "Mocked status 400"
+    }
+  }
+}
