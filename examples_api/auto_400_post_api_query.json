@@ -2,16 +2,8 @@
   "http-request": {
     "method": "POST",
     "path": "/api/query",
-    "headers": {
-      "Authorization": "Bearer specmatic-ci-token-mock-400",
-      "Content-Type": "application/json"
-    },
+    "headers": { "Authorization": "Bearer specmatic-ci-token", "Content-Type": "application/json" },
     "body": {}
   },
-  "http-response": {
-    "status": 400,
-    "body": {
-      "error": "Mocked status 400"
-    }
-  }
+  "http-response": { "status": 400, "body": { "error": "Query required" } }
 }
