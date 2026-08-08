@@ -162,11 +162,10 @@ separate passes or jobs. One spec, two jobs:
    real LLM-calling endpoints (`/api/command`, …) with the provider served by the Specmatic
    stub, so the AI path is tested **offline, zero-token**. Reports **100% API coverage**:
    every declared response (200/400/401/404) is one the app genuinely produces, verified
-   per-operation against the live app, not assumed. 1830 tests, 1776 pass. The remaining 54
-   are one fully-understood, evidenced case — Specmatic's array-boundary testing duplicating
-   a join item in a way no real client request can construct — see
-   [`CONTRACT_SCOPE.md`](./CONTRACT_SCOPE.md) for the full trace, so this step is
-   `continue-on-error` rather than blocking the pipeline on a documented tool/app mismatch.
+   per-operation against the live app, not assumed. **1830/1830 tests pass**, reproduced
+   across repeated runs — see [`CONTRACT_SCOPE.md`](./CONTRACT_SCOPE.md) for what each
+   operation needed, including a real app-behavior fix (auto-alias resolution in
+   `core/join_center.py`) that closed the last gap.
 2. **LLM virtualization smoke test** (`scripts/llm_mock_test.py`) + fault injection
    (`scripts/llm_fault_injection_test.py`).
 

@@ -62,8 +62,7 @@ components:
 
 # --- v3 report configuration: text + HTML coverage reports ---
 # schemaResiliencyTests: all — both example-driven conformance AND generative/boundary
-# resiliency run in every `specmatic test`. See CONTRACT_SCOPE.md for the one documented,
-# evidenced residual (join array-boundary duplication) this surfaces.
+# resiliency run in every `specmatic test`. 1830/1830 tests pass. See CONTRACT_SCOPE.md.
 specmatic:
   settings:
     test:

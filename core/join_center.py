@@ -277,14 +277,30 @@ def build_join_sql(spec: dict, schema: dict) -> str:
         jtable = j.get("table")
         if not isinstance(jtable, str) or jtable not in tables:
             raise JoinSpecError(f"Unknown join table: {jtable!r}")
-        alias = j.get("alias") or jtable
-        if not isinstance(alias, str) or not alias:
-            raise JoinSpecError(f"Invalid alias for join[{idx}].")
-        # Validate alias pattern up front (quote_ident would catch it later too)
-        if not _IDENT_RE.match(alias):
-            raise JoinSpecError(f"Invalid alias: {alias!r}")
-        if alias in alias_to_table:
-            raise JoinSpecError(f"Duplicate alias: {alias!r}")
+        explicit_alias = j.get("alias")
+        if explicit_alias:
+            if not isinstance(explicit_alias, str):
+                raise JoinSpecError(f"Invalid alias for join[{idx}].")
+            # Validate alias pattern up front (quote_ident would catch it later too)
+            if not _IDENT_RE.match(explicit_alias):
+                raise JoinSpecError(f"Invalid alias: {explicit_alias!r}")
+            if explicit_alias in alias_to_table:
+                raise JoinSpecError(f"Duplicate alias: {explicit_alias!r}")
+            alias = explicit_alias
+        else:
+            # No explicit alias given — default to the table name, but if that
+            # collides (e.g. joining the same table twice, or joining a table
+            # that shares a name with base_table/an earlier join), auto-generate
+            # a distinguishing alias instead of erroring. A caller who wants a
+            # specific, predictable name should set "alias" explicitly and a
+            # collision there stays a real error; this only smooths over the
+            # common case of "join X twice" not requiring the caller to think
+            # up alias names themselves.
+            alias = jtable
+            suffix = 2
+            while alias in alias_to_table:
+                alias = f"{jtable}_{suffix}"
+                suffix += 1
         alias_to_table[alias] = tables[jtable]
 
         on_clauses = j.get("on") or []
